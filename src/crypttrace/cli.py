@@ -96,6 +96,19 @@ def label(
         console.print(f"⚪ [dim]Unknown address[/dim] — no label, risk 0/100")
 
 
+@app.command(name="update-labels")
+def update_labels():
+    """Download the latest label lists (OFAC sanctions, etc.) into the local DB."""
+    console.print("Updating label database…")
+    for name, cnt, err in labels.update():
+        if err:
+            console.print(f"  [red]✗[/red] {name}: {err}")
+        else:
+            console.print(f"  [green]✓[/green] {name}: [bold]{cnt}[/bold] addresses")
+    console.print(f"[green]Done.[/green] {labels.count()} labelled addresses now loaded.")
+    console.print(f"[dim]Cache: {config.DATA_DIR / 'imported_labels.json'}[/dim]")
+
+
 @app.command()
 def chains():
     """List supported chains."""

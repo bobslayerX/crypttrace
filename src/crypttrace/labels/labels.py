@@ -1,28 +1,107 @@
 """Local label database + risk scoring.
 
 Labels are the single most valuable part of a forensics tool: they turn an
-anonymous hex string into "Binance hot wallet" or "Tornado Cash". This ships a
-small seed set; real deployments extend it from OFAC SDN, Chainabuse, etc.
-via `crypttrace update-labels` (stub below).
+anonymous hex string into "Binance hot wallet" or "Tornado Cash".
+
+Two layers are merged:
+  1. known.json  — the curated seed set shipped with the tool (rich names).
+  2. imported labels — downloaded by `crypttrace update-labels` from public
+     sources (OFAC sanctions, etc.), cached in the user's data dir.
+The seed set takes priority on conflicts, so its richer names win.
 """
 import json
 from pathlib import Path
-from typing import Optional, Dict
+from typing import Optional, Dict, List
+
+import requests
+
+from crypttrace import config
 
 _HERE = Path(__file__).parent
+_IMPORTED = config.DATA_DIR / "imported_labels.json"
 _KNOWN: Dict[str, dict] = {}
+
+
+# Public label sources. Each is fetched and merged on `update-labels`.
+# "lines" format = one address per line (comments/blank lines skipped).
+SOURCES: List[dict] = [
+    {
+        "name": "OFAC SDN — sanctioned ETH addresses",
+        "url": ("https://raw.githubusercontent.com/0xB10C/"
+                "ofac-sanctioned-digital-currency-addresses/lists/"
+                "sanctioned_addresses_ETH.txt"),
+        "format": "lines",
+        "label": "OFAC SDN (sanctioned)",
+        "type": "sanctioned",
+    },
+]
+
+
+def _valid(addr: str) -> bool:
+    return addr.startswith("0x") and len(addr) == 42
 
 
 def _load() -> None:
     global _KNOWN
     if _KNOWN:
         return
-    raw = json.loads((_HERE / "known.json").read_text())
-    # normalise keys to lowercase, drop malformed placeholders
-    _KNOWN = {
-        k.lower(): v for k, v in raw.items()
-        if k.startswith("0x") and len(k) == 42
-    }
+    merged: Dict[str, dict] = {}
+    # imported first (lower priority)...
+    if _IMPORTED.exists():
+        try:
+            raw = json.loads(_IMPORTED.read_text())
+            merged.update({k.lower(): v for k, v in raw.items() if _valid(k.lower())})
+        except (ValueError, OSError):
+            pass
+    # ...then curated seed overrides.
+    seed = json.loads((_HERE / "known.json").read_text())
+    merged.update({k.lower(): v for k, v in seed.items() if _valid(k.lower())})
+    _KNOWN = merged
+
+
+def update(timeout: int = 30) -> List[tuple]:
+    """Fetch every source and merge results into the imported-labels cache.
+
+    Returns a list of (source_name, count, error) tuples for reporting.
+    """
+    imported: Dict[str, dict] = {}
+    if _IMPORTED.exists():
+        try:
+            imported = json.loads(_IMPORTED.read_text())
+        except (ValueError, OSError):
+            imported = {}
+
+    results = []
+    for src in SOURCES:
+        try:
+            resp = requests.get(src["url"], timeout=timeout)
+            resp.raise_for_status()
+        except requests.RequestException as e:
+            results.append((src["name"], 0, str(e)))
+            continue
+
+        count = 0
+        if src["format"] == "lines":
+            for line in resp.text.splitlines():
+                addr = line.strip().lower()
+                if _valid(addr):
+                    imported[addr] = {"name": src["label"], "type": src["type"]}
+                    count += 1
+        results.append((src["name"], count, None))
+
+    _IMPORTED.parent.mkdir(parents=True, exist_ok=True)
+    _IMPORTED.write_text(json.dumps(imported, indent=2))
+
+    # invalidate cache so freshly imported labels take effect immediately
+    global _KNOWN
+    _KNOWN = {}
+    return results
+
+
+def count() -> int:
+    """Total number of labelled addresses currently loaded."""
+    _load()
+    return len(_KNOWN)
 
 
 # Risk weight per label type (0-100)

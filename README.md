@@ -33,9 +33,21 @@ crypttrace trace 0xADDRESS --chain eth --depth 4 --branching 3
 # Full investigation report saved to disk (Markdown + JSON)
 crypttrace report 0xADDRESS --chain eth --depth 3
 
+# Download the latest label lists (OFAC sanctions, etc.)
+crypttrace update-labels
+
 # Supported chains
 crypttrace chains
 ```
+
+### Labels
+
+The tool ships a small curated seed set (major exchanges, Tornado Cash, bridges,
+notable hacks). Run `crypttrace update-labels` to pull authoritative public
+lists — currently the OFAC SDN sanctioned-address list — and merge them into the
+local database (cached in `~/.crypttrace/`). The curated seed always wins on
+conflicts, so its richer names are preserved. Add more sources in
+`labels/labels.py` → `SOURCES`.
 
 ### Reports
 
@@ -103,4 +115,4 @@ src/crypttrace/
 - Cross-chain: follow value through bridges into other networks
 - ERC-20 / stablecoin tracing (data already fetched via `get_token_txs`)
 - Entity clustering: gas-funding heuristic, common-input-ownership (BTC)
-- `update-labels`: pull OFAC SDN + community scam lists automatically
+- More label sources: Chainabuse, CryptoScamDB, exchange deposit-address sets
