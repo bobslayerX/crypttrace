@@ -1,0 +1,19 @@
+{
+  "0x28c6c06298d514db089934071355e5743bf21d60": {"name": "Binance 14 (hot wallet)", "type": "exchange"},
+  "0x21a31ee1afc51d94c2efccaa2092ad1028285549": {"name": "Binance 15", "type": "exchange"},
+  "0xdfd5293d8e347dfe59e90efd55b2956a1343963d": {"name": "Binance 16", "type": "exchange"},
+  "0x56eddb7aa87536c09ccc2793473599fd21a8b17f": {"name": "Binance 17", "type": "exchange"},
+  "0x9696f59e4d72e237be84ffd425dcad154bf96976": {"name": "Binance 18", "type": "exchange"},
+  "0x3cd751e6b0078be393132286c442345e5dc49699": {"name": "Coinbase 4", "type": "exchange"},
+  "0x71660c4005ba85c37ccec55d0c4493e66fe775d3": {"name": "Coinbase 1", "type": "exchange"},
+  "0x503828976d22510aad0201ac7ec88293211d23da": {"name": "Coinbase 2", "type": "exchange"},
+  "0x1522900b6dafac587d499a862861c0869be6e428": {"name": "OKX", "type": "exchange"},
+  "0x2faf487a4414fe77e2327f0bf4ae2a264a776ad2": {"name": "FTX (defunct)", "type": "exchange"},
+  "0x722122df12d4e14e13ac3b6895a86e84145b6967": {"name": "Tornado Cash: Router", "type": "mixer"},
+  "0xd90e2f925da726b50c4ed8d0fb90ad053324f31b": {"name": "Tornado Cash: 0.1 ETH", "type": "mixer"},
+  "0x910cbd523d972eb0a6f4cae4618ad62622b39dbf": {"name": "Tornado Cash: 10 ETH", "type": "mixer"},
+  "0xa160cdab225685da1d56aa342ad8841c3b53f291": {"name": "Tornado Cash: 100 ETH", "type": "mixer"},
+  "0x12d66f87a04a9e220743712ce6d9bb1b5616b8fc": {"name": "Tornado Cash: 1 ETH", "type": "mixer"},
+  "0x3ee18b2214aff97000d974cf647e7c347e8fa585": {"name": "Wormhole: Token Bridge", "type": "bridge"},
+  "0x098b716b8aaf21512996dc57eb0615e2383e2f96": {"name": "Ronin Bridge Exploiter (Lazarus)", "type": "sanctioned"}
+}

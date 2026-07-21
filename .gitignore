@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# Local data / secrets
+.env
+*.sqlite
+.crypttrace/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

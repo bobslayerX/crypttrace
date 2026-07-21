@@ -1,0 +1,20 @@
+[project]
+name = "crypttrace"
+version = "0.1.0"
+description = "OSINT crypto investigation CLI — trace stolen funds across the blockchain"
+requires-python = ">=3.9"
+dependencies = [
+    "typer>=0.12",
+    "rich>=13.0",
+    "requests>=2.31",
+]
+
+[project.scripts]
+crypttrace = "crypttrace.cli:app"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
