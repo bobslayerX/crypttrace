@@ -5,7 +5,7 @@ from rich.tree import Tree
 from rich.text import Text
 
 from crypttrace.labels import labels
-from crypttrace import config
+from crypttrace import config, prices
 
 
 def _ts(unix: str) -> str:
@@ -32,11 +32,16 @@ def addr_label(address: str) -> Text:
     return txt
 
 
-def profile_table(address: str, chain: str, balance: float, txs: list) -> Table:
+def profile_table(address: str, chain: str, balance: float, txs: list,
+                  native_price=None) -> Table:
     t = Table(title=f"Profile — {address}  ({chain})", show_header=True, header_style="bold")
     t.add_column("Field")
     t.add_column("Value")
-    t.add_row("Balance", f"{balance:.6f} (native)")
+    bal_usd = prices.usd(balance, native_price)
+    bal_str = f"{balance:.6f} (native)"
+    if bal_usd is not None:
+        bal_str += f"  ≈ {prices.fmt_usd(bal_usd)}"
+    t.add_row("Balance", bal_str)
     t.add_row("Total txs (fetched)", str(len(txs)))
     if txs:
         t.add_row("First seen", _ts(txs[-1]["timeStamp"]))
@@ -73,4 +78,23 @@ def counterparties_table(address: str, txs: list, top: int = 10) -> Table:
     t.add_column("Txs", justify="right")
     for other, (vin, vout, cnt) in rows:
         t.add_row(addr_label(other), f"{vin:.4f}", f"{vout:.4f}", str(cnt))
+    return t
+
+
+def holdings_table(address: str, chain: str, holdings: list) -> Table:
+    """Token holdings with per-token and total USD value."""
+    t = Table(title=f"Token holdings — {address}  ({chain})", header_style="bold")
+    t.add_column("Token")
+    t.add_column("Amount", justify="right")
+    t.add_column("USD", justify="right")
+    t.add_column("Txs", justify="right")
+    total = 0.0
+    for h in holdings:
+        price = prices.token_price(h["contract"], chain, h["symbol"])
+        usd = prices.usd(h["net"], price)
+        if usd is not None:
+            total += usd
+        t.add_row(h["symbol"], f"{h['net']:.4f}", prices.fmt_usd(usd), str(h["txs"]))
+    t.add_section()
+    t.add_row("[bold]Total[/bold]", "", f"[bold]{prices.fmt_usd(total)}[/bold]", "")
     return t

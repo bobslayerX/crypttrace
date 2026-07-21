@@ -12,7 +12,12 @@ from rich.console import Console
 from crypttrace import __version__, config
 from crypttrace.fetchers import etherscan
 from crypttrace.labels import labels
-from crypttrace import render, trace as trace_mod, report as report_mod
+from crypttrace import render, trace as trace_mod, report as report_mod, assets, prices
+
+ASSET_OPT = typer.Option(
+    "eth", "--asset", "-a",
+    help="Asset to trace: eth (default), a token symbol (usdt, usdc, dai, weth…), or a 0x contract",
+)
 
 app = typer.Typer(add_completion=False, help=__doc__)
 console = Console()
@@ -33,7 +38,7 @@ def profile(
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1)
 
-    console.print(render.profile_table(address, chain, bal, txs))
+    console.print(render.profile_table(address, chain, bal, txs, prices.native_price(chain)))
     if txs:
         console.print(render.counterparties_table(address, txs))
     else:
@@ -44,13 +49,19 @@ def profile(
 def trace(
     address: str = typer.Argument(..., help="Starting address (0x…)"),
     chain: str = CHAIN_OPT,
+    asset: str = ASSET_OPT,
     depth: int = typer.Option(3, "--depth", "-d", help="How many hops to follow"),
     branching: int = typer.Option(3, "--branching", "-b",
                                   help="Top-N outflows to follow per address"),
 ):
-    """Trace where funds moved, hop by hop, as a coloured tree."""
+    """Trace where funds moved, hop by hop, as a coloured tree (ETH or a token)."""
     try:
-        tree = trace_mod.build_tree(address, chain, depth, branching)
+        asset_desc = assets.resolve_asset(asset)
+    except ValueError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
+    try:
+        tree = trace_mod.build_tree(address, chain, depth, branching, asset_desc)
     except etherscan.EtherscanError as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1)
@@ -62,9 +73,27 @@ def trace(
 
 
 @app.command()
+def tokens(
+    address: str = typer.Argument(..., help="Address to inspect (0x…)"),
+    chain: str = CHAIN_OPT,
+):
+    """Show an address's ERC-20 token holdings (approx from transfer history) with USD."""
+    try:
+        holdings = assets.token_holdings(address, chain)
+    except etherscan.EtherscanError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
+    if not holdings:
+        console.print("[dim]No token transfers found for this address on this chain.[/dim]")
+        return
+    console.print(render.holdings_table(address, chain, holdings))
+
+
+@app.command()
 def report(
     address: str = typer.Argument(..., help="Address to investigate (0x…)"),
     chain: str = CHAIN_OPT,
+    asset: str = ASSET_OPT,
     depth: int = typer.Option(3, "--depth", "-d", help="How many hops to trace"),
     branching: int = typer.Option(3, "--branching", "-b", help="Top-N outflows per address"),
     out: Path = typer.Option(
@@ -74,8 +103,13 @@ def report(
 ):
     """Run a full investigation and save a Markdown + JSON report to disk."""
     try:
+        asset_desc = assets.resolve_asset(asset)
+    except ValueError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
+    try:
         with console.status("Gathering on-chain data and tracing funds…"):
-            md_path = report_mod.generate(address, chain, depth, branching, out)
+            md_path = report_mod.generate(address, chain, depth, branching, out, asset_desc)
     except etherscan.EtherscanError as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1)

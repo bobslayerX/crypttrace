@@ -9,7 +9,7 @@ from pathlib import Path
 
 from rich.console import Console
 
-from crypttrace import __version__, config
+from crypttrace import __version__, config, prices
 from crypttrace.fetchers import etherscan
 from crypttrace.labels import labels
 from crypttrace import trace as trace_mod
@@ -74,10 +74,10 @@ def _headline(findings: list) -> str:
 
 
 def generate(address: str, chain: str, depth: int, branching: int,
-             out_dir: Path) -> Path:
+             out_dir: Path, asset=None) -> Path:
     balance = etherscan.get_balance(address, chain)
     txs = etherscan.get_txs(address, chain, limit=1000)
-    tree, findings = trace_mod.build(address, chain, depth, branching)
+    tree, findings = trace_mod.build(address, chain, depth, branching, asset)
 
     # de-duplicate findings by address, keep highest value_reached
     uniq = {}
@@ -106,6 +106,7 @@ def generate(address: str, chain: str, depth: int, branching: int,
             "type": labels.type_of(address),
             "risk_score": labels.risk_score(address),
         },
+        "traced_asset": asset["symbol"] if asset else "ETH (native)",
         "key_findings": findings,
         "top_counterparties": counterparties,
     }
@@ -126,7 +127,8 @@ def _render_md(d: dict, tree_text: str, json_name: str) -> str:
     L = []
     L.append(f"# crypttrace investigation report\n")
     L.append(f"**Generated:** {d['generated']}  •  **Tool:** {d['tool']}  \n")
-    L.append(f"**Subject:** `{d['subject']}`  •  **Chain:** {d['chain']}\n")
+    L.append(f"**Subject:** `{d['subject']}`  •  **Chain:** {d['chain']}  •  "
+             f"**Traced asset:** {d.get('traced_asset', 'ETH (native)')}\n")
 
     L.append(f"\n## Assessment\n")
     L.append(_headline(d["key_findings"]) + "\n")
@@ -143,9 +145,12 @@ def _render_md(d: dict, tree_text: str, json_name: str) -> str:
     L.append(f"\n## Key findings\n")
     if d["key_findings"]:
         L.append("Labelled entities reached while tracing funds outward from the subject:\n\n")
-        L.append("| Entity | Type | Risk | Value reached |\n|---|---|---|---|\n")
+        L.append("| Entity | Type | Risk | Value reached | ≈ USD |\n|---|---|---|---|---|\n")
         for f in d["key_findings"]:
-            L.append(f"| {f['label']} | {f['type']} | {f['risk']}/100 | {f['value_reached']} |\n")
+            sym = f.get("symbol", "")
+            usd = prices.fmt_usd(f.get("usd_reached"))
+            L.append(f"| {f['label']} | {f['type']} | {f['risk']}/100 | "
+                     f"{f['value_reached']} {sym} | {usd} |\n")
     else:
         L.append("_None within the traced depth._\n")
 

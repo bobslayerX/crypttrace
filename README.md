@@ -30,8 +30,14 @@ crypttrace profile 0xADDRESS --chain eth
 # Follow the money N hops deep, rendered as a coloured tree
 crypttrace trace 0xADDRESS --chain eth --depth 4 --branching 3
 
+# Trace a token instead of native ETH (most thefts are stablecoins)
+crypttrace trace 0xADDRESS --asset usdt --depth 4
+
+# Token holdings of an address, valued in USD
+crypttrace tokens 0xADDRESS
+
 # Full investigation report saved to disk (Markdown + JSON)
-crypttrace report 0xADDRESS --chain eth --depth 3
+crypttrace report 0xADDRESS --chain eth --asset usdt --depth 3
 
 # Download the latest label lists (OFAC sanctions, etc.)
 crypttrace update-labels
@@ -48,6 +54,15 @@ lists — currently the OFAC SDN sanctioned-address list — and merge them into
 local database (cached in `~/.crypttrace/`). The curated seed always wins on
 conflicts, so its richer names are preserved. Add more sources in
 `labels/labels.py` → `SOURCES`.
+
+### Assets & USD values
+
+By default the tracer follows the chain's native coin (ETH). Pass `--asset` to
+follow an ERC-20 token instead — a known symbol (`usdt`, `usdc`, `dai`, `weth`,
+`wbtc`) or any `0x` contract address. Since most thefts today move stablecoins,
+token tracing is essential. Amounts are shown with approximate USD values
+(stablecoins pinned to $1, others priced via CoinGecko; if offline, USD shows as
+`—`). The `tokens` command lists an address's token holdings valued in USD.
 
 ### Reports
 
