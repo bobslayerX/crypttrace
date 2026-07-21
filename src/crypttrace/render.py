@@ -81,6 +81,28 @@ def counterparties_table(address: str, txs: list, top: int = 10) -> Table:
     return t
 
 
+def funding_tree(address: str, hops: list) -> Tree:
+    """Render a backward funding chain: target ← funder ← funder …"""
+    root = Tree(addr_label(address))
+    if not hops:
+        root.add(Text("no inbound funding tx found (first-funded internally, or too old)",
+                      style="dim"))
+        return root
+    node = root
+    for h in hops:
+        when = _ts(h["timestamp"])
+        edge = Text(f"◀── funded by {h['value']:.4f} ETH  ({when})  ")
+        node = node.add(Text.assemble(edge, addr_label(h["funder"])))
+        if h["terminal"]:
+            kind = h["funder_type"]
+            note = {"exchange": "KYC identification point",
+                    "mixer": "mixer — trail obscured",
+                    "sanctioned": "sanctioned entity",
+                    "bridge": "cross-chain bridge"}.get(kind, kind)
+            node.add(Text(f"↳ chain ends at {kind} ({note})", style="dim"))
+    return root
+
+
 def holdings_table(address: str, chain: str, holdings: list) -> Table:
     """Token holdings with per-token and total USD value."""
     t = Table(title=f"Token holdings — {address}  ({chain})", header_style="bold")

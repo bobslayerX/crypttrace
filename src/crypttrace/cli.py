@@ -12,7 +12,7 @@ from rich.console import Console
 from crypttrace import __version__, config
 from crypttrace.fetchers import etherscan
 from crypttrace.labels import labels
-from crypttrace import render, trace as trace_mod, report as report_mod, assets, prices
+from crypttrace import render, trace as trace_mod, report as report_mod, assets, prices, funder as funder_mod
 
 ASSET_OPT = typer.Option(
     "eth", "--asset", "-a",
@@ -115,6 +115,24 @@ def report(
         raise typer.Exit(1)
     console.print(f"[green]✓ Report saved:[/green] {md_path}")
     console.print(f"[dim]  Raw data (JSON) saved alongside it in the same folder.[/dim]")
+
+
+@app.command()
+def funder(
+    address: str = typer.Argument(..., help="Address to trace funding for (0x…)"),
+    chain: str = CHAIN_OPT,
+    hops: int = typer.Option(6, "--hops", "-H", help="How far back to follow the funding chain"),
+):
+    """Follow who funded a wallet's first gas, backward, toward a KYC/exchange point."""
+    try:
+        chain_hops = funder_mod.funding_chain(address, chain, hops)
+    except etherscan.EtherscanError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
+    console.print(render.funding_tree(address, chain_hops))
+    if chain_hops and chain_hops[-1]["terminal"] and chain_hops[-1]["funder_type"] == "exchange":
+        console.print("\n[green]➜ Funding chain reaches an exchange — a KYC identification "
+                      "point. A legal request to that exchange can reveal the owner.[/green]")
 
 
 @app.command()

@@ -36,6 +36,9 @@ crypttrace trace 0xADDRESS --asset usdt --depth 4
 # Token holdings of an address, valued in USD
 crypttrace tokens 0xADDRESS
 
+# Who funded this wallet's first gas? Follow it back toward an exchange/KYC point
+crypttrace funder 0xADDRESS --hops 6
+
 # Full investigation report saved to disk (Markdown + JSON)
 crypttrace report 0xADDRESS --chain eth --asset usdt --depth 3
 
@@ -63,6 +66,17 @@ follow an ERC-20 token instead — a known symbol (`usdt`, `usdc`, `dai`, `weth`
 token tracing is essential. Amounts are shown with approximate USD values
 (stablecoins pinned to $1, others priced via CoinGecko; if offline, USD shows as
 `—`). The `tokens` command lists an address's token holdings valued in USD.
+
+### First-funder (deanonymization)
+
+`crypttrace funder` follows a wallet's *funding* link backward: whoever sent it
+its first gas, then whoever funded that funder, and so on. A fresh laundering
+wallet has to be bootstrapped from somewhere, and the chain frequently
+terminates at a centralised-exchange withdrawal — a KYC identification point
+where a legal request can reveal the owner. This is a core primitive for tying
+"unrelated" wallets back to one controller. (Uses external transactions;
+wallets first funded by an internal contract call need internal-tx data, a
+planned extension.)
 
 ### Reports
 

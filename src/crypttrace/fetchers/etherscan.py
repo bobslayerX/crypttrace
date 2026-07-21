@@ -91,12 +91,13 @@ def get_balance(address: str, chain: str = "eth") -> float:
         return 0.0
 
 
-def get_txs(address: str, chain: str = "eth", limit: int = 1000) -> List[dict]:
-    """Normal (native-coin) transactions, newest first."""
+def get_txs(address: str, chain: str = "eth", limit: int = 1000,
+            sort: str = "desc") -> List[dict]:
+    """Normal (native-coin) transactions. sort='desc' (newest first) or 'asc' (oldest first)."""
     data = _call(chain, {
         "module": "account", "action": "txlist", "address": address,
         "startblock": "0", "endblock": "99999999",
-        "page": "1", "offset": str(limit), "sort": "desc",
+        "page": "1", "offset": str(limit), "sort": sort,
     })
     result = data.get("result")
     return result if isinstance(result, list) else []
