@@ -30,9 +30,20 @@ crypttrace profile 0xADDRESS --chain eth
 # Follow the money N hops deep, rendered as a coloured tree
 crypttrace trace 0xADDRESS --chain eth --depth 4 --branching 3
 
+# Full investigation report saved to disk (Markdown + JSON)
+crypttrace report 0xADDRESS --chain eth --depth 3
+
 # Supported chains
 crypttrace chains
 ```
+
+### Reports
+
+`crypttrace report` runs the full analysis and writes a self-contained report to
+`~/crypttrace-reports/` (override with `--out`). Each run produces two files: a
+readable Markdown report (assessment, summary, key findings, counterparties, the
+full fund-flow trace and a methodology note) and a `.json` with the raw
+structured data for further processing.
 
 Example trace output:
 
@@ -88,7 +99,7 @@ src/crypttrace/
 ## Roadmap ideas
 
 - `watch` command: alert (telegram/webhook) when a watched address moves funds
-- `report` command: export a trace to PDF for an exchange/police filing
+- `report --pdf`: export the report to PDF for an exchange/police filing
 - Cross-chain: follow value through bridges into other networks
 - ERC-20 / stablecoin tracing (data already fetched via `get_token_txs`)
 - Entity clustering: gas-funding heuristic, common-input-ownership (BTC)

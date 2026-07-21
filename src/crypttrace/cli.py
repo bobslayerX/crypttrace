@@ -4,13 +4,15 @@ Give it a suspicious address; it pulls the public on-chain history, labels
 known entities (exchanges, mixers, sanctioned wallets), and traces where the
 funds went.
 """
+from pathlib import Path
+
 import typer
 from rich.console import Console
 
 from crypttrace import __version__, config
 from crypttrace.fetchers import etherscan
 from crypttrace.labels import labels
-from crypttrace import render, trace as trace_mod
+from crypttrace import render, trace as trace_mod, report as report_mod
 
 app = typer.Typer(add_completion=False, help=__doc__)
 console = Console()
@@ -57,6 +59,28 @@ def trace(
         "\n[dim]Legend: \U0001F7E2 exchange  \U0001F7E3 mixer  \U0001F534 sanctioned/scam"
         "  \U0001F309 bridge  ⚪ unknown[/dim]"
     )
+
+
+@app.command()
+def report(
+    address: str = typer.Argument(..., help="Address to investigate (0x…)"),
+    chain: str = CHAIN_OPT,
+    depth: int = typer.Option(3, "--depth", "-d", help="How many hops to trace"),
+    branching: int = typer.Option(3, "--branching", "-b", help="Top-N outflows per address"),
+    out: Path = typer.Option(
+        Path.home() / "crypttrace-reports", "--out", "-o",
+        help="Folder to save the report in",
+    ),
+):
+    """Run a full investigation and save a Markdown + JSON report to disk."""
+    try:
+        with console.status("Gathering on-chain data and tracing funds…"):
+            md_path = report_mod.generate(address, chain, depth, branching, out)
+    except etherscan.EtherscanError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
+    console.print(f"[green]✓ Report saved:[/green] {md_path}")
+    console.print(f"[dim]  Raw data (JSON) saved alongside it in the same folder.[/dim]")
 
 
 @app.command()

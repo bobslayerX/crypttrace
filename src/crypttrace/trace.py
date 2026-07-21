@@ -35,7 +35,25 @@ def _node_text(address: str, edge: Optional[tuple]) -> Text:
     return Text.assemble(Text(f"──{val:.4f} ({cnt} tx)──▶ "), render.addr_label(address))
 
 
-def _expand(node: Tree, address: str, chain: str, depth: int, branching: int, seen: set) -> None:
+def _record_finding(findings: Optional[list], to: str, val: float, cnt: int) -> None:
+    """Note a labelled (exchange / mixer / sanctioned / bridge) address reached en route."""
+    if findings is None:
+        return
+    hit = labels.lookup(to)
+    if not hit:
+        return
+    findings.append({
+        "address": to,
+        "type": hit["type"],
+        "label": hit["name"],
+        "risk": labels.risk_score(to),
+        "value_reached": round(val, 6),
+        "tx_count": cnt,
+    })
+
+
+def _expand(node: Tree, address: str, chain: str, depth: int, branching: int,
+            seen: set, findings: Optional[list] = None, is_root: bool = False) -> None:
     if depth <= 0:
         return
     if address.lower() in seen:
@@ -44,16 +62,26 @@ def _expand(node: Tree, address: str, chain: str, depth: int, branching: int, se
     seen.add(address.lower())
 
     # Trail ends at an identifiable entity — that's the OSINT handoff point.
-    if labels.type_of(address) in ("exchange", "mixer", "sanctioned"):
+    # The starting address is always expanded, even if it's itself flagged:
+    # the whole point is to follow the money *out* of it.
+    if not is_root and labels.type_of(address) in ("exchange", "mixer", "sanctioned"):
         node.add(Text("↳ trail ends here (identifiable entity — subpoena / off-chain)", style="dim"))
         return
 
     for to, val, cnt in _biggest_outflows(address, chain, branching):
+        _record_finding(findings, to, val, cnt)
         child = node.add(_node_text(to, (val, cnt)))
-        _expand(child, to, chain, depth - 1, branching, seen)
+        _expand(child, to, chain, depth - 1, branching, seen, findings)
+
+
+def build(address: str, chain: str, depth: int, branching: int):
+    """Return (tree, findings): the display tree plus a list of labelled entities reached."""
+    root = Tree(_node_text(address, None))
+    findings: list = []
+    _expand(root, address, chain, depth, branching, set(), findings, is_root=True)
+    return root, findings
 
 
 def build_tree(address: str, chain: str, depth: int, branching: int) -> Tree:
-    root = Tree(_node_text(address, None))
-    _expand(root, address, chain, depth, branching, set())
-    return root
+    tree, _ = build(address, chain, depth, branching)
+    return tree
