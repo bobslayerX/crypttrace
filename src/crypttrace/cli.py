@@ -12,7 +12,7 @@ from rich.console import Console
 from crypttrace import __version__, config
 from crypttrace.fetchers import etherscan
 from crypttrace.labels import labels
-from crypttrace import render, trace as trace_mod, report as report_mod, assets, prices, funder as funder_mod
+from crypttrace import render, trace as trace_mod, report as report_mod, assets, prices, funder as funder_mod, offramp as offramp_mod
 
 ASSET_OPT = typer.Option(
     "eth", "--asset", "-a",
@@ -115,6 +115,29 @@ def report(
         raise typer.Exit(1)
     console.print(f"[green]✓ Report saved:[/green] {md_path}")
     console.print(f"[dim]  Raw data (JSON) saved alongside it in the same folder.[/dim]")
+
+
+@app.command()
+def offramp(
+    address: str = typer.Argument(..., help="Address to check (0x…)"),
+    chain: str = CHAIN_OPT,
+):
+    """Check whether an address is an exchange deposit address (cash-out / off-ramp)."""
+    try:
+        hit = offramp_mod.detect(address, chain)
+    except etherscan.EtherscanError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
+    if hit:
+        pct = int(hit["fraction"] * 100)
+        console.print(
+            f"[green]➜ Likely off-ramp:[/green] this address forwarded ~{pct}% of outgoing "
+            f"funds ({hit['forwarded']:.4f}) to [bold]{hit['exchange']}[/bold].\n"
+            f"  It is probably a {hit['exchange']} deposit address — a KYC identification point."
+        )
+    else:
+        console.print("[dim]No exchange-forwarding pattern detected. "
+                      "Not an obvious off-ramp (or funds moved as tokens).[/dim]")
 
 
 @app.command()

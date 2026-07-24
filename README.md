@@ -39,6 +39,9 @@ crypttrace tokens 0xADDRESS
 # Who funded this wallet's first gas? Follow it back toward an exchange/KYC point
 crypttrace funder 0xADDRESS --hops 6
 
+# Is this address an exchange deposit address (cash-out / off-ramp)?
+crypttrace offramp 0xADDRESS
+
 # Full investigation report saved to disk (Markdown + JSON)
 crypttrace report 0xADDRESS --chain eth --asset usdt --depth 3
 
@@ -66,6 +69,16 @@ follow an ERC-20 token instead — a known symbol (`usdt`, `usdc`, `dai`, `weth`
 token tracing is essential. Amounts are shown with approximate USD values
 (stablecoins pinned to $1, others priced via CoinGecko; if offline, USD shows as
 `—`). The `tokens` command lists an address's token holdings valued in USD.
+
+### Off-ramp detection
+
+When laundered funds reach an exchange they land on a per-user *deposit address*
+(there are millions, so none are in label lists), which forwards them to the
+exchange's hot wallet. `crypttrace offramp` detects this by behaviour: an address
+that forwards most of its outgoing value to a labelled exchange is flagged as a
+likely deposit address — the cash-out point, where the exchange holds the
+depositor's KYC. `trace` applies the same heuristic automatically, turning an
+anonymous intermediary into "→ Binance deposit (KYC point)".
 
 ### First-funder (deanonymization)
 

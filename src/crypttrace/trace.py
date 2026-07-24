@@ -5,7 +5,7 @@ from rich.text import Text
 
 from crypttrace.fetchers import etherscan
 from crypttrace.labels import labels
-from crypttrace import config, render, assets, prices
+from crypttrace import config, render, assets, prices, offramp
 
 
 def _native_outflows(address, chain, top):
@@ -82,6 +82,22 @@ def _expand(node, address, ctx, depth, seen, findings=None, is_root=False):
     if not is_root and labels.type_of(address) in ("exchange", "mixer", "sanctioned"):
         node.add(Text("↳ trail ends here (identifiable entity — subpoena / off-chain)", style="dim"))
         return
+    # Off-ramp heuristic: an unknown wallet that forwards most funds to an
+    # exchange is a deposit address — the cash-out / KYC point. Native only.
+    if not is_root and ctx.asset is None and labels.type_of(address) == "unknown":
+        off = offramp.detect(address, ctx.chain)
+        if off:
+            pct = int(off["fraction"] * 100)
+            node.add(Text(f"↳ off-ramp: ~{pct}% forwarded to {off['exchange']} "
+                          f"— likely a deposit address (KYC point)", style="green"))
+            if findings is not None:
+                findings.append({"address": address, "type": "offramp",
+                                 "label": f"{off['exchange']} deposit (off-ramp)",
+                                 "risk": 30, "value_reached": round(off["forwarded"], 6),
+                                 "symbol": ctx.symbol,
+                                 "usd_reached": prices.usd(off["forwarded"], ctx.price),
+                                 "tx_count": 0})
+            return
     for to, val, cnt in _outflows(address, ctx.chain, ctx.branching, ctx.asset):
         _record_finding(findings, ctx, to, val, cnt)
         child = node.add(_edge_text(ctx, to, val, cnt))
