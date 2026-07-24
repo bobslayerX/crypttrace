@@ -81,6 +81,30 @@ def counterparties_table(address: str, txs: list, top: int = 10) -> Table:
     return t
 
 
+def crosschain_tree(address: str, chain: str, results: list) -> Tree:
+    """Render bridge-outs and their likely cross-chain continuations."""
+    root = Tree(Text.assemble(addr_label(address), Text(f"  (source chain: {chain})")))
+    for r in results:
+        out = r["bridge_out"]
+        when = _ts(str(out["timestamp"]))
+        bnode = root.add(Text(f"🌉 bridged {out['amount']:.4f} via {out['bridge']}  ({when})",
+                              style="cyan"))
+        if not r["arrivals"]:
+            bnode.add(Text("↳ no matching arrival found on other chains "
+                           "(try a wider --window / --tol, or funds bridged as a token)",
+                           style="dim"))
+            continue
+        for a in r["arrivals"]:
+            bnode.add(Text.assemble(
+                Text(f"↳ likely continued on {a['chain'].upper()}: received "
+                     f"{a['amount']:.4f} ", style="green"),
+                Text(f"(+{a['delay_min']:.0f} min, from "),
+                addr_label(a["from"]),
+                Text(")"),
+            ))
+    return root
+
+
 def funding_tree(address: str, hops: list) -> Tree:
     """Render a backward funding chain: target ← funder ← funder …"""
     root = Tree(addr_label(address))

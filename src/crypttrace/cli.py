@@ -12,7 +12,7 @@ from rich.console import Console
 from crypttrace import __version__, config
 from crypttrace.fetchers import etherscan
 from crypttrace.labels import labels
-from crypttrace import render, trace as trace_mod, report as report_mod, assets, prices, funder as funder_mod, offramp as offramp_mod
+from crypttrace import render, trace as trace_mod, report as report_mod, assets, prices, funder as funder_mod, offramp as offramp_mod, bridges as bridges_mod
 
 ASSET_OPT = typer.Option(
     "eth", "--asset", "-a",
@@ -115,6 +115,28 @@ def report(
         raise typer.Exit(1)
     console.print(f"[green]✓ Report saved:[/green] {md_path}")
     console.print(f"[dim]  Raw data (JSON) saved alongside it in the same folder.[/dim]")
+
+
+@app.command()
+def crosschain(
+    address: str = typer.Argument(..., help="Address that may have bridged funds (0x…)"),
+    chain: str = CHAIN_OPT,
+    window: int = typer.Option(48, "--window", "-w", help="Hours after a bridge-out to search"),
+    tol: float = typer.Option(0.05, "--tol", help="Amount tolerance (0.05 = 5%, for bridge fees)"),
+):
+    """Follow funds across bridges: find likely arrivals of the same address on other chains."""
+    try:
+        results = bridges_mod.trace_cross(address, chain, tol=tol, window_h=window)
+    except etherscan.EtherscanError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
+    if not results:
+        console.print("[dim]No transfers into known bridge contracts found for this "
+                      "address on this chain.[/dim]")
+        return
+    console.print(render.crosschain_tree(address, chain, results))
+    console.print("\n[dim]Cross-chain links are heuristic (same-address arrival by amount+time), "
+                  "not proof. Verify each candidate before relying on it.[/dim]")
 
 
 @app.command()

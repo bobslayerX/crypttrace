@@ -82,6 +82,10 @@ def _expand(node, address, ctx, depth, seen, findings=None, is_root=False):
     if not is_root and labels.type_of(address) in ("exchange", "mixer", "sanctioned"):
         node.add(Text("↳ trail ends here (identifiable entity — subpoena / off-chain)", style="dim"))
         return
+    if not is_root and labels.type_of(address) == "bridge":
+        node.add(Text("↳ bridge — funds leave this chain; run `crypttrace crosschain` "
+                      "on the sender to find the destination chain", style="cyan"))
+        return
     # Off-ramp heuristic: an unknown wallet that forwards most funds to an
     # exchange is a deposit address — the cash-out / KYC point. Native only.
     if not is_root and ctx.asset is None and labels.type_of(address) == "unknown":

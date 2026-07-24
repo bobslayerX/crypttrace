@@ -15,5 +15,14 @@
   "0xa160cdab225685da1d56aa342ad8841c3b53f291": {"name": "Tornado Cash: 100 ETH", "type": "mixer"},
   "0x12d66f87a04a9e220743712ce6d9bb1b5616b8fc": {"name": "Tornado Cash: 1 ETH", "type": "mixer"},
   "0x3ee18b2214aff97000d974cf647e7c347e8fa585": {"name": "Wormhole: Token Bridge", "type": "bridge"},
+  "0x99c9fc46f92e8a1c0dec1b1747d010903e884be1": {"name": "Optimism: Gateway (L1 Bridge)", "type": "bridge"},
+  "0x4dbd4fc535ac27206064b68ffcf827b0a60bab3f": {"name": "Arbitrum: Delayed Inbox", "type": "bridge"},
+  "0xa3a7b6f88361f48403514059f1f16c8e78d60eec": {"name": "Arbitrum: L1 ERC20 Gateway", "type": "bridge"},
+  "0x3154cf16ccdb4c6d922629664174b904d80f2c35": {"name": "Base: Bridge (L1)", "type": "bridge"},
+  "0x5c7bcd6e7de5423a257d81b442095a1a6ced35c5": {"name": "Across: Ethereum SpokePool V2", "type": "bridge"},
+  "0x4d9079bb4165aeb4084c526a32695dcfd2f77381": {"name": "Across: Ethereum SpokePool V2 (old)", "type": "bridge"},
+  "0x2796317b0ff8538f253012862c06787adfb8ceb6": {"name": "Synapse: Bridge", "type": "bridge"},
+  "0x5427fefa711eff984124bfbb1ab6fbf5e3da1820": {"name": "Celer: cBridge V2", "type": "bridge"},
+  "0x841ce48f9446c8e281d3f1444cb859b4a6d0738c": {"name": "Celer: cBridge (old)", "type": "bridge"},
   "0x098b716b8aaf21512996dc57eb0615e2383e2f96": {"name": "Ronin Bridge Exploiter (Lazarus)", "type": "sanctioned"}
 }

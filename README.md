@@ -42,6 +42,9 @@ crypttrace funder 0xADDRESS --hops 6
 # Is this address an exchange deposit address (cash-out / off-ramp)?
 crypttrace offramp 0xADDRESS
 
+# Follow funds across bridges into other chains
+crypttrace crosschain 0xADDRESS --window 48
+
 # Full investigation report saved to disk (Markdown + JSON)
 crypttrace report 0xADDRESS --chain eth --asset usdt --depth 3
 
@@ -69,6 +72,23 @@ follow an ERC-20 token instead — a known symbol (`usdt`, `usdc`, `dai`, `weth`
 token tracing is essential. Amounts are shown with approximate USD values
 (stablecoins pinned to $1, others priced via CoinGecko; if offline, USD shows as
 `—`). The `tokens` command lists an address's token holdings valued in USD.
+
+### Cross-chain tracing (bridges)
+
+When funds cross a bridge, the trail on the source chain ends at the bridge
+contract and reappears on another chain — with no free, deterministic link
+between the two. `crypttrace crosschain` uses a behavioural heuristic that
+catches many real cases: launderers frequently bridge to the *same address*
+they control on the destination chain, so after a transfer into a known bridge,
+the tool searches every other supported chain (one Etherscan v2 key covers all)
+for an inbound transfer to that address of a similar amount (bridges take a fee)
+within a time window. A match is a strong **lead, not proof** — amounts and
+timing can coincide — so candidates are reported with amount and delay for the
+analyst to verify. `trace` flags bridges and points you to this command. (v1
+matches native-coin value; token bridging and decoding recipient addresses from
+bridge calldata are planned extensions.) Bridges currently recognised:
+Wormhole, the Optimism / Arbitrum / Base canonical bridges, Across, Synapse and
+Celer cBridge — extend the `"bridge"`-typed entries in `labels/known.json`.
 
 ### Off-ramp detection
 
