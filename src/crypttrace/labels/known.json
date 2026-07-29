@@ -24,5 +24,6 @@
   "0x2796317b0ff8538f253012862c06787adfb8ceb6": {"name": "Synapse: Bridge", "type": "bridge"},
   "0x5427fefa711eff984124bfbb1ab6fbf5e3da1820": {"name": "Celer: cBridge V2", "type": "bridge"},
   "0x841ce48f9446c8e281d3f1444cb859b4a6d0738c": {"name": "Celer: cBridge (old)", "type": "bridge"},
-  "0x098b716b8aaf21512996dc57eb0615e2383e2f96": {"name": "Ronin Bridge Exploiter (Lazarus)", "type": "sanctioned"}
+  "0x098b716b8aaf21512996dc57eb0615e2383e2f96": {"name": "Ronin Bridge Exploiter (Lazarus)", "type": "sanctioned"},
+  "0x2f2974fabc54dba33442261211c06bd20e0feefc": {"name": "AFX Trade Exploiter (Jul 2026, $24M)", "type": "scam"}
 }

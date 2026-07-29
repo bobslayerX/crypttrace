@@ -12,7 +12,9 @@ from rich.console import Console
 from crypttrace import __version__, config
 from crypttrace.fetchers import etherscan
 from crypttrace.labels import labels
-from crypttrace import render, trace as trace_mod, report as report_mod, assets, prices, funder as funder_mod, offramp as offramp_mod, bridges as bridges_mod
+import time
+
+from crypttrace import render, trace as trace_mod, report as report_mod, assets, prices, funder as funder_mod, offramp as offramp_mod, bridges as bridges_mod, watch as watch_mod
 
 ASSET_OPT = typer.Option(
     "eth", "--asset", "-a",
@@ -211,6 +213,92 @@ def chains():
     """List supported chains."""
     for name, cid in config.CHAINS.items():
         console.print(f"  {name}  (chainid {cid})")
+
+
+# ---- watch: monitor addresses and alert on movement / cash-out ----
+watch_app = typer.Typer(help="Monitor addresses and alert when funds move (esp. to an exchange).")
+app.add_typer(watch_app, name="watch")
+
+
+@watch_app.command("add")
+def watch_add(
+    address: str = typer.Argument(..., help="Address to watch (0x…)"),
+    chain: str = CHAIN_OPT,
+    note: str = typer.Option("", "--note", "-n", help="A label for this case, e.g. 'my stolen ETH'"),
+):
+    """Add an address to the watchlist (alerts only on activity from now on)."""
+    watch_mod.add(address, chain, note)
+    console.print(f"[green]✓ Watching[/green] {address} ({chain})"
+                  + (f" — {note}" if note else ""))
+
+
+@watch_app.command("list")
+def watch_list():
+    """Show the watchlist."""
+    d = watch_mod.all_watched()
+    if not d:
+        console.print("[dim]Watchlist is empty. Add one with `crypttrace watch add 0x…`[/dim]")
+        return
+    for addr, m in d.items():
+        console.print(f"  {addr}  ({m.get('chain','eth')})"
+                      + (f"  — {m['note']}" if m.get("note") else ""))
+
+
+@watch_app.command("remove")
+def watch_remove(address: str = typer.Argument(..., help="Address to stop watching")):
+    """Remove an address from the watchlist."""
+    if watch_mod.remove(address):
+        console.print(f"[green]✓ Removed[/green] {address}")
+    else:
+        console.print("[dim]Address was not on the watchlist.[/dim]")
+
+
+def _render_alert(e: dict) -> None:
+    icon = {"high": "🚨", "move": "🔔", "info": "•"}.get(e["sev"], "•")
+    style = {"high": "bold red", "move": "yellow", "info": "dim"}.get(e["sev"], "white")
+    when = render._ts(str(e["timestamp"]))
+    line = (f"{icon} [{style}]{e['sev'].upper()}[/{style}]  {e['address'][:12]}…"
+            + (f" ({e['note']})" if e.get("note") else "")
+            + f"  {e['value']:.4f}  {e['reason']}  [dim]{when}[/dim]")
+    if e["sev"] == "high":
+        console.bell()  # audible bell for cash-out events
+    console.print(line)
+
+
+@watch_app.command("run")
+def watch_run(
+    interval: int = typer.Option(300, "--interval", "-i", help="Seconds between checks"),
+    once: bool = typer.Option(False, "--once", help="Check a single time and exit (good for cron)"),
+    telegram: bool = typer.Option(False, "--telegram", help="Also send alerts to Telegram "
+                                  "(set CRYPTTRACE_TG_TOKEN and CRYPTTRACE_TG_CHAT)"),
+):
+    """Poll the watchlist and alert on new activity. Loud alert on likely cash-out."""
+    if not watch_mod.all_watched():
+        console.print("[dim]Watchlist is empty. Add one with `crypttrace watch add 0x…`[/dim]")
+        raise typer.Exit(1)
+
+    def _pass():
+        alerts = watch_mod.poll_once()
+        if not alerts:
+            console.print(f"[dim]{render._ts(str(int(time.time())))} — no new activity[/dim]")
+            return
+        for e in alerts:
+            _render_alert(e)
+            if telegram and e["sev"] in ("high", "move"):
+                msg = f"crypttrace {e['sev'].upper()}: {e['address']} {e['value']:.4f} {e['reason']}"
+                watch_mod.telegram_notify(msg)
+
+    if once:
+        _pass()
+        return
+    console.print(f"[green]Watching {len(watch_mod.all_watched())} address(es)[/green] "
+                  f"every {interval}s. Ctrl-C to stop.")
+    try:
+        while True:
+            _pass()
+            time.sleep(interval)
+    except KeyboardInterrupt:
+        console.print("\n[dim]Stopped.[/dim]")
 
 
 if __name__ == "__main__":

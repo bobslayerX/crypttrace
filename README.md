@@ -45,6 +45,10 @@ crypttrace offramp 0xADDRESS
 # Follow funds across bridges into other chains
 crypttrace crosschain 0xADDRESS --window 48
 
+# Watch addresses and get alerted when funds move — loudly on likely cash-out
+crypttrace watch add 0xADDRESS --note "my stolen ETH"
+crypttrace watch run --interval 300      # or --once for cron / scheduled runs
+
 # Full investigation report saved to disk (Markdown + JSON)
 crypttrace report 0xADDRESS --chain eth --asset usdt --depth 3
 
@@ -72,6 +76,25 @@ follow an ERC-20 token instead — a known symbol (`usdt`, `usdc`, `dai`, `weth`
 token tracing is essential. Amounts are shown with approximate USD values
 (stablecoins pinned to $1, others priced via CoinGecko; if offline, USD shows as
 `—`). The `tokens` command lists an address's token holdings valued in USD.
+
+### Watch & alerts (catching the cash-out)
+
+The one window to freeze stolen funds is the moment they reach an exchange
+deposit. `crypttrace watch` keeps a list of addresses, detects new activity, and
+raises a **loud HIGH alert** the instant funds move to an exchange (directly or
+to a detected deposit address) — quieter notices for other movement. It only
+alerts on activity *after* an address is added, and never double-alerts.
+
+```
+crypttrace watch add 0xADDRESS --note "victim funds"
+crypttrace watch list
+crypttrace watch run --interval 300        # poll continuously
+crypttrace watch run --once                # single check (for cron / scheduled tasks)
+```
+
+Optional Telegram alerts: set `CRYPTTRACE_TG_TOKEN` and `CRYPTTRACE_TG_CHAT` and
+pass `--telegram`. Honest limit: the tool tells you *when* to act; freezing funds
+still depends on the exchange and law enforcement responding quickly.
 
 ### Cross-chain tracing (bridges)
 
