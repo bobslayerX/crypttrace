@@ -16,7 +16,21 @@ export ETHERSCAN_API_KEY=xxxx   # free key: https://etherscan.io/myapikey
 ```
 
 One Etherscan v2 key works across all supported EVM chains (eth, bsc, polygon,
-arbitrum, optimism, base).
+arbitrum, optimism, base). **Bitcoin, Tron and Solana need no key at all.**
+
+## Supported chains
+
+| Chain | `--chain` | Source | Key needed |
+|---|---|---|---|
+| Ethereum, BSC, Polygon, Arbitrum, Optimism, Base | `eth` `bsc` `polygon` `arbitrum` `optimism` `base` | Etherscan v2 | yes |
+| Bitcoin | `btc` | mempool.space (UTXO) | no |
+| Tron (TRX + USDT-TRC20) | `tron` | TronGrid | no |
+| Solana (SOL + SPL) | `sol` | public JSON-RPC | no |
+
+Each network is normalized to the same transfer shape, so `profile`, `trace`,
+`funder`, `report` and the web graph behave identically everywhere. Bitcoin also
+unlocks `crypttrace cluster` (see below). Tron matters for everyday victim
+cases — most romance/"pig butchering" scams move USDT-TRC20.
 
 ## Usage
 
@@ -76,6 +90,20 @@ follow an ERC-20 token instead — a known symbol (`usdt`, `usdc`, `dai`, `weth`
 token tracing is essential. Amounts are shown with approximate USD values
 (stablecoins pinned to $1, others priced via CoinGecko; if offline, USD shows as
 `—`). The `tokens` command lists an address's token holdings valued in USD.
+
+### Bitcoin clustering (common-input-ownership)
+
+```
+crypttrace profile bc1q… --chain btc
+crypttrace trace   bc1q… --chain btc --depth 3
+crypttrace cluster bc1q…
+```
+
+Bitcoin's UTXO model enables the strongest clustering heuristic in blockchain
+forensics: if several addresses sign the inputs of one transaction, one party
+almost certainly controls all of them. `cluster` surfaces those co-signers,
+turning a single address into a set of wallets belonging to the same owner. A
+strong lead, not proof.
 
 ### Web UI (interactive graph)
 

@@ -9,19 +9,9 @@ from crypttrace import config, render, assets, prices, offramp
 
 
 def _native_outflows(address, chain, top):
-    me = address.lower()
-    txs = etherscan.get_txs(address, chain, limit=1000)
-    agg = {}
-    for tx in txs:
-        if tx.get("from", "").lower() != me:
-            continue
-        to = tx.get("to", "").lower()
-        if not to:
-            continue
-        val = int(tx.get("value", 0)) / config.WEI
-        rec = agg.setdefault(to, [0.0, 0]); rec[0] += val; rec[1] += 1
-    ranked = sorted(agg.items(), key=lambda kv: kv[1][0], reverse=True)
-    return [(a, v, c) for a, (v, c) in ranked if v > 0][:top]
+    """Native-coin outflows for any supported chain (EVM, BTC, Tron, Solana)."""
+    from crypttrace import chains
+    return chains.outflows(address, chain, top)
 
 
 def _token_outflows(address, chain, top, contract):
@@ -111,7 +101,8 @@ def _expand(node, address, ctx, depth, seen, findings=None, is_root=False):
 def build(address, chain, depth, branching, asset=None):
     """Return (tree, findings). `asset` is None (native) or a descriptor from assets.resolve_asset."""
     if asset is None:
-        symbol = {"eth": "ETH", "bsc": "BNB", "polygon": "MATIC"}.get(chain, "ETH")
+        from crypttrace import chains as _chains
+        symbol = _chains.symbol(chain)
         price = prices.native_price(chain)
     else:
         symbol = asset["symbol"]
@@ -132,7 +123,8 @@ def build_tree(address, chain, depth, branching, asset=None):
 def build_graph(address, chain, depth, branching, asset=None):
     """Return {nodes, edges, symbol} for graph visualization (web UI)."""
     if asset is None:
-        symbol = {"eth": "ETH", "bsc": "BNB", "polygon": "MATIC"}.get(chain, "ETH")
+        from crypttrace import chains as _chains
+        symbol = _chains.symbol(chain)
         price = prices.native_price(chain)
     else:
         symbol = asset["symbol"]

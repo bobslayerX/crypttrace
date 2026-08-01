@@ -39,25 +39,28 @@ def create_app() -> Flask:
 
     @app.route("/api/profile")
     def api_profile():
+        from crypttrace import chains
         addr = request.args.get("address", "")
         chain = request.args.get("chain", "eth")
         try:
-            bal = etherscan.get_balance(addr, chain)
-            txs = etherscan.get_txs(addr, chain, limit=1000)
-        except etherscan.EtherscanError as e:
+            bal = chains.balance(addr, chain)
+            rows = chains.transfers(addr, chain, limit=1000)
+        except (chains.ChainError, etherscan.EtherscanError) as e:
             return jsonify({"error": str(e)}), 400
         price = prices.native_price(chain)
         hit = labels.lookup(addr)
         return jsonify({
             "address": addr, "chain": chain,
-            "balance": round(bal, 6),
+            "balance": round(bal, 8),
             "balance_usd": prices.usd(bal, price),
-            "txs": len(txs),
-            "first_seen": txs[-1]["timeStamp"] if txs else None,
-            "last_seen": txs[0]["timeStamp"] if txs else None,
+            "symbol": chains.symbol(chain),
+            "txs": len(rows),
+            "first_seen": rows[-1]["timestamp"] if rows else None,
+            "last_seen": rows[0]["timestamp"] if rows else None,
             "label": hit["name"] if hit else None,
             "type": labels.type_of(addr),
             "risk": labels.risk_score(addr),
+            "explorer": chains.explorer_url(addr, chain),
         })
 
     @app.route("/api/trace")

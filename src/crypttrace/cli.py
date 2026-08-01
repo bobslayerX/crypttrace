@@ -24,7 +24,10 @@ ASSET_OPT = typer.Option(
 app = typer.Typer(add_completion=False, help=__doc__)
 console = Console()
 
-CHAIN_OPT = typer.Option("eth", "--chain", "-c", help=f"One of: {list(config.CHAINS)}")
+from crypttrace import chains as chains_mod
+
+CHAIN_OPT = typer.Option("eth", "--chain", "-c",
+                         help=f"One of: {chains_mod.ALL_CHAINS}")
 
 
 @app.command()
@@ -34,15 +37,17 @@ def profile(
 ):
     """Summary of an address: balance, activity window, label, top counterparties."""
     try:
-        bal = etherscan.get_balance(address, chain)
-        txs = etherscan.get_txs(address, chain, limit=1000)
-    except etherscan.EtherscanError as e:
+        bal = chains_mod.balance(address, chain)
+        rows = chains_mod.transfers(address, chain, limit=1000)
+    except (chains_mod.ChainError, etherscan.EtherscanError) as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1)
 
-    console.print(render.profile_table(address, chain, bal, txs, prices.native_price(chain)))
-    if txs:
-        console.print(render.counterparties_table(address, txs))
+    console.print(render.profile_rows_table(address, chain, bal, rows,
+                                            prices.native_price(chain),
+                                            chains_mod.symbol(chain)))
+    if rows:
+        console.print(render.counterparties_rows_table(address, chain, rows))
     else:
         console.print("[dim]No transactions found for this address on this chain.[/dim]")
 
@@ -209,10 +214,35 @@ def update_labels():
 
 
 @app.command()
+def cluster(
+    address: str = typer.Argument(..., help="Bitcoin address (bc1…/1…/3…)"),
+):
+    """Bitcoin only: find addresses likely owned by the same person (common-input-ownership)."""
+    from crypttrace.fetchers import bitcoin
+    try:
+        peers = bitcoin.cluster(address)
+    except bitcoin.BitcoinError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
+    if not peers:
+        console.print("[dim]No co-spending found — this address never signed inputs "
+                      "alongside others (or has too little history).[/dim]")
+        return
+    console.print(render.cluster_table(address, peers))
+    console.print("\n[dim]Heuristic: addresses that co-sign inputs of one transaction are "
+                  "almost always controlled by the same party. Strong lead, not proof.[/dim]")
+
+
+@app.command()
 def chains():
     """List supported chains."""
+    console.print("[bold]EVM[/bold] (Etherscan v2, needs ETHERSCAN_API_KEY):")
     for name, cid in config.CHAINS.items():
-        console.print(f"  {name}  (chainid {cid})")
+        console.print(f"  {name:<10} chainid {cid}")
+    console.print("\n[bold]Non-EVM[/bold] (no API key needed):")
+    console.print("  btc        Bitcoin — mempool.space (UTXO)")
+    console.print("  tron       Tron — TronGrid (TRX + USDT-TRC20)")
+    console.print("  sol        Solana — public JSON-RPC")
 
 
 @app.command()

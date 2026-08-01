@@ -81,6 +81,65 @@ def counterparties_table(address: str, txs: list, top: int = 10) -> Table:
     return t
 
 
+def profile_rows_table(address: str, chain: str, balance: float, rows: list,
+                       native_price=None, symbol: str = "") -> Table:
+    """Profile built from normalized transfer rows (works on every chain)."""
+    t = Table(title=f"Profile — {address}  ({chain})", show_header=True, header_style="bold")
+    t.add_column("Field")
+    t.add_column("Value")
+    bal_usd = prices.usd(balance, native_price)
+    bal_str = f"{balance:.8f} {symbol}".rstrip()
+    if bal_usd is not None:
+        bal_str += f"  ≈ {prices.fmt_usd(bal_usd)}"
+    t.add_row("Balance", bal_str)
+    t.add_row("Transfers (fetched)", str(len(rows)))
+    if rows:
+        t.add_row("First seen", _ts(str(rows[-1].get("timestamp", 0))))
+        t.add_row("Last seen", _ts(str(rows[0].get("timestamp", 0))))
+    hit = labels.lookup(address)
+    if hit:
+        t.add_row("Label", f"{hit['name']} ({hit['type']})")
+    t.add_row("Risk score", f"{labels.risk_score(address)}/100")
+    return t
+
+
+def counterparties_rows_table(address: str, chain: str, rows: list, top: int = 10) -> Table:
+    """Counterparties from normalized rows (works on every chain)."""
+    me = address if chain in ("btc", "tron", "sol") else address.lower()
+    agg = {}
+    for r in rows:
+        frm, to = r.get("from", ""), r.get("to", "")
+        other = to if frm == me else frm
+        if not other:
+            continue
+        rec = agg.setdefault(other, [0.0, 0.0, 0])
+        if frm == me:
+            rec[1] += r.get("value", 0.0)
+        else:
+            rec[0] += r.get("value", 0.0)
+        rec[2] += 1
+    ranked = sorted(agg.items(), key=lambda kv: kv[1][0] + kv[1][1], reverse=True)[:top]
+
+    t = Table(title="Top counterparties", header_style="bold")
+    t.add_column("Address")
+    t.add_column("In", justify="right")
+    t.add_column("Out", justify="right")
+    t.add_column("Txs", justify="right")
+    for other, (vin, vout, cnt) in ranked:
+        t.add_row(addr_label(other), f"{vin:.4f}", f"{vout:.4f}", str(cnt))
+    return t
+
+
+def cluster_table(address: str, peers: list) -> Table:
+    """Bitcoin common-input-ownership clustering results."""
+    t = Table(title=f"Likely same-owner addresses — {address}", header_style="bold")
+    t.add_column("Address")
+    t.add_column("Co-signed inputs", justify="right")
+    for a, n in peers:
+        t.add_row(addr_label(a), str(n))
+    return t
+
+
 def crosschain_tree(address: str, chain: str, results: list) -> Tree:
     """Render bridge-outs and their likely cross-chain continuations."""
     root = Tree(Text.assemble(addr_label(address), Text(f"  (source chain: {chain})")))

@@ -19,24 +19,21 @@ from crypttrace import config
 
 
 def first_funder(address: str, chain: str = "eth") -> Optional[dict]:
-    """Return the first address that sent this wallet ETH (its bootstrapping funder).
+    """Return the first address that funded this wallet (its bootstrapping funder).
 
-    {funder, value, timestamp, hash} or None if no inbound funding tx is found.
+    Works on every supported chain. {funder, value, timestamp, hash} or None.
     """
-    me = address.lower()
-    txs = etherscan.get_txs(address, chain, limit=200, sort="asc")
-    for tx in txs:  # ascending => first match is the earliest funding
-        if tx.get("to", "").lower() != me:
-            continue
-        if int(tx.get("value", 0)) <= 0:
-            continue
-        if tx.get("isError", "0") != "0":
+    from crypttrace import chains
+    me = address if chain in ("btc", "tron", "sol") else address.lower()
+    rows = chains.transfers(address, chain, limit=200, oldest_first=True)
+    for r in rows:  # ascending => first match is the earliest funding
+        if r.get("to") != me or r.get("value", 0) <= 0:
             continue
         return {
-            "funder": tx.get("from", "").lower(),
-            "value": int(tx.get("value", 0)) / config.WEI,
-            "timestamp": tx.get("timeStamp", "0"),
-            "hash": tx.get("hash", ""),
+            "funder": r.get("from", ""),
+            "value": r.get("value", 0.0),
+            "timestamp": str(r.get("timestamp", 0)),
+            "hash": r.get("hash", ""),
         }
     return None
 
