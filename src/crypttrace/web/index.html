@@ -7,172 +7,302 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.9/dist/vis-network.min.js"></script>
 <style>
   :root{
-    --bg:#0d1117; --panel:#161b22; --border:#30363d; --text:#e6edf3; --dim:#8b949e;
-    --green:#3fb950; --purple:#bc8cff; --red:#f85149; --cyan:#39c5cf; --white:#c9d1d9; --accent:#2f81f7;
+    --bg:#080b12; --glass:rgba(22,27,34,.55); --glass-2:rgba(38,45,58,.45);
+    --stroke:rgba(255,255,255,.09); --stroke-2:rgba(255,255,255,.16);
+    --text:#e8eef7; --dim:#93a1b5;
+    --green:#3fdf87; --purple:#c48cff; --red:#ff6b60; --cyan:#3fd8e8; --accent:#4d9dff;
   }
   *{box-sizing:border-box}
-  body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text)}
-  header{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
-  header h1{font-size:18px;margin:0;font-weight:700}
+  html,body{height:100%}
+  body{
+    margin:0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    color:var(--text);background:var(--bg);overflow:hidden;
+  }
+  /* animated aurora backdrop — the light that the glass refracts */
+  .aurora{position:fixed;inset:0;z-index:0;overflow:hidden}
+  .aurora i{position:absolute;border-radius:50%;filter:blur(90px);opacity:.5;animation:drift 22s ease-in-out infinite}
+  .aurora i:nth-child(1){width:520px;height:520px;background:#1e4bd8;top:-120px;left:-80px}
+  .aurora i:nth-child(2){width:460px;height:460px;background:#7b2ff7;bottom:-140px;right:10%;animation-delay:-7s}
+  .aurora i:nth-child(3){width:380px;height:380px;background:#0e8f8f;top:35%;right:-100px;animation-delay:-14s}
+  @keyframes drift{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(60px,40px) scale(1.12)}66%{transform:translate(-40px,20px) scale(.94)}}
+
+  .glass{
+    background:var(--glass);backdrop-filter:blur(22px) saturate(160%);
+    -webkit-backdrop-filter:blur(22px) saturate(160%);
+    border:1px solid var(--stroke);
+    box-shadow:0 8px 32px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.10);
+  }
+
+  header{position:relative;z-index:2;display:flex;align-items:center;gap:12px;padding:14px 22px;
+    border-bottom:1px solid var(--stroke);background:rgba(10,14,22,.5);backdrop-filter:blur(18px)}
+  header h1{margin:0;font-size:18px;font-weight:700;letter-spacing:-.02em}
   header .tag{color:var(--dim);font-size:13px}
-  .bar{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-  input,select,button{background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:14px}
-  input#addr{flex:1;min-width:340px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-  button{cursor:pointer;background:var(--accent);border-color:var(--accent);font-weight:600}
-  button:hover{filter:brightness(1.1)}
-  button.secondary{background:var(--panel);border-color:var(--border);font-weight:500}
-  .wrap{display:flex;height:calc(100vh - 118px)}
-  #graph{flex:1;background:var(--bg)}
-  .side{width:340px;border-left:1px solid var(--border);padding:16px;overflow-y:auto}
-  .card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px}
-  .card h3{margin:0 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--dim)}
-  .kv{display:flex;justify-content:space-between;gap:10px;padding:4px 0;font-size:13px}
+
+  .bar{position:relative;z-index:2;display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:14px 22px}
+  input,select,button{
+    color:var(--text);font-size:14px;border-radius:12px;padding:10px 13px;
+    background:var(--glass-2);border:1px solid var(--stroke);
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    transition:all .25s cubic-bezier(.22,1,.36,1);outline:none;
+  }
+  input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 4px rgba(77,157,255,.16);transform:translateY(-1px)}
+  input#addr{flex:1;min-width:340px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.2px}
+  select{cursor:pointer}
+  select option{background:#161b22;color:var(--text)}
+  button{cursor:pointer;font-weight:650;
+    background:linear-gradient(135deg,rgba(77,157,255,.92),rgba(123,47,247,.85));
+    border:1px solid rgba(255,255,255,.22);
+    box-shadow:0 6px 20px rgba(77,157,255,.30), inset 0 1px 0 rgba(255,255,255,.35)}
+  button:hover{transform:translateY(-2px);box-shadow:0 10px 28px rgba(77,157,255,.42), inset 0 1px 0 rgba(255,255,255,.45)}
+  button:active{transform:translateY(0) scale(.98)}
+  button.ghost{background:var(--glass-2);box-shadow:none;font-weight:500;border:1px solid var(--stroke)}
+  button.ghost:hover{border-color:var(--stroke-2);box-shadow:0 6px 18px rgba(0,0,0,.3)}
+
+  .legend{position:relative;z-index:2;display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:0 22px 12px}
+  .chip{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim);
+    padding:5px 11px;border-radius:999px;background:var(--glass-2);border:1px solid var(--stroke);
+    backdrop-filter:blur(12px);transition:.25s}
+  .chip:hover{color:var(--text);border-color:var(--stroke-2);transform:translateY(-1px)}
+  .dot{width:9px;height:9px;border-radius:50%;box-shadow:0 0 10px currentColor}
+
+  .wrap{position:relative;z-index:1;display:flex;gap:16px;padding:0 22px 18px;height:calc(100vh - 175px)}
+  .stage{flex:1;position:relative;border-radius:20px;overflow:hidden;
+    background:rgba(12,16,24,.42);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+    border:1px solid var(--stroke);box-shadow:0 12px 40px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.08);
+    animation:rise .6s cubic-bezier(.22,1,.36,1) both}
+  #graph{position:absolute;inset:0;opacity:0;transition:opacity .7s ease}
+  #graph.on{opacity:1}
+  .hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    color:var(--dim);font-size:14px;text-align:center;padding:30px;pointer-events:none;transition:.4s}
+  .hint.hide{opacity:0}
+  .loader{position:absolute;top:0;left:0;height:2px;width:0;background:linear-gradient(90deg,var(--accent),var(--purple));
+    box-shadow:0 0 12px var(--accent);transition:width .4s ease;border-radius:2px}
+
+  .side{width:352px;overflow-y:auto;border-radius:20px;padding:16px;
+    background:var(--glass);backdrop-filter:blur(22px) saturate(160%);-webkit-backdrop-filter:blur(22px) saturate(160%);
+    border:1px solid var(--stroke);box-shadow:0 12px 40px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.10);
+    animation:rise .6s .08s cubic-bezier(.22,1,.36,1) both}
+  .side::-webkit-scrollbar{width:8px}
+  .side::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:10px}
+  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+  .card{border-radius:16px;padding:14px 15px;margin-bottom:13px;
+    background:var(--glass-2);border:1px solid var(--stroke);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
+    animation:rise .45s cubic-bezier(.22,1,.36,1) both;transition:.3s}
+  .card:hover{border-color:var(--stroke-2);transform:translateY(-2px);box-shadow:0 10px 26px rgba(0,0,0,.28)}
+  .card:nth-child(2){animation-delay:.05s} .card:nth-child(3){animation-delay:.1s}
+  .card:nth-child(4){animation-delay:.15s} .card:nth-child(5){animation-delay:.2s}
+  .card h3{margin:0 0 11px;font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--dim);font-weight:700}
+  .kv{display:flex;justify-content:space-between;gap:10px;padding:5px 0;font-size:13px;
+    border-bottom:1px solid rgba(255,255,255,.045)}
+  .kv:last-child{border-bottom:0}
   .kv .k{color:var(--dim)}
-  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-  .pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:12px;font-weight:600}
-  .t-exchange{background:rgba(63,185,80,.15);color:var(--green)}
-  .t-mixer{background:rgba(188,140,255,.15);color:var(--purple)}
-  .t-sanctioned,.t-scam{background:rgba(248,81,73,.15);color:var(--red)}
-  .t-bridge{background:rgba(57,197,207,.15);color:var(--cyan)}
-  .t-unknown{background:rgba(139,148,158,.15);color:var(--dim)}
-  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--dim);padding:8px 20px;border-bottom:1px solid var(--border)}
-  .legend span{display:flex;align-items:center;gap:5px}
-  .dot{width:10px;height:10px;border-radius:50%}
-  .muted{color:var(--dim);font-size:13px}
+  .kv .v{text-align:right}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
+  .pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:700;
+    border:1px solid currentColor;backdrop-filter:blur(8px)}
+  .t-exchange{color:var(--green);background:rgba(63,223,135,.12)}
+  .t-mixer{color:var(--purple);background:rgba(196,140,255,.12)}
+  .t-sanctioned,.t-scam{color:var(--red);background:rgba(255,107,96,.12)}
+  .t-bridge{color:var(--cyan);background:rgba(63,216,232,.12)}
+  .t-unknown,.t-offramp{color:var(--dim);background:rgba(147,161,181,.12)}
+  .muted{color:var(--dim);font-size:13px;line-height:1.55}
   .err{color:var(--red);font-size:13px}
-  a{color:var(--accent)}
+  .alert{border-color:rgba(255,107,96,.4);background:rgba(255,107,96,.08)}
+  a.btnlink{display:inline-block;margin-top:9px;font-size:12.5px;color:var(--accent);text-decoration:none;
+    padding:7px 12px;border-radius:10px;background:rgba(77,157,255,.10);border:1px solid rgba(77,157,255,.28);transition:.25s}
+  a.btnlink:hover{background:rgba(77,157,255,.2);transform:translateY(-1px)}
+  .status{margin-left:auto;font-size:12px;color:var(--dim)}
+  .spin{display:inline-block;width:11px;height:11px;margin-right:6px;vertical-align:-1px;
+    border:2px solid rgba(255,255,255,.2);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
+<div class="aurora"><i></i><i></i><i></i></div>
+
 <header>
   <h1>🔎 crypttrace</h1>
   <span class="tag">trace stolen crypto — on-chain investigation</span>
 </header>
 
 <div class="bar">
-  <input id="addr" placeholder="0x… address to investigate" spellcheck="false">
-  <select id="chain">
+  <input id="addr" placeholder="0x…  paste an address to investigate" spellcheck="false">
+  <select id="chain" title="Chain">
     <option value="eth">eth</option><option value="bsc">bsc</option>
     <option value="polygon">polygon</option><option value="arbitrum">arbitrum</option>
     <option value="optimism">optimism</option><option value="base">base</option>
   </select>
-  <select id="asset">
+  <select id="asset" title="Asset">
     <option value="eth">ETH (native)</option><option value="usdt">USDT</option>
     <option value="usdc">USDC</option><option value="dai">DAI</option><option value="weth">WETH</option>
   </select>
-  <select id="depth"><option>2</option><option selected>3</option><option>4</option><option>5</option></select>
+  <select id="depth" title="Depth"><option>2</option><option selected>3</option><option>4</option><option>5</option></select>
   <button id="go">Investigate</button>
+  <button id="fit" class="ghost" title="Fit graph to view">Fit</button>
 </div>
 
 <div class="legend">
-  <span><span class="dot" style="background:var(--green)"></span>exchange</span>
-  <span><span class="dot" style="background:var(--purple)"></span>mixer</span>
-  <span><span class="dot" style="background:var(--red)"></span>sanctioned / scam</span>
-  <span><span class="dot" style="background:var(--cyan)"></span>bridge</span>
-  <span><span class="dot" style="background:var(--dim)"></span>unknown</span>
-  <span id="status" class="muted" style="margin-left:auto"></span>
+  <span class="chip"><span class="dot" style="color:var(--green);background:var(--green)"></span>exchange</span>
+  <span class="chip"><span class="dot" style="color:var(--purple);background:var(--purple)"></span>mixer</span>
+  <span class="chip"><span class="dot" style="color:var(--red);background:var(--red)"></span>sanctioned / scam</span>
+  <span class="chip"><span class="dot" style="color:var(--cyan);background:var(--cyan)"></span>bridge</span>
+  <span class="chip"><span class="dot" style="color:var(--dim);background:var(--dim)"></span>unknown</span>
+  <span class="status" id="status"></span>
 </div>
 
 <div class="wrap">
-  <div id="graph"></div>
+  <div class="stage">
+    <div class="loader" id="loader"></div>
+    <div id="graph"></div>
+    <div class="hint" id="hint">Paste an address above and hit <b style="color:var(--text);margin:0 4px">Investigate</b><br>
+      — flow runs left → right. Click a node to inspect it, click a transfer line to open it on the explorer.</div>
+  </div>
   <div class="side" id="side">
-    <div class="card"><h3>How to use</h3>
-      <div class="muted">Paste an address and hit Investigate. The graph shows where funds moved;
-      the panel shows the address profile, first-funder and off-ramp checks. Click a node to inspect it.</div>
+    <div class="card"><h3>How it works</h3>
+      <div class="muted">The graph maps where funds moved, hop by hop. Nodes are coloured by what
+      they are — exchanges are cash-out points, mixers break the trail. Click any node for its
+      profile, first-funder chain and off-ramp check.</div>
     </div>
   </div>
 </div>
 
 <script>
-const COLORS={exchange:'#3fb950',mixer:'#bc8cff',sanctioned:'#f85149',scam:'#f85149',bridge:'#39c5cf',unknown:'#8b949e'};
+const COLORS={exchange:'#3fdf87',mixer:'#c48cff',sanctioned:'#ff6b60',scam:'#ff6b60',bridge:'#3fd8e8',unknown:'#93a1b5'};
+const EXPLORER={eth:'https://etherscan.io',bsc:'https://bscscan.com',polygon:'https://polygonscan.com',
+  arbitrum:'https://arbiscan.io',optimism:'https://optimistic.etherscan.io',base:'https://basescan.org'};
 const $=s=>document.querySelector(s);
-let network=null;
+let network=null, lastGraph=null;
 
-function setStatus(t,err){ const s=$('#status'); s.textContent=t; s.className=err?'err':'muted'; }
+const chain=()=>$('#chain').value;
+const explorer=()=>EXPLORER[chain()]||EXPLORER.eth;
+const addrUrl=a=>`${explorer()}/address/${a}`;
+// Etherscan-family advanced filter: all transfers from A to B
+const edgeUrl=(f,t)=>`${explorer()}/advanced-filter?fadd=${f}&tadd=${t}`;
+
+function setStatus(t,err,busy){
+  const s=$('#status');
+  s.innerHTML=(busy?'<span class="spin"></span>':'')+t;
+  s.style.color=err?'var(--red)':'var(--dim)';
+}
+function loader(p){ $('#loader').style.width=p+'%'; if(p>=100) setTimeout(()=>$('#loader').style.width='0',500); }
 
 async function api(path){
-  const r=await fetch(path);
-  const j=await r.json();
+  const r=await fetch(path); const j=await r.json();
   if(!r.ok||j.error) throw new Error(j.error||('HTTP '+r.status));
   return j;
 }
-
-function fmtUsd(v){ if(v==null) return '—'; const a=Math.abs(v);
-  if(a>=1e6) return '$'+(v/1e6).toFixed(2)+'M'; if(a>=1e3) return '$'+(v/1e3).toFixed(1)+'K'; return '$'+v.toFixed(2); }
-function fmtTs(t){ if(!t) return '—'; return new Date(t*1000).toISOString().slice(0,16).replace('T',' '); }
+const fmtUsd=v=>v==null?'—':(Math.abs(v)>=1e6?'$'+(v/1e6).toFixed(2)+'M':Math.abs(v)>=1e3?'$'+(v/1e3).toFixed(1)+'K':'$'+v.toFixed(2));
+const fmtTs=t=>t?new Date(t*1000).toISOString().slice(0,16).replace('T',' '):'—';
+const short=a=>a.slice(0,10)+'…'+a.slice(-6);
 
 function renderGraph(g){
-  const nodes=g.nodes.map(n=>({
-    id:n.id,
-    label:(n.label? n.label+'\n':'')+n.short,
-    color:{background:COLORS[n.type]||COLORS.unknown, border:n.root?'#2f81f7':'#30363d'},
-    borderWidth:n.root?3:1,
-    shape:'dot', size:n.root?22:14,
-    font:{color:'#e6edf3',size:12}
-  }));
+  lastGraph=g;
+  const nodes=g.nodes.map(n=>{
+    const c=COLORS[n.type]||COLORS.unknown;
+    return {
+      id:n.id,
+      label:(n.label?n.label+'\n':'')+n.short,
+      title:`${n.label||n.type}\n${n.id}\n(click to inspect · double-click opens explorer)`,
+      shape:'dot', size:n.root?26:(n.terminal?18:14),
+      color:{background:c,border:n.root?'#ffffff':c,
+             highlight:{background:c,border:'#ffffff'},hover:{background:c,border:'#ffffff'}},
+      borderWidth:n.root?4:2,
+      shadow:{enabled:true,color:c+'88',size:n.root?26:14,x:0,y:0},
+      font:{color:'#e8eef7',size:12,face:'-apple-system, Segoe UI, sans-serif',
+            strokeWidth:4,strokeColor:'rgba(8,11,18,.85)',multi:false}
+    };
+  });
   const edges=g.edges.map(e=>({
-    from:e.from, to:e.to, arrows:'to',
-    label:e.value+' '+g.symbol+(e.usd!=null?'  ≈'+fmtUsd(e.usd):''),
-    font:{color:'#8b949e',size:10,strokeWidth:0,align:'middle'},
-    color:{color:'#30363d'}, smooth:{type:'cubicBezier'}
+    from:e.from,to:e.to,arrows:{to:{enabled:true,scaleFactor:.7}},
+    label:`${e.value} ${g.symbol}${e.usd!=null?'  ≈'+fmtUsd(e.usd):''}`,
+    title:`${e.value} ${g.symbol} in ${e.tx} tx — click to open on explorer`,
+    font:{color:'#93a1b5',size:10.5,strokeWidth:4,strokeColor:'rgba(8,11,18,.85)',align:'horizontal'},
+    color:{color:'rgba(255,255,255,.18)',highlight:'#4d9dff',hover:'#4d9dff'},
+    width:1.2, hoverWidth:2.4, selectionWidth:2.4,
+    smooth:{type:'cubicBezier',forceDirection:'horizontal',roundness:.5}
   }));
+
   const data={nodes:new vis.DataSet(nodes),edges:new vis.DataSet(edges)};
-  const opts={physics:{stabilization:true,barnesHut:{springLength:170}},
-    interaction:{hover:true},layout:{improvedLayout:true}};
-  network=new vis.Network($('#graph'),data,opts);
-  network.on('click',p=>{ if(p.nodes.length){ inspect(p.nodes[0]); }});
+  const opts={
+    // ordered left→right flow instead of a scattered cloud
+    layout:{hierarchical:{enabled:true,direction:'LR',sortMethod:'directed',
+            levelSeparation:300,nodeSpacing:130,treeSpacing:170,blockShifting:true,edgeMinimization:true}},
+    physics:false,
+    interaction:{hover:true,tooltipDelay:120,navigationButtons:false,zoomView:true,dragView:true},
+    nodes:{borderWidthSelected:4},
+    edges:{selectionWidth:2.4}
+  };
+  const el=$('#graph');
+  el.classList.remove('on');
+  network=new vis.Network(el,data,opts);
+  network.once('afterDrawing',()=>{ el.classList.add('on'); network.fit({animation:{duration:700,easingFunction:'easeInOutQuad'}}); });
+
+  network.on('click',p=>{
+    if(p.nodes.length){ inspect(p.nodes[0]); return; }
+    if(p.edges.length){                       // click a transfer line → open on explorer
+      const e=data.edges.get(p.edges[0]);
+      window.open(edgeUrl(e.from,e.to),'_blank','noopener');
+    }
+  });
+  network.on('doubleClick',p=>{ if(p.nodes.length) window.open(addrUrl(p.nodes[0]),'_blank','noopener'); });
 }
 
-function card(title,rows){
-  return `<div class="card"><h3>${title}</h3>${rows}</div>`;
-}
-function kv(k,v){ return `<div class="kv"><span class="k">${k}</span><span>${v}</span></div>`; }
-function pill(type,label){ return `<span class="pill t-${type}">${label||type}</span>`; }
+const card=(t,r,cls='')=>`<div class="card ${cls}"><h3>${t}</h3>${r}</div>`;
+const kv=(k,v)=>`<div class="kv"><span class="k">${k}</span><span class="v">${v}</span></div>`;
+const pill=(t,l)=>`<span class="pill t-${t}">${l||t}</span>`;
 
 async function inspect(addr){
-  const chain=$('#chain').value;
-  $('#side').innerHTML='<div class="muted">Loading '+addr.slice(0,12)+'…</div>';
+  const c=chain();
+  $('#side').innerHTML=`<div class="card"><div class="muted"><span class="spin"></span>Loading ${short(addr)}…</div></div>`;
   try{
     const [p,f,o]=await Promise.all([
-      api(`/api/profile?address=${addr}&chain=${chain}`),
-      api(`/api/funder?address=${addr}&chain=${chain}`).catch(()=>({hops:[]})),
-      api(`/api/offramp?address=${addr}&chain=${chain}`).catch(()=>({offramp:null})),
+      api(`/api/profile?address=${addr}&chain=${c}`),
+      api(`/api/funder?address=${addr}&chain=${c}`).catch(()=>({hops:[]})),
+      api(`/api/offramp?address=${addr}&chain=${c}`).catch(()=>({offramp:null}))
     ]);
-    let html='';
-    html+=card('Address',
-      kv('addr',`<span class="mono">${addr.slice(0,12)}…${addr.slice(-6)}</span>`)+
+    let h='';
+    h+=card('Address',
+      kv('address',`<span class="mono">${short(addr)}</span>`)+
       (p.label?kv('label',pill(p.type,p.label)):kv('type',pill(p.type)))+
-      kv('risk',(p.risk||0)+'/100'));
-    html+=card('Profile',
-      kv('balance',(p.balance)+ '  ≈'+fmtUsd(p.balance_usd))+
-      kv('txs',p.txs)+
+      kv('risk',`${p.risk||0}/100`)+
+      `<a class="btnlink" href="${addrUrl(addr)}" target="_blank" rel="noopener">Open on explorer ↗</a>`);
+    h+=card('Profile',
+      kv('balance',`${p.balance} ≈ ${fmtUsd(p.balance_usd)}`)+
+      kv('transactions',p.txs)+
       kv('first seen',fmtTs(p.first_seen))+
       kv('last seen',fmtTs(p.last_seen)));
     if(o.offramp){
-      const pct=Math.round(o.offramp.fraction*100);
-      html+=card('⚠ Off-ramp', `<div class="muted">~${pct}% of outflow to <b>${o.offramp.exchange}</b> — likely a deposit address (KYC point).</div>`);
+      h+=card('⚠ Off-ramp detected',
+        `<div class="muted">~${Math.round(o.offramp.fraction*100)}% of outgoing funds forwarded to
+        <b style="color:var(--green)">${o.offramp.exchange}</b> — likely a deposit address, i.e. a
+        <b>KYC identification point</b>.</div>`,'alert');
     }
     if(f.hops&&f.hops.length){
-      let rows=f.hops.map(h=>kv('◀ funded by',`<span class="mono">${h.funder.slice(0,10)}…</span> ${h.value.toFixed(3)} ETH ${h.terminal?pill(h.funder_type,h.funder_type):''}`)).join('');
-      html+=card('First-funder chain',rows);
+      h+=card('First-funder chain',
+        f.hops.map(x=>kv('◀ funded by',
+          `<span class="mono">${short(x.funder)}</span> · ${x.value.toFixed(3)} ${x.terminal?pill(x.funder_type,x.funder_label||x.funder_type):''}`)).join(''));
     }
-    $('#side').innerHTML=html;
-  }catch(e){ $('#side').innerHTML='<div class="err">'+e.message+'</div>'; }
+    $('#side').innerHTML=h;
+  }catch(e){ $('#side').innerHTML=card('Error',`<div class="err">${e.message}</div>`); }
 }
 
 async function run(){
-  const addr=$('#addr').value.trim();
-  if(!addr){ setStatus('enter an address',true); return; }
-  setStatus('tracing…');
+  const a=$('#addr').value.trim();
+  if(!a){ setStatus('enter an address',true); return; }
+  setStatus('tracing the chain…',false,true); loader(35);
+  $('#hint').classList.add('hide');
   try{
-    const g=await api(`/api/trace?address=${addr}&chain=${$('#chain').value}&depth=${$('#depth').value}&asset=${$('#asset').value}`);
-    renderGraph(g);
-    setStatus(g.nodes.length+' addresses, '+g.edges.length+' transfers');
-    inspect(addr.toLowerCase());
-  }catch(e){ setStatus(e.message,true); }
+    const g=await api(`/api/trace?address=${a}&chain=${chain()}&depth=${$('#depth').value}&asset=${$('#asset').value}`);
+    loader(80); renderGraph(g);
+    setStatus(`${g.nodes.length} addresses · ${g.edges.length} transfers`);
+    inspect(a.toLowerCase()); loader(100);
+  }catch(e){ setStatus(e.message,true); loader(100); $('#hint').classList.remove('hide'); }
 }
 
 $('#go').onclick=run;
+$('#fit').onclick=()=>network&&network.fit({animation:{duration:600,easingFunction:'easeInOutQuad'}});
 $('#addr').addEventListener('keydown',e=>{ if(e.key==='Enter') run(); });
 </script>
 </body>
