@@ -20,15 +20,21 @@ class SolanaError(RuntimeError):
 
 
 def _rpc(method: str, params: list, timeout: int = 30):
+    """Cached, throttled JSON-RPC call."""
+    import json as _json
+    from crypttrace.fetchers import http
+    body = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
+    key = f"sol:{method}:{_json.dumps(params, sort_keys=True, default=str)}"
     try:
-        r = requests.post(RPC, json={"jsonrpc": "2.0", "id": 1,
-                                     "method": method, "params": params}, timeout=timeout)
-        r.raise_for_status()
-        j = r.json()
+        j = http.request_json(RPC, body=body, cache_key=key, timeout=timeout)
+    except http.RateLimited as e:
+        raise SolanaError(str(e) + " (tip: set CRYPTTRACE_SOLANA_RPC to your own endpoint)")
     except requests.RequestException as e:
         raise SolanaError(f"Solana RPC request failed: {e}")
     except ValueError as e:
         raise SolanaError(f"bad response from Solana RPC: {e}")
+    if not isinstance(j, dict):
+        return None
     if "error" in j:
         raise SolanaError(f"Solana RPC error: {j['error'].get('message')}")
     return j.get("result")

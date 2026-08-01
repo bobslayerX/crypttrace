@@ -53,14 +53,25 @@ def hex_to_base58(h: str) -> str:
 
 
 def _get(path: str, params: dict = None, timeout: int = 30):
+    """Cached, throttled GET. Set TRONGRID_API_KEY for a higher rate limit."""
+    import os
+    from crypttrace.fetchers import http
+    headers = {}
+    key = os.environ.get("TRONGRID_API_KEY")
+    if key:
+        headers["TRON-PRO-API-KEY"] = key
     try:
-        r = requests.get(f"{BASE}{path}", params=params or {}, timeout=timeout)
-        r.raise_for_status()
-        return r.json()
+        data = http.request_json(f"{BASE}{path}", params or {},
+                                 timeout=timeout, headers=headers or None)
+    except http.RateLimited as e:
+        raise TronError(str(e))
     except requests.RequestException as e:
         raise TronError(f"TronGrid request failed: {e}")
     except ValueError as e:
         raise TronError(f"bad response from TronGrid: {e}")
+    if isinstance(data, dict) and "__status__" in data:
+        return {"data": []}
+    return data
 
 
 def balance(address: str) -> float:

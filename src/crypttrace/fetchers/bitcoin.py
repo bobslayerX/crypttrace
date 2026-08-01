@@ -26,19 +26,22 @@ class BitcoinError(RuntimeError):
 
 
 def _get(path: str, timeout: int = 30):
+    """Cached, throttled GET against mempool.space."""
+    from crypttrace.fetchers import http
     try:
-        r = requests.get(f"{BASE}{path}", timeout=timeout)
-        if r.status_code == 400:
-            raise BitcoinError("Bitcoin address rejected by mempool.space — check it is "
-                               "exact (BTC addresses are case-sensitive).")
-        if r.status_code == 404:
-            raise BitcoinError("Address not found on the Bitcoin chain.")
-        r.raise_for_status()
-        return r.json()
+        data = http.request_json(f"{BASE}{path}", timeout=timeout)
+    except http.RateLimited as e:
+        raise BitcoinError(str(e))
     except requests.RequestException as e:
         raise BitcoinError(f"mempool.space request failed: {e}")
     except ValueError as e:
         raise BitcoinError(f"bad response from mempool.space: {e}")
+    if isinstance(data, dict) and "__status__" in data:
+        if data["__status__"] == 400:
+            raise BitcoinError("Bitcoin address rejected by mempool.space — check it is "
+                               "exact (BTC addresses are case-sensitive).")
+        raise BitcoinError("Address not found on the Bitcoin chain.")
+    return data
 
 
 def balance(address: str) -> float:
