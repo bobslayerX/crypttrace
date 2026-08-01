@@ -15,7 +15,8 @@ _STABLE = {"usdt", "usdc", "dai", "busd", "tusd", "usdp", "gusd", "frax", "lusd"
 _PLATFORM = {"eth": "ethereum", "bsc": "binance-smart-chain", "polygon": "polygon-pos",
              "arbitrum": "arbitrum-one", "optimism": "optimistic-ethereum", "base": "base"}
 _COINGECKO_NATIVE = {"eth": "ethereum", "bsc": "binancecoin", "polygon": "matic-network",
-                     "arbitrum": "ethereum", "optimism": "ethereum", "base": "ethereum"}
+                     "arbitrum": "ethereum", "optimism": "ethereum", "base": "ethereum",
+                     "btc": "bitcoin", "tron": "tron", "sol": "solana"}
 
 _cache: Dict[str, Optional[float]] = {}
 
@@ -30,11 +31,18 @@ def _get_json(url: str, params: dict, timeout: int = 15):
 
 
 def native_price(chain: str = "eth") -> Optional[float]:
-    """USD price of the chain's native coin (ETH, BNB, …)."""
+    """USD price of the chain's native coin (ETH, BTC, TRX, SOL, …).
+
+    Unknown chains return None rather than guessing — pricing a BTC balance with
+    ETH's price would silently corrupt an investigation.
+    """
     key = f"native:{chain}"
     if key in _cache:
         return _cache[key]
-    cid = _COINGECKO_NATIVE.get(chain, "ethereum")
+    cid = _COINGECKO_NATIVE.get(chain)
+    if cid is None:
+        _cache[key] = None
+        return None
     data = _get_json("https://api.coingecko.com/api/v3/simple/price",
                      {"ids": cid, "vs_currencies": "usd"})
     price = None

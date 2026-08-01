@@ -273,8 +273,8 @@ async function inspect(addr){
       kv('risk',`${p.risk||0}/100`)+
       `<a class="btnlink" href="${addrUrl(addr)}" target="_blank" rel="noopener">Open on explorer ↗</a>`);
     h+=card('Profile',
-      kv('balance',`${p.balance} ≈ ${fmtUsd(p.balance_usd)}`)+
-      kv('transactions',p.txs)+
+      kv('balance',`${p.balance} ${p.symbol||''} ≈ ${fmtUsd(p.balance_usd)}`)+
+      kv('transfers',p.txs)+
       kv('first seen',fmtTs(p.first_seen))+
       kv('last seen',fmtTs(p.last_seen)));
     if(o.offramp){
@@ -304,6 +304,20 @@ async function run(){
     inspect(a.toLowerCase()); loader(100);
   }catch(e){ setStatus(e.message,true); loader(100); $('#hint').classList.remove('hide'); }
 }
+
+// Token tracing is EVM-only — reflect that in the UI instead of failing silently.
+function syncAssets(){
+  const nonEvm=!!NON_EVM[chain()], sel=$('#asset');
+  [...sel.options].forEach(o=>{ if(o.value!=='eth') o.disabled=nonEvm; });
+  if(nonEvm) sel.value='eth';
+  sel.title=nonEvm?'Token tracing is available on EVM chains':'Asset';
+  sel.style.opacity=nonEvm?.55:1;
+  $('#addr').placeholder=nonEvm
+    ? (chain()==='btc'?'bc1… / 1… / 3…  Bitcoin address'
+      :chain()==='tron'?'T…  Tron address':'Solana account address')
+    : '0x…  paste an address to investigate';
+}
+$('#chain').addEventListener('change',syncAssets); syncAssets();
 
 $('#go').onclick=run;
 $('#fit').onclick=()=>network&&network.fit({animation:{duration:600,easingFunction:'easeInOutQuad'}});
