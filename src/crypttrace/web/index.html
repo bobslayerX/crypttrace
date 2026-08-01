@@ -78,6 +78,16 @@
   .loader{position:absolute;top:0;left:0;height:2px;width:0;background:linear-gradient(90deg,var(--accent),var(--purple));
     box-shadow:0 0 12px var(--accent);transition:width .4s ease;border-radius:2px}
 
+  /* floating zoom controls over the graph */
+  .zoomctl{position:absolute;right:14px;bottom:14px;display:flex;flex-direction:column;gap:6px;z-index:3}
+  .zoomctl button{width:38px;height:38px;padding:0;font-size:16px;font-weight:600;border-radius:12px;
+    background:var(--glass);border:1px solid var(--stroke);box-shadow:0 4px 16px rgba(0,0,0,.35);
+    backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);display:flex;align-items:center;justify-content:center}
+  .zoomctl button:hover{background:var(--glass-2);border-color:var(--stroke-2);transform:translateY(-2px)}
+  .scaleview{position:absolute;left:14px;bottom:14px;z-index:3;font-size:11.5px;color:var(--dim);
+    padding:6px 11px;border-radius:999px;background:var(--glass);border:1px solid var(--stroke);
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+
   .side{width:352px;overflow-y:auto;border-radius:20px;padding:16px;
     background:var(--glass);backdrop-filter:blur(22px) saturate(160%);-webkit-backdrop-filter:blur(22px) saturate(160%);
     border:1px solid var(--stroke);box-shadow:0 12px 40px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.10);
@@ -163,6 +173,12 @@
     <div id="graph"></div>
     <div class="hint" id="hint">Paste an address above and hit <b style="color:var(--text);margin:0 4px">Investigate</b><br>
       — flow runs left → right. Click a node to inspect it, click a transfer line to open it on the explorer.</div>
+    <div class="scaleview" id="scaleview" style="display:none">100%</div>
+    <div class="zoomctl">
+      <button id="zin"  title="Zoom in">+</button>
+      <button id="zout" title="Zoom out">−</button>
+      <button id="zroot" title="Centre on the investigated address">⌖</button>
+    </div>
   </div>
   <div class="side" id="side">
     <div class="card"><h3>How it works</h3>
@@ -181,7 +197,37 @@ const NON_EVM={btc:a=>`https://mempool.space/address/${a}`,
                tron:a=>`https://tronscan.org/#/address/${a}`,
                sol:a=>`https://solscan.io/account/${a}`};
 const $=s=>document.querySelector(s);
-let network=null, lastGraph=null;
+let network=null, lastGraph=null, rootId=null;
+const MIN_SCALE=0.42;   // below this, nodes/labels become unreadable dots
+
+function showScale(){
+  if(!network) return;
+  const v=$('#scaleview');
+  v.style.display='block';
+  v.textContent=Math.round(network.getScale()*100)+'%';
+}
+// Fit the whole graph, but never zoom out past readability — if the trace is
+// too wide, stay at MIN_SCALE and centre on the investigated address instead.
+function fitNice(){
+  if(!network) return;
+  // Measure first (no animation), so the decision is made on the real scale.
+  network.fit();
+  const s=network.getScale();
+  if(s<MIN_SCALE){
+    const opts={scale:MIN_SCALE,animation:{duration:500,easingFunction:'easeInOutQuad'}};
+    if(rootId){ const p=network.getPositions([rootId])[rootId]; if(p) opts.position=p; }
+    network.moveTo(opts);
+    setTimeout(showScale,520);
+  }else{
+    showScale();
+  }
+}
+function zoomBy(f){
+  if(!network) return;
+  network.moveTo({scale:Math.min(3,Math.max(0.15,network.getScale()*f)),
+                  animation:{duration:220,easingFunction:'easeInOutQuad'}});
+  setTimeout(showScale,240);
+}
 
 const chain=()=>$('#chain').value;
 const explorer=()=>EXPLORER[chain()]||EXPLORER.eth;
@@ -222,6 +268,7 @@ function renderGraph(g){
              highlight:{background:c,border:'#ffffff'},hover:{background:c,border:'#ffffff'}},
       borderWidth:n.root?4:2,
       shadow:{enabled:true,color:c+'88',size:n.root?26:14,x:0,y:0},
+      level:n.level,          // our own hop distance — keeps the layout compact
       font:{color:'#e8eef7',size:12,face:'-apple-system, Segoe UI, sans-serif',
             strokeWidth:4,strokeColor:'rgba(8,11,18,.85)',multi:false}
     };
@@ -237,10 +284,16 @@ function renderGraph(g){
   }));
 
   const data={nodes:new vis.DataSet(nodes),edges:new vis.DataSet(edges)};
+  // tighten spacing as the graph grows, so wide traces stay readable
+  const n=g.nodes.length;
+  const lvl = n>40?200 : n>20?240 : 300;
+  const gap = n>40?70  : n>20?90  : 130;
   const opts={
-    // ordered left→right flow instead of a scattered cloud
-    layout:{hierarchical:{enabled:true,direction:'LR',sortMethod:'directed',
-            levelSeparation:300,nodeSpacing:130,treeSpacing:170,blockShifting:true,edgeMinimization:true}},
+    // Ordered flow, using the hop levels we computed server-side.
+    // 'out' → investigated address on the left; 'in' → sources on the left.
+    layout:{hierarchical:{enabled:true,direction:(g.direction==='in'?'RL':'LR'),
+            levelSeparation:lvl,nodeSpacing:gap,treeSpacing:gap+40,
+            blockShifting:true,edgeMinimization:true,parentCentralization:true}},
     physics:false,
     interaction:{hover:true,tooltipDelay:120,navigationButtons:false,zoomView:true,dragView:true},
     nodes:{borderWidthSelected:4},
@@ -249,7 +302,9 @@ function renderGraph(g){
   const el=$('#graph');
   el.classList.remove('on');
   network=new vis.Network(el,data,opts);
-  network.once('afterDrawing',()=>{ el.classList.add('on'); network.fit({animation:{duration:700,easingFunction:'easeInOutQuad'}}); });
+  rootId=(g.nodes.find(x=>x.root)||g.nodes[0]||{}).id;
+  network.on('zoom',showScale);
+  network.once('afterDrawing',()=>{ el.classList.add('on'); fitNice(); });
 
   network.on('click',p=>{
     if(p.nodes.length){ inspect(p.nodes[0]); return; }
@@ -339,7 +394,16 @@ function syncAssets(){
 $('#chain').addEventListener('change',syncAssets); syncAssets();
 
 $('#go').onclick=run;
-$('#fit').onclick=()=>network&&network.fit({animation:{duration:600,easingFunction:'easeInOutQuad'}});
+$('#fit').onclick=()=>network&&fitNice();
+$('#zin').onclick=()=>zoomBy(1.35);
+$('#zout').onclick=()=>zoomBy(1/1.35);
+$('#zroot').onclick=()=>{
+  if(!network||!rootId) return;
+  network.moveTo({position:network.getPositions([rootId])[rootId],
+                  scale:Math.max(network.getScale(),0.8),
+                  animation:{duration:500,easingFunction:'easeInOutQuad'}});
+  setTimeout(showScale,520);
+};
 $('#addr').addEventListener('keydown',e=>{ if(e.key==='Enter') run(); });
 </script>
 </body>

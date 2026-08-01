@@ -144,7 +144,7 @@ def build_graph(address, chain, depth, branching, asset=None, direction="out"):
     nodes = {}
     edges = []
 
-    def _node(addr, is_root=False):
+    def _node(addr, hop, is_root=False):
         key = _norm(addr)
         if key not in nodes:
             nodes[key] = {
@@ -154,11 +154,17 @@ def build_graph(address, chain, depth, branching, asset=None, direction="out"):
                 "label": labels.label_of(addr),
                 "root": is_root,
                 "terminal": False,
+                # hop distance from the investigated address — the renderer uses
+                # this as the layout level, which keeps the graph compact and
+                # ordered instead of letting the library invent deep levels.
+                "level": hop,
             }
+        else:
+            nodes[key]["level"] = min(nodes[key]["level"], hop)
         return nodes[key]
 
-    def _walk(addr, d, seen, is_root):
-        _node(addr, is_root)
+    def _walk(addr, d, seen, is_root, hop=0):
+        _node(addr, hop, is_root)
         key = _norm(addr)
         if d <= 0 or key in seen:
             return
@@ -167,14 +173,14 @@ def build_graph(address, chain, depth, branching, asset=None, direction="out"):
             nodes[key]["terminal"] = True
             return
         for to, val, cnt in _outflows(addr, chain, branching, asset, direction):
-            _node(to)
+            _node(to, hop + 1)
             # arrows always point the way the money actually travelled
             src, dst = (key, _norm(to)) if direction == "out" else (_norm(to), key)
             edges.append({"from": src, "to": dst,
                           "value": round(val, 4), "tx": cnt,
                           "usd": prices.usd(val, price)})
-            _walk(to, d - 1, seen, False)
+            _walk(to, d - 1, seen, False, hop + 1)
 
-    _walk(address, depth, set(), True)
+    _walk(address, depth, set(), True, 0)
     return {"nodes": list(nodes.values()), "edges": edges,
             "symbol": symbol, "direction": direction}
