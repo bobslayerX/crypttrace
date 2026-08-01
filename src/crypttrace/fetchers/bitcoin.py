@@ -28,6 +28,11 @@ class BitcoinError(RuntimeError):
 def _get(path: str, timeout: int = 30):
     try:
         r = requests.get(f"{BASE}{path}", timeout=timeout)
+        if r.status_code == 400:
+            raise BitcoinError("Bitcoin address rejected by mempool.space — check it is "
+                               "exact (BTC addresses are case-sensitive).")
+        if r.status_code == 404:
+            raise BitcoinError("Address not found on the Bitcoin chain.")
         r.raise_for_status()
         return r.json()
     except requests.RequestException as e:

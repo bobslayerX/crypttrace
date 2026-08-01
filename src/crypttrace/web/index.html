@@ -139,6 +139,10 @@
     <option value="eth">ETH (native)</option><option value="usdt">USDT</option>
     <option value="usdc">USDC</option><option value="dai">DAI</option><option value="weth">WETH</option>
   </select>
+  <select id="direction" title="Which way to follow the money">
+    <option value="out">→ where funds went</option>
+    <option value="in">← where funds came from</option>
+  </select>
   <select id="depth" title="Depth"><option>2</option><option selected>3</option><option>4</option><option>5</option></select>
   <button id="go">Investigate</button>
   <button id="fit" class="ghost" title="Fit graph to view">Fit</button>
@@ -193,7 +197,11 @@ function setStatus(t,err,busy){
 function loader(p){ $('#loader').style.width=p+'%'; if(p>=100) setTimeout(()=>$('#loader').style.width='0',500); }
 
 async function api(path){
-  const r=await fetch(path); const j=await r.json();
+  const r=await fetch(path);
+  const raw=await r.text();
+  let j;
+  try{ j=JSON.parse(raw); }
+  catch{ throw new Error(raw.slice(0,140).replace(/<[^>]*>/g,'').trim()||('HTTP '+r.status)); }
   if(!r.ok||j.error) throw new Error(j.error||('HTTP '+r.status));
   return j;
 }
@@ -298,10 +306,21 @@ async function run(){
   setStatus('tracing the chain…',false,true); loader(35);
   $('#hint').classList.add('hide');
   try{
-    const g=await api(`/api/trace?address=${a}&chain=${chain()}&depth=${$('#depth').value}&asset=${$('#asset').value}`);
+    const dir=$('#direction').value;
+    const g=await api(`/api/trace?address=${a}&chain=${chain()}&depth=${$('#depth').value}&asset=${$('#asset').value}&direction=${dir}`);
     loader(80); renderGraph(g);
     setStatus(`${g.nodes.length} addresses · ${g.edges.length} transfers`);
-    inspect(a.toLowerCase()); loader(100);
+    // BTC/Tron/Solana addresses are case-sensitive — never lowercase them
+    inspect(NON_EVM[chain()] ? a : a.toLowerCase()); loader(100);
+    if(!g.edges.length){                     // explain an empty graph instead of showing nothing
+      const other=dir==='out'?'← where funds came from':'→ where funds went';
+      $('#hint').innerHTML=dir==='out'
+        ? `This address has no <b>outgoing</b> transfers — it only ever received funds.<br>
+           Switch the direction to <b>${other}</b> to trace where its money came from.`
+        : `This address has no <b>incoming</b> transfers on record.<br>
+           Try <b>${other}</b> instead.`;
+      $('#hint').classList.remove('hide');
+    }
   }catch(e){ setStatus(e.message,true); loader(100); $('#hint').classList.remove('hide'); }
 }
 

@@ -101,18 +101,33 @@ def transfers(address: str, chain: str = "eth", limit: int = 1000,
     return rows
 
 
-def outflows(address: str, chain: str, top: int, limit: int = 1000):
-    """Aggregated outgoing value per destination: [(to, total, tx_count)]."""
+def flows(address: str, chain: str, top: int, direction: str = "out", limit: int = 1000):
+    """Aggregated value per counterparty: [(other, total, tx_count)].
+
+    direction='out' — where this address SENT funds (follow the money forward).
+    direction='in'  — where its funds CAME FROM (trace the source backward).
+    """
     me = address if chain in ("btc", "tron", "sol") else address.lower()
+    near, far = ("from", "to") if direction == "out" else ("to", "from")
     agg: Dict[str, list] = {}
     for r in transfers(address, chain, limit):
-        if r.get("from") != me:
+        if r.get(near) != me:
             continue
-        to = r.get("to")
-        if not to or r.get("value", 0) <= 0:
+        other = r.get(far)
+        if not other or r.get("value", 0) <= 0:
             continue
-        rec = agg.setdefault(to, [0.0, 0])
+        rec = agg.setdefault(other, [0.0, 0])
         rec[0] += r["value"]
         rec[1] += 1
     ranked = sorted(agg.items(), key=lambda kv: kv[1][0], reverse=True)
     return [(a, v, c) for a, (v, c) in ranked][:top]
+
+
+def outflows(address: str, chain: str, top: int, limit: int = 1000):
+    """Aggregated outgoing value per destination: [(to, total, tx_count)]."""
+    return flows(address, chain, top, "out", limit)
+
+
+def inflows(address: str, chain: str, top: int, limit: int = 1000):
+    """Aggregated incoming value per source: [(from, total, tx_count)]."""
+    return flows(address, chain, top, "in", limit)

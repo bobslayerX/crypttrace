@@ -60,6 +60,8 @@ def trace(
     depth: int = typer.Option(3, "--depth", "-d", help="How many hops to follow"),
     branching: int = typer.Option(3, "--branching", "-b",
                                   help="Top-N outflows to follow per address"),
+    direction: str = typer.Option("out", "--direction", "-D",
+                                  help="'out' = where funds went, 'in' = where they came from"),
 ):
     """Trace where funds moved, hop by hop, as a coloured tree (ETH or a token)."""
     try:
@@ -67,9 +69,12 @@ def trace(
     except ValueError as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1)
+    if direction not in ("out", "in"):
+        console.print("[red]Error:[/red] --direction must be 'out' or 'in'")
+        raise typer.Exit(1)
     try:
-        tree = trace_mod.build_tree(address, chain, depth, branching, asset_desc)
-    except etherscan.EtherscanError as e:
+        tree = trace_mod.build_tree(address, chain, depth, branching, asset_desc, direction)
+    except (chains_mod.ChainError, etherscan.EtherscanError) as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1)
     console.print(tree)

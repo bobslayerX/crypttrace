@@ -8,47 +8,50 @@ from crypttrace.labels import labels
 from crypttrace import config, render, assets, prices, offramp
 
 
-def _native_outflows(address, chain, top):
-    """Native-coin outflows for any supported chain (EVM, BTC, Tron, Solana)."""
+def _native_outflows(address, chain, top, direction="out"):
+    """Native-coin flows for any supported chain (EVM, BTC, Tron, Solana)."""
     from crypttrace import chains
-    return chains.outflows(address, chain, top)
+    return chains.flows(address, chain, top, direction)
 
 
-def _token_outflows(address, chain, top, contract):
+def _token_outflows(address, chain, top, contract, direction="out"):
     me = address.lower()
+    near, far = ("from", "to") if direction == "out" else ("to", "from")
     agg = {}
     for r in assets.token_transfers(address, chain, contract):
-        if r["from"] != me:
+        if r[near] != me:
             continue
-        to = r["to"]
-        if not to:
+        other = r[far]
+        if not other:
             continue
-        rec = agg.setdefault(to, [0.0, 0]); rec[0] += r["value"]; rec[1] += 1
+        rec = agg.setdefault(other, [0.0, 0]); rec[0] += r["value"]; rec[1] += 1
     ranked = sorted(agg.items(), key=lambda kv: kv[1][0], reverse=True)
     return [(a, v, c) for a, (v, c) in ranked if v > 0][:top]
 
 
-def _outflows(address, chain, top, asset):
+def _outflows(address, chain, top, asset, direction="out"):
     if asset is None:
-        return _native_outflows(address, chain, top)
-    return _token_outflows(address, chain, top, asset["contract"])
+        return _native_outflows(address, chain, top, direction)
+    return _token_outflows(address, chain, top, asset["contract"], direction)
 
 
 class _Ctx:
     """Holds constant tracing context so it isn't threaded through every arg."""
-    def __init__(self, chain, branching, asset, symbol, price):
+    def __init__(self, chain, branching, asset, symbol, price, direction="out"):
         self.chain = chain
         self.branching = branching
         self.asset = asset
         self.symbol = symbol
         self.price = price
+        self.direction = direction
 
 
 def _edge_text(ctx, to, val, cnt):
     usd = prices.fmt_usd(prices.usd(val, ctx.price))
     money = f"{val:.4f} {ctx.symbol}"
     tail = f" ≈{usd}" if ctx.price is not None else ""
-    return Text.assemble(Text(f"──{money} ({cnt} tx){tail}──▶ "), render.addr_label(to))
+    arrow = "──▶ " if ctx.direction == "out" else "◀── "
+    return Text.assemble(Text(f"──{money} ({cnt} tx){tail}{arrow}"), render.addr_label(to))
 
 
 def _record_finding(findings, ctx, to, val, cnt):
@@ -92,14 +95,14 @@ def _expand(node, address, ctx, depth, seen, findings=None, is_root=False):
                                  "usd_reached": prices.usd(off["forwarded"], ctx.price),
                                  "tx_count": 0})
             return
-    for to, val, cnt in _outflows(address, ctx.chain, ctx.branching, ctx.asset):
+    for to, val, cnt in _outflows(address, ctx.chain, ctx.branching, ctx.asset, ctx.direction):
         _record_finding(findings, ctx, to, val, cnt)
         child = node.add(_edge_text(ctx, to, val, cnt))
         _expand(child, to, ctx, depth - 1, seen, findings)
 
 
-def build(address, chain, depth, branching, asset=None):
-    """Return (tree, findings). `asset` is None (native) or a descriptor from assets.resolve_asset."""
+def build(address, chain, depth, branching, asset=None, direction="out"):
+    """Return (tree, findings). direction 'out' follows funds forward, 'in' traces their source."""
     if asset is None:
         from crypttrace import chains as _chains
         symbol = _chains.symbol(chain)
@@ -107,7 +110,7 @@ def build(address, chain, depth, branching, asset=None):
     else:
         symbol = asset["symbol"]
         price = prices.token_price(asset["contract"], chain, symbol)
-    ctx = _Ctx(chain, branching, asset, symbol, price)
+    ctx = _Ctx(chain, branching, asset, symbol, price, direction)
 
     root = Tree(render.addr_label(address))
     findings = []
@@ -115,13 +118,16 @@ def build(address, chain, depth, branching, asset=None):
     return root, findings
 
 
-def build_tree(address, chain, depth, branching, asset=None):
-    tree, _ = build(address, chain, depth, branching, asset)
+def build_tree(address, chain, depth, branching, asset=None, direction="out"):
+    tree, _ = build(address, chain, depth, branching, asset, direction)
     return tree
 
 
-def build_graph(address, chain, depth, branching, asset=None):
-    """Return {nodes, edges, symbol} for graph visualization (web UI)."""
+def build_graph(address, chain, depth, branching, asset=None, direction="out"):
+    """Return {nodes, edges, symbol} for graph visualization (web UI).
+
+    direction 'out' follows where funds went; 'in' traces where they came from.
+    """
     if asset is None:
         from crypttrace import chains as _chains
         symbol = _chains.symbol(chain)
@@ -130,11 +136,16 @@ def build_graph(address, chain, depth, branching, asset=None):
         symbol = asset["symbol"]
         price = prices.token_price(asset["contract"], chain, symbol)
 
+    # Bitcoin / Tron / Solana addresses are case-sensitive (base58); only EVM
+    # addresses may be normalized to lowercase.
+    from crypttrace import chains as _c
+    _norm = (lambda a: a.lower()) if _c.is_evm(chain) else (lambda a: a)
+
     nodes = {}
     edges = []
 
     def _node(addr, is_root=False):
-        key = addr.lower()
+        key = _norm(addr)
         if key not in nodes:
             nodes[key] = {
                 "id": key,
@@ -148,18 +159,22 @@ def build_graph(address, chain, depth, branching, asset=None):
 
     def _walk(addr, d, seen, is_root):
         _node(addr, is_root)
-        if d <= 0 or addr.lower() in seen:
+        key = _norm(addr)
+        if d <= 0 or key in seen:
             return
-        seen.add(addr.lower())
+        seen.add(key)
         if not is_root and labels.type_of(addr) in ("exchange", "mixer", "sanctioned", "bridge"):
-            nodes[addr.lower()]["terminal"] = True
+            nodes[key]["terminal"] = True
             return
-        for to, val, cnt in _outflows(addr, chain, branching, asset):
+        for to, val, cnt in _outflows(addr, chain, branching, asset, direction):
             _node(to)
-            edges.append({"from": addr.lower(), "to": to.lower(),
+            # arrows always point the way the money actually travelled
+            src, dst = (key, _norm(to)) if direction == "out" else (_norm(to), key)
+            edges.append({"from": src, "to": dst,
                           "value": round(val, 4), "tx": cnt,
                           "usd": prices.usd(val, price)})
             _walk(to, d - 1, seen, False)
 
     _walk(address, depth, set(), True)
-    return {"nodes": list(nodes.values()), "edges": edges, "symbol": symbol}
+    return {"nodes": list(nodes.values()), "edges": edges,
+            "symbol": symbol, "direction": direction}

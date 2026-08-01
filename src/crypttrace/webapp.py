@@ -14,13 +14,42 @@ from flask import Flask, jsonify, request, send_from_directory
 from crypttrace.fetchers import etherscan
 from crypttrace.labels import labels
 from crypttrace import trace as trace_mod, funder as funder_mod, offramp as offramp_mod
-from crypttrace import assets, prices, config
+from crypttrace import assets, prices, config, chains
 
 _WEB_DIR = Path(__file__).parent / "web"
+
+# Errors that mean "bad input / upstream said no", not "the app crashed".
+_KNOWN_ERRORS = (chains.ChainError, etherscan.EtherscanError, ValueError)
+
+
+def validate(address: str, chain: str):
+    """Return a helpful message if the address obviously doesn't fit the chain."""
+    a = (address or "").strip()
+    if not a:
+        return "Enter an address."
+    if len(a) == 64 and all(c in "0123456789abcdefABCDEF" for c in a):
+        return ("That looks like a transaction ID, not an address. "
+                "Paste the wallet address instead.")
+    if chains.is_evm(chain):
+        if not (a.startswith("0x") and len(a) == 42):
+            return f"'{a[:14]}…' is not an {chain} address (expected 0x…, 42 chars)."
+    elif chain == "btc":
+        if not (a.startswith(("1", "3", "bc1", "tb1")) and 25 <= len(a) <= 62):
+            return f"'{a[:14]}…' is not a Bitcoin address (expected 1…, 3… or bc1…)."
+    elif chain == "tron":
+        if not (a.startswith("T") and len(a) == 34):
+            return f"'{a[:14]}…' is not a Tron address (expected T…, 34 chars)."
+    return None
 
 
 def create_app() -> Flask:
     app = Flask(__name__, static_folder=None)
+
+    # Always answer the API in JSON — an HTML error page would break the frontend.
+    @app.errorhandler(Exception)
+    def _json_errors(e):
+        code = getattr(e, "code", 500)
+        return jsonify({"error": getattr(e, "description", None) or str(e)}), code
 
     @app.route("/")
     def index():
@@ -39,13 +68,15 @@ def create_app() -> Flask:
 
     @app.route("/api/profile")
     def api_profile():
-        from crypttrace import chains
         addr = request.args.get("address", "")
         chain = request.args.get("chain", "eth")
+        bad = validate(addr, chain)
+        if bad:
+            return jsonify({"error": bad}), 400
         try:
             bal = chains.balance(addr, chain)
             rows = chains.transfers(addr, chain, limit=1000)
-        except (chains.ChainError, etherscan.EtherscanError) as e:
+        except _KNOWN_ERRORS as e:
             return jsonify({"error": str(e)}), 400
         price = prices.native_price(chain)
         hit = labels.lookup(addr)
@@ -70,10 +101,16 @@ def create_app() -> Flask:
         depth = int(request.args.get("depth", 3))
         branching = int(request.args.get("branching", 3))
         asset_arg = request.args.get("asset", "eth")
+        direction = request.args.get("direction", "out")
+        if direction not in ("out", "in"):
+            direction = "out"
+        bad = validate(addr, chain)
+        if bad:
+            return jsonify({"error": bad}), 400
         try:
             asset = assets.resolve_asset(asset_arg)
-            graph = trace_mod.build_graph(addr, chain, depth, branching, asset)
-        except (etherscan.EtherscanError, ValueError) as e:
+            graph = trace_mod.build_graph(addr, chain, depth, branching, asset, direction)
+        except _KNOWN_ERRORS as e:
             return jsonify({"error": str(e)}), 400
         return jsonify(graph)
 
@@ -81,9 +118,11 @@ def create_app() -> Flask:
     def api_funder():
         addr = request.args.get("address", "")
         chain = request.args.get("chain", "eth")
+        if validate(addr, chain):
+            return jsonify({"hops": []})
         try:
             hops = funder_mod.funding_chain(addr, chain, 6)
-        except etherscan.EtherscanError as e:
+        except _KNOWN_ERRORS as e:
             return jsonify({"error": str(e)}), 400
         return jsonify({"hops": hops})
 
@@ -91,9 +130,12 @@ def create_app() -> Flask:
     def api_offramp():
         addr = request.args.get("address", "")
         chain = request.args.get("chain", "eth")
+        # off-ramp heuristic relies on exchange labels, which are EVM-only today
+        if not chains.is_evm(chain) or validate(addr, chain):
+            return jsonify({"offramp": None})
         try:
             hit = offramp_mod.detect(addr, chain)
-        except etherscan.EtherscanError as e:
+        except _KNOWN_ERRORS as e:
             return jsonify({"error": str(e)}), 400
         return jsonify({"offramp": hit})
 
