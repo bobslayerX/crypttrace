@@ -11,6 +11,13 @@ here's the wallet — where did the money go, and where can it still be stopped?
 Works as a terminal tool **and** as a local web app with an interactive
 fund-flow graph.
 
+![crypttrace tracing the AFX Trade exploit](assets/graph-outflow.png)
+
+*Real case: the AFX Trade exploiter (July 2026, $24.15M). crypttrace follows the
+stolen ETH out of the attacker's wallet — 12,467 ETH (~$23.3M) to a holding
+address, then split across three wallets and split again. Classic layering,
+mapped in seconds.*
+
 ---
 
 ## Install
@@ -73,6 +80,16 @@ Everything runs on your machine — nothing is uploaded anywhere.
 
 This exists so non-technical victims can use the tool at all: a form and a
 picture, instead of command-line flags.
+
+**Both directions of the same investigation.** Forward — where the stolen money
+went:
+
+![Tracing stolen funds forward](assets/graph-outflow.png)
+
+Backward — how that wallet was funded in the first place, which is how you tie
+an anonymous wallet to something identifiable:
+
+![Tracing a wallet's funding backward](assets/graph-inflow.png)
 
 ## Commands
 
