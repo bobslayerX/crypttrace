@@ -127,3 +127,47 @@ def build(address, chain, depth, branching, asset=None):
 def build_tree(address, chain, depth, branching, asset=None):
     tree, _ = build(address, chain, depth, branching, asset)
     return tree
+
+
+def build_graph(address, chain, depth, branching, asset=None):
+    """Return {nodes, edges, symbol} for graph visualization (web UI)."""
+    if asset is None:
+        symbol = {"eth": "ETH", "bsc": "BNB", "polygon": "MATIC"}.get(chain, "ETH")
+        price = prices.native_price(chain)
+    else:
+        symbol = asset["symbol"]
+        price = prices.token_price(asset["contract"], chain, symbol)
+
+    nodes = {}
+    edges = []
+
+    def _node(addr, is_root=False):
+        key = addr.lower()
+        if key not in nodes:
+            nodes[key] = {
+                "id": key,
+                "short": addr[:10] + "…" + addr[-6:],
+                "type": labels.type_of(addr),
+                "label": labels.label_of(addr),
+                "root": is_root,
+                "terminal": False,
+            }
+        return nodes[key]
+
+    def _walk(addr, d, seen, is_root):
+        _node(addr, is_root)
+        if d <= 0 or addr.lower() in seen:
+            return
+        seen.add(addr.lower())
+        if not is_root and labels.type_of(addr) in ("exchange", "mixer", "sanctioned", "bridge"):
+            nodes[addr.lower()]["terminal"] = True
+            return
+        for to, val, cnt in _outflows(addr, chain, branching, asset):
+            _node(to)
+            edges.append({"from": addr.lower(), "to": to.lower(),
+                          "value": round(val, 4), "tx": cnt,
+                          "usd": prices.usd(val, price)})
+            _walk(to, d - 1, seen, False)
+
+    _walk(address, depth, set(), True)
+    return {"nodes": list(nodes.values()), "edges": edges, "symbol": symbol}

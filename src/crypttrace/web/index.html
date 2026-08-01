@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>crypttrace — on-chain investigation</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.9/dist/vis-network.min.js"></script>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --border:#30363d; --text:#e6edf3; --dim:#8b949e;
+    --green:#3fb950; --purple:#bc8cff; --red:#f85149; --cyan:#39c5cf; --white:#c9d1d9; --accent:#2f81f7;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text)}
+  header{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+  header h1{font-size:18px;margin:0;font-weight:700}
+  header .tag{color:var(--dim);font-size:13px}
+  .bar{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  input,select,button{background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:14px}
+  input#addr{flex:1;min-width:340px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  button{cursor:pointer;background:var(--accent);border-color:var(--accent);font-weight:600}
+  button:hover{filter:brightness(1.1)}
+  button.secondary{background:var(--panel);border-color:var(--border);font-weight:500}
+  .wrap{display:flex;height:calc(100vh - 118px)}
+  #graph{flex:1;background:var(--bg)}
+  .side{width:340px;border-left:1px solid var(--border);padding:16px;overflow-y:auto}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px}
+  .card h3{margin:0 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--dim)}
+  .kv{display:flex;justify-content:space-between;gap:10px;padding:4px 0;font-size:13px}
+  .kv .k{color:var(--dim)}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:12px;font-weight:600}
+  .t-exchange{background:rgba(63,185,80,.15);color:var(--green)}
+  .t-mixer{background:rgba(188,140,255,.15);color:var(--purple)}
+  .t-sanctioned,.t-scam{background:rgba(248,81,73,.15);color:var(--red)}
+  .t-bridge{background:rgba(57,197,207,.15);color:var(--cyan)}
+  .t-unknown{background:rgba(139,148,158,.15);color:var(--dim)}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--dim);padding:8px 20px;border-bottom:1px solid var(--border)}
+  .legend span{display:flex;align-items:center;gap:5px}
+  .dot{width:10px;height:10px;border-radius:50%}
+  .muted{color:var(--dim);font-size:13px}
+  .err{color:var(--red);font-size:13px}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+<header>
+  <h1>🔎 crypttrace</h1>
+  <span class="tag">trace stolen crypto — on-chain investigation</span>
+</header>
+
+<div class="bar">
+  <input id="addr" placeholder="0x… address to investigate" spellcheck="false">
+  <select id="chain">
+    <option value="eth">eth</option><option value="bsc">bsc</option>
+    <option value="polygon">polygon</option><option value="arbitrum">arbitrum</option>
+    <option value="optimism">optimism</option><option value="base">base</option>
+  </select>
+  <select id="asset">
+    <option value="eth">ETH (native)</option><option value="usdt">USDT</option>
+    <option value="usdc">USDC</option><option value="dai">DAI</option><option value="weth">WETH</option>
+  </select>
+  <select id="depth"><option>2</option><option selected>3</option><option>4</option><option>5</option></select>
+  <button id="go">Investigate</button>
+</div>
+
+<div class="legend">
+  <span><span class="dot" style="background:var(--green)"></span>exchange</span>
+  <span><span class="dot" style="background:var(--purple)"></span>mixer</span>
+  <span><span class="dot" style="background:var(--red)"></span>sanctioned / scam</span>
+  <span><span class="dot" style="background:var(--cyan)"></span>bridge</span>
+  <span><span class="dot" style="background:var(--dim)"></span>unknown</span>
+  <span id="status" class="muted" style="margin-left:auto"></span>
+</div>
+
+<div class="wrap">
+  <div id="graph"></div>
+  <div class="side" id="side">
+    <div class="card"><h3>How to use</h3>
+      <div class="muted">Paste an address and hit Investigate. The graph shows where funds moved;
+      the panel shows the address profile, first-funder and off-ramp checks. Click a node to inspect it.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const COLORS={exchange:'#3fb950',mixer:'#bc8cff',sanctioned:'#f85149',scam:'#f85149',bridge:'#39c5cf',unknown:'#8b949e'};
+const $=s=>document.querySelector(s);
+let network=null;
+
+function setStatus(t,err){ const s=$('#status'); s.textContent=t; s.className=err?'err':'muted'; }
+
+async function api(path){
+  const r=await fetch(path);
+  const j=await r.json();
+  if(!r.ok||j.error) throw new Error(j.error||('HTTP '+r.status));
+  return j;
+}
+
+function fmtUsd(v){ if(v==null) return '—'; const a=Math.abs(v);
+  if(a>=1e6) return '$'+(v/1e6).toFixed(2)+'M'; if(a>=1e3) return '$'+(v/1e3).toFixed(1)+'K'; return '$'+v.toFixed(2); }
+function fmtTs(t){ if(!t) return '—'; return new Date(t*1000).toISOString().slice(0,16).replace('T',' '); }
+
+function renderGraph(g){
+  const nodes=g.nodes.map(n=>({
+    id:n.id,
+    label:(n.label? n.label+'\n':'')+n.short,
+    color:{background:COLORS[n.type]||COLORS.unknown, border:n.root?'#2f81f7':'#30363d'},
+    borderWidth:n.root?3:1,
+    shape:'dot', size:n.root?22:14,
+    font:{color:'#e6edf3',size:12}
+  }));
+  const edges=g.edges.map(e=>({
+    from:e.from, to:e.to, arrows:'to',
+    label:e.value+' '+g.symbol+(e.usd!=null?'  ≈'+fmtUsd(e.usd):''),
+    font:{color:'#8b949e',size:10,strokeWidth:0,align:'middle'},
+    color:{color:'#30363d'}, smooth:{type:'cubicBezier'}
+  }));
+  const data={nodes:new vis.DataSet(nodes),edges:new vis.DataSet(edges)};
+  const opts={physics:{stabilization:true,barnesHut:{springLength:170}},
+    interaction:{hover:true},layout:{improvedLayout:true}};
+  network=new vis.Network($('#graph'),data,opts);
+  network.on('click',p=>{ if(p.nodes.length){ inspect(p.nodes[0]); }});
+}
+
+function card(title,rows){
+  return `<div class="card"><h3>${title}</h3>${rows}</div>`;
+}
+function kv(k,v){ return `<div class="kv"><span class="k">${k}</span><span>${v}</span></div>`; }
+function pill(type,label){ return `<span class="pill t-${type}">${label||type}</span>`; }
+
+async function inspect(addr){
+  const chain=$('#chain').value;
+  $('#side').innerHTML='<div class="muted">Loading '+addr.slice(0,12)+'…</div>';
+  try{
+    const [p,f,o]=await Promise.all([
+      api(`/api/profile?address=${addr}&chain=${chain}`),
+      api(`/api/funder?address=${addr}&chain=${chain}`).catch(()=>({hops:[]})),
+      api(`/api/offramp?address=${addr}&chain=${chain}`).catch(()=>({offramp:null})),
+    ]);
+    let html='';
+    html+=card('Address',
+      kv('addr',`<span class="mono">${addr.slice(0,12)}…${addr.slice(-6)}</span>`)+
+      (p.label?kv('label',pill(p.type,p.label)):kv('type',pill(p.type)))+
+      kv('risk',(p.risk||0)+'/100'));
+    html+=card('Profile',
+      kv('balance',(p.balance)+ '  ≈'+fmtUsd(p.balance_usd))+
+      kv('txs',p.txs)+
+      kv('first seen',fmtTs(p.first_seen))+
+      kv('last seen',fmtTs(p.last_seen)));
+    if(o.offramp){
+      const pct=Math.round(o.offramp.fraction*100);
+      html+=card('⚠ Off-ramp', `<div class="muted">~${pct}% of outflow to <b>${o.offramp.exchange}</b> — likely a deposit address (KYC point).</div>`);
+    }
+    if(f.hops&&f.hops.length){
+      let rows=f.hops.map(h=>kv('◀ funded by',`<span class="mono">${h.funder.slice(0,10)}…</span> ${h.value.toFixed(3)} ETH ${h.terminal?pill(h.funder_type,h.funder_type):''}`)).join('');
+      html+=card('First-funder chain',rows);
+    }
+    $('#side').innerHTML=html;
+  }catch(e){ $('#side').innerHTML='<div class="err">'+e.message+'</div>'; }
+}
+
+async function run(){
+  const addr=$('#addr').value.trim();
+  if(!addr){ setStatus('enter an address',true); return; }
+  setStatus('tracing…');
+  try{
+    const g=await api(`/api/trace?address=${addr}&chain=${$('#chain').value}&depth=${$('#depth').value}&asset=${$('#asset').value}`);
+    renderGraph(g);
+    setStatus(g.nodes.length+' addresses, '+g.edges.length+' transfers');
+    inspect(addr.toLowerCase());
+  }catch(e){ setStatus(e.message,true); }
+}
+
+$('#go').onclick=run;
+$('#addr').addEventListener('keydown',e=>{ if(e.key==='Enter') run(); });
+</script>
+</body>
+</html>

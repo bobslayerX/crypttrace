@@ -215,6 +215,22 @@ def chains():
         console.print(f"  {name}  (chainid {cid})")
 
 
+@app.command()
+def serve(
+    host: str = typer.Option("127.0.0.1", "--host", help="Host to bind"),
+    port: int = typer.Option(8000, "--port", "-p", help="Port to serve on"),
+):
+    """Launch the local web UI (interactive graph) in your browser."""
+    try:
+        from crypttrace import webapp
+    except ImportError:
+        console.print("[red]Flask is not installed.[/red] Run: pip install 'crypttrace[web]'  "
+                      "(or pip install flask)")
+        raise typer.Exit(1)
+    console.print(f"[green]crypttrace web UI[/green] → http://{host}:{port}  (Ctrl-C to stop)")
+    webapp.serve(host=host, port=port)
+
+
 # ---- watch: monitor addresses and alert on movement / cash-out ----
 watch_app = typer.Typer(help="Monitor addresses and alert when funds move (esp. to an exchange).")
 app.add_typer(watch_app, name="watch")

@@ -77,6 +77,19 @@ token tracing is essential. Amounts are shown with approximate USD values
 (stablecoins pinned to $1, others priced via CoinGecko; if offline, USD shows as
 `—`). The `tokens` command lists an address's token holdings valued in USD.
 
+### Web UI (interactive graph)
+
+For a point-and-click experience — and for non-technical victims who won't use a
+CLI — crypttrace ships a local web interface: paste an address, get an
+interactive fund-flow graph (nodes coloured by type) plus the address profile,
+first-funder and off-ramp checks in a side panel. It runs entirely on your
+machine.
+
+```
+pip install "crypttrace[web]"     # installs Flask
+crypttrace serve                  # then open http://127.0.0.1:8000
+```
+
 ### Watch & alerts (catching the cash-out)
 
 The one window to freeze stolen funds is the moment they reach an exchange
