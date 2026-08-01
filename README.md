@@ -1,103 +1,192 @@
 # crypttrace
 
-OSINT crypto-investigation CLI. Give it a suspicious address; it pulls the
-public on-chain history, labels known entities (exchanges, mixers, sanctioned
-wallets), scores risk, and traces where the funds moved — all in your terminal.
+Open-source OSINT toolkit for crypto investigations. Give it a suspicious
+address; it pulls the public on-chain history, labels known entities (exchanges,
+mixers, sanctioned wallets), scores risk, and maps where the funds moved —
+across Ethereum, Bitcoin, Tron, Solana and more.
 
-Built for the common investigation flow: *someone got their crypto stolen, here's
-the wallet, where did the money go?*
+Built for the investigation that actually happens: *someone's crypto was stolen,
+here's the wallet — where did the money go, and where can it still be stopped?*
+
+Works as a terminal tool **and** as a local web app with an interactive
+fund-flow graph.
+
+---
 
 ## Install
 
 ```bash
+git clone https://github.com/bobslayerX/crypttrace
 cd crypttrace
-pip install -e .
-export ETHERSCAN_API_KEY=xxxx   # free key: https://etherscan.io/myapikey
+pip install -e ".[web]"        # ".[web]" also installs Flask for the web UI
 ```
 
-One Etherscan v2 key works across all supported EVM chains (eth, bsc, polygon,
-arbitrum, optimism, base). **Bitcoin, Tron and Solana need no key at all.**
+### API keys — what's actually required
+
+| | Needed? | How to get it |
+|---|---|---|
+| **EVM chains** (Ethereum, BSC, Polygon, Arbitrum, Optimism, Base) | **Required** | Free key at [etherscan.io/myapikey](https://etherscan.io/myapikey). One v2 key covers all EVM chains. |
+| **Bitcoin, Tron, Solana** | **Not required** | Work out of the box via public endpoints. |
+
+```bash
+export ETHERSCAN_API_KEY=xxxx           # required for EVM chains only
+```
+
+**About the keyless chains:** Bitcoin, Tron and Solana work with no signup at
+all, but their free public endpoints are **rate-limited**. crypttrace handles
+this for you — it caches every response, spaces requests out, and retries with
+backoff when a limit is hit. For deep traces you can raise the ceiling with your
+own credentials (all optional):
+
+```bash
+export TRONGRID_API_KEY=xxxx            # optional: higher TronGrid quota
+export CRYPTTRACE_SOLANA_RPC=https://…  # optional: your own (faster) Solana RPC
+```
 
 ## Supported chains
 
-| Chain | `--chain` | Source | Key needed |
+| Chain | `--chain` | Data source | Model |
 |---|---|---|---|
-| Ethereum, BSC, Polygon, Arbitrum, Optimism, Base | `eth` `bsc` `polygon` `arbitrum` `optimism` `base` | Etherscan v2 | yes |
-| Bitcoin | `btc` | mempool.space (UTXO) | no |
-| Tron (TRX + USDT-TRC20) | `tron` | TronGrid | no |
-| Solana (SOL + SPL) | `sol` | public JSON-RPC | no |
+| Ethereum, BSC, Polygon, Arbitrum, Optimism, Base | `eth` `bsc` `polygon` `arbitrum` `optimism` `base` | Etherscan v2 | account |
+| Bitcoin | `btc` | mempool.space | UTXO |
+| Tron (TRX + USDT-TRC20) | `tron` | TronGrid | account |
+| Solana (SOL + SPL) | `sol` | public JSON-RPC | account |
 
-Each network is normalized to the same transfer shape, so `profile`, `trace`,
-`funder`, `report` and the web graph behave identically everywhere. Bitcoin also
-unlocks `crypttrace cluster` (see below). Tron matters for everyday victim
-cases — most romance/"pig butchering" scams move USDT-TRC20.
+Every network is normalized to the same transfer shape, so `profile`, `trace`,
+`funder`, `report` and the web graph behave identically everywhere. Bitcoin
+additionally unlocks `cluster`. Tron matters for everyday victim cases — most
+romance / "pig butchering" scams move USDT-TRC20 because fees are near zero.
 
-## Usage
+---
+
+## Web UI
 
 ```bash
-# What is this address? (uses the local label DB, works offline)
+crypttrace serve            # then open http://127.0.0.1:8000
+```
+
+Paste an address, pick a chain and direction, and get an interactive fund-flow
+graph: nodes coloured by what they are, arrows showing where value went, click a
+node for its full profile, click a transfer line to open it on the block
+explorer. A side panel shows the profile, first-funder chain and off-ramp check.
+Everything runs on your machine — nothing is uploaded anywhere.
+
+This exists so non-technical victims can use the tool at all: a form and a
+picture, instead of command-line flags.
+
+## Commands
+
+```bash
+# What is this address? (local label DB, works offline)
 crypttrace label 0x28c6c06298d514db089934071355e5743bf21d60
 
-# Full profile: balance, activity window, risk, top counterparties
+# Balance, activity window, risk, top counterparties — on any chain
 crypttrace profile 0xADDRESS --chain eth
+crypttrace profile bc1qADDRESS --chain btc
 
-# Follow the money N hops deep, rendered as a coloured tree
-crypttrace trace 0xADDRESS --chain eth --depth 4 --branching 3
+# Follow the money, hop by hop, as a coloured tree
+crypttrace trace 0xADDRESS --depth 4 --branching 3
 
-# Trace a token instead of native ETH (most thefts are stablecoins)
+# Trace backwards instead: where did this wallet's funds come FROM?
+crypttrace trace 0xADDRESS --direction in
+
+# Trace a token rather than the native coin (most thefts are stablecoins)
 crypttrace trace 0xADDRESS --asset usdt --depth 4
 
-# Token holdings of an address, valued in USD
+# Token holdings, valued in USD
 crypttrace tokens 0xADDRESS
 
-# Who funded this wallet's first gas? Follow it back toward an exchange/KYC point
+# Who bootstrapped this wallet's first gas? Follow it toward a KYC point
 crypttrace funder 0xADDRESS --hops 6
 
-# Is this address an exchange deposit address (cash-out / off-ramp)?
+# Is this an exchange deposit address (i.e. the cash-out point)?
 crypttrace offramp 0xADDRESS
+
+# Bitcoin only: find other wallets owned by the same person
+crypttrace cluster bc1qADDRESS
 
 # Follow funds across bridges into other chains
 crypttrace crosschain 0xADDRESS --window 48
 
-# Watch addresses and get alerted when funds move — loudly on likely cash-out
+# Watch addresses; alert loudly the moment funds head for an exchange
 crypttrace watch add 0xADDRESS --note "my stolen ETH"
-crypttrace watch run --interval 300      # or --once for cron / scheduled runs
+crypttrace watch run --interval 300     # or --once for cron / Task Scheduler
 
-# Full investigation report saved to disk (Markdown + JSON)
-crypttrace report 0xADDRESS --chain eth --asset usdt --depth 3
+# Full investigation report to disk (Markdown + JSON)
+crypttrace report 0xADDRESS --depth 3
 
-# Download the latest label lists (OFAC sanctions, etc.)
+# Refresh label lists (OFAC sanctions, …)
 crypttrace update-labels
 
-# Supported chains
+# Launch the web UI / list chains
+crypttrace serve
 crypttrace chains
 ```
 
-### Labels
+Example trace output:
 
-The tool ships a small curated seed set (major exchanges, Tornado Cash, bridges,
-notable hacks). Run `crypttrace update-labels` to pull authoritative public
-lists — currently the OFAC SDN sanctioned-address list — and merge them into the
-local database (cached in `~/.crypttrace/`). The curated seed always wins on
-conflicts, so its richer names are preserved. Add more sources in
-`labels/labels.py` → `SOURCES`.
+```
+🔴 0x098B716B…3E2f96  [Ronin Bridge Exploiter (Lazarus)]
+├── ──33568.15 ETH (1 tx) ≈$63.8M──▶ 🔴 0x35fb6f6d…26d4b1  [OFAC SDN (sanctioned)]
+│   └── ↳ trail ends here (identifiable entity — subpoena / off-chain)
+└── ──25127.51 ETH (1 tx) ≈$47.7M──▶ ⚪ 0xf7b31119…5cf1be
+    └── ──4100.00 ETH (41 tx) ≈$7.8M──▶ 🟣 Tornado Cash: 0.1 ETH
+        └── ↳ trail ends here (identifiable entity — subpoena / off-chain)
+```
 
-### Assets & USD values
+Legend: 🟢 exchange · 🟣 mixer · 🔴 sanctioned/scam · 🌉 bridge · ⚪ unknown
 
-By default the tracer follows the chain's native coin (ETH). Pass `--asset` to
-follow an ERC-20 token instead — a known symbol (`usdt`, `usdc`, `dai`, `weth`,
-`wbtc`) or any `0x` contract address. Since most thefts today move stablecoins,
-token tracing is essential. Amounts are shown with approximate USD values
-(stablecoins pinned to $1, others priced via CoinGecko; if offline, USD shows as
-`—`). The `tokens` command lists an address's token holdings valued in USD.
+---
+
+## Capabilities in depth
+
+### Tracing (forward and backward)
+
+`trace` follows the largest transfers recursively and stops at identifiable
+entities — that's the OSINT handoff point. `--direction out` (default) answers
+"where did the money go"; `--direction in` answers "where did this wallet's
+money come from", which is how you vet a suspicious address or find a victim's
+source of funds.
+
+### Watch & alerts — catching the cash-out
+
+The only window to freeze stolen funds is the moment they reach an exchange
+deposit. Victims can't monitor a chain 24/7. `watch` keeps a list of addresses,
+detects new activity and raises a **loud HIGH alert** the instant funds move
+toward an exchange (directly, or to a detected deposit address); quieter notices
+for other movement. It only alerts on activity *after* an address is added, and
+never double-alerts.
+
+```bash
+crypttrace watch add 0xADDRESS --note "victim funds"
+crypttrace watch list
+crypttrace watch run --interval 300     # continuous
+crypttrace watch run --once             # single check, for scheduled tasks
+```
+
+Optional Telegram alerts: set `CRYPTTRACE_TG_TOKEN` and `CRYPTTRACE_TG_CHAT`,
+then pass `--telegram`.
+
+### Off-ramp detection
+
+Laundered funds reaching an exchange land on a per-user *deposit address* —
+there are millions, so none appear in any label list. `offramp` spots them by
+behaviour: an address forwarding most of its outgoing value to a labelled
+exchange is almost certainly a deposit address, i.e. the cash-out point where
+that exchange holds the depositor's KYC. `trace` applies the same heuristic
+automatically, turning an anonymous intermediary into "→ Binance deposit (KYC
+point)".
+
+### First-funder (deanonymization)
+
+`funder` follows a wallet's funding link backward: whoever sent its first gas,
+then whoever funded that funder. A fresh laundering wallet must be bootstrapped
+from somewhere, and the chain frequently terminates at an exchange withdrawal —
+an identification point. A core primitive for tying "unrelated" wallets to one
+controller. (Uses external transactions; wallets first funded by an internal
+contract call need internal-tx data — a planned extension.)
 
 ### Bitcoin clustering (common-input-ownership)
-
-```
-crypttrace profile bc1q… --chain btc
-crypttrace trace   bc1q… --chain btc --depth 3
-crypttrace cluster bc1q…
-```
 
 Bitcoin's UTXO model enables the strongest clustering heuristic in blockchain
 forensics: if several addresses sign the inputs of one transaction, one party
@@ -105,140 +194,120 @@ almost certainly controls all of them. `cluster` surfaces those co-signers,
 turning a single address into a set of wallets belonging to the same owner. A
 strong lead, not proof.
 
-### Web UI (interactive graph)
-
-For a point-and-click experience — and for non-technical victims who won't use a
-CLI — crypttrace ships a local web interface: paste an address, get an
-interactive fund-flow graph (nodes coloured by type) plus the address profile,
-first-funder and off-ramp checks in a side panel. It runs entirely on your
-machine.
-
-```
-pip install "crypttrace[web]"     # installs Flask
-crypttrace serve                  # then open http://127.0.0.1:8000
-```
-
-### Watch & alerts (catching the cash-out)
-
-The one window to freeze stolen funds is the moment they reach an exchange
-deposit. `crypttrace watch` keeps a list of addresses, detects new activity, and
-raises a **loud HIGH alert** the instant funds move to an exchange (directly or
-to a detected deposit address) — quieter notices for other movement. It only
-alerts on activity *after* an address is added, and never double-alerts.
-
-```
-crypttrace watch add 0xADDRESS --note "victim funds"
-crypttrace watch list
-crypttrace watch run --interval 300        # poll continuously
-crypttrace watch run --once                # single check (for cron / scheduled tasks)
-```
-
-Optional Telegram alerts: set `CRYPTTRACE_TG_TOKEN` and `CRYPTTRACE_TG_CHAT` and
-pass `--telegram`. Honest limit: the tool tells you *when* to act; freezing funds
-still depends on the exchange and law enforcement responding quickly.
-
 ### Cross-chain tracing (bridges)
 
-When funds cross a bridge, the trail on the source chain ends at the bridge
-contract and reappears on another chain — with no free, deterministic link
-between the two. `crypttrace crosschain` uses a behavioural heuristic that
-catches many real cases: launderers frequently bridge to the *same address*
-they control on the destination chain, so after a transfer into a known bridge,
-the tool searches every other supported chain (one Etherscan v2 key covers all)
-for an inbound transfer to that address of a similar amount (bridges take a fee)
-within a time window. A match is a strong **lead, not proof** — amounts and
-timing can coincide — so candidates are reported with amount and delay for the
-analyst to verify. `trace` flags bridges and points you to this command. (v1
-matches native-coin value; token bridging and decoding recipient addresses from
-bridge calldata are planned extensions.) Bridges currently recognised:
-Wormhole, the Optimism / Arbitrum / Base canonical bridges, Across, Synapse and
-Celer cBridge — extend the `"bridge"`-typed entries in `labels/known.json`.
+When funds cross a bridge the trail ends at the bridge contract and reappears on
+another chain, with no free deterministic link between the two. `crosschain`
+uses a behavioural heuristic that catches many real cases: launderers frequently
+bridge to the *same address* they control on the destination chain, so after a
+transfer into a known bridge the tool searches every other supported chain for
+an inbound transfer to that address of a similar amount (bridges take a fee)
+within a time window. Matches are reported with amount and delay — a strong
+**lead, not proof**. Recognised bridges: Wormhole, the canonical Optimism /
+Arbitrum / Base bridges, Across, Synapse and Celer cBridge (extend the
+`"bridge"` entries in `labels/known.json`).
 
-### Off-ramp detection
+### Assets & USD values
 
-When laundered funds reach an exchange they land on a per-user *deposit address*
-(there are millions, so none are in label lists), which forwards them to the
-exchange's hot wallet. `crypttrace offramp` detects this by behaviour: an address
-that forwards most of its outgoing value to a labelled exchange is flagged as a
-likely deposit address — the cash-out point, where the exchange holds the
-depositor's KYC. `trace` applies the same heuristic automatically, turning an
-anonymous intermediary into "→ Binance deposit (KYC point)".
+The tracer follows the chain's native coin by default. `--asset` switches to an
+ERC-20 token — a known symbol (`usdt`, `usdc`, `dai`, `weth`, `wbtc`) or any
+`0x` contract. Amounts carry approximate USD values (stablecoins pinned to $1,
+others priced via CoinGecko). If pricing is unavailable, USD shows as `—` rather
+than a guess. Token tracing is EVM-only for now; native-coin tracing works on
+every chain.
 
-### First-funder (deanonymization)
+### Labels
 
-`crypttrace funder` follows a wallet's *funding* link backward: whoever sent it
-its first gas, then whoever funded that funder, and so on. A fresh laundering
-wallet has to be bootstrapped from somewhere, and the chain frequently
-terminates at a centralised-exchange withdrawal — a KYC identification point
-where a legal request can reveal the owner. This is a core primitive for tying
-"unrelated" wallets back to one controller. (Uses external transactions;
-wallets first funded by an internal contract call need internal-tx data, a
-planned extension.)
+Ships a curated seed set (major exchanges, Tornado Cash, bridges, notable
+hacks). `update-labels` pulls authoritative public lists — currently the OFAC
+SDN sanctioned-address list — and merges them into the local DB in
+`~/.crypttrace/`. The curated seed wins on conflicts, so richer names survive.
+Add sources in `labels/labels.py` → `SOURCES`.
+
+Labels are currently EVM-focused: on Bitcoin, Tron and Solana most nodes will
+show as `unknown`, and `offramp` won't fire there yet.
 
 ### Reports
 
-`crypttrace report` runs the full analysis and writes a self-contained report to
-`~/crypttrace-reports/` (override with `--out`). Each run produces two files: a
-readable Markdown report (assessment, summary, key findings, counterparties, the
-full fund-flow trace and a methodology note) and a `.json` with the raw
-structured data for further processing.
+`report` runs the full analysis and writes to `~/crypttrace-reports/` (override
+with `--out`): a readable Markdown report (assessment, summary, key findings,
+counterparties, the full fund-flow trace, methodology note) plus a `.json` with
+the raw structured data.
 
-Example trace output:
+### Caching & rate limits
 
-```
-⚪ 0xaaaa…0001  (victim)
-├── ──50.00 (1 tx)──▶ ⚪ 0xbbbb…0002
-│   └── ──48.00 (1 tx)──▶ 🟣 Tornado Cash: Router
-│       └── ↳ trail ends here (identifiable entity — subpoena / off-chain)
-└── ──10.00 (1 tx)──▶ 🟢 Binance 14 (hot wallet)
-    └── ↳ trail ends here (identifiable entity — subpoena / off-chain)
-```
+Every API response is cached in SQLite under `~/.crypttrace/`, so re-running a
+trace — or revisiting an address within one trace — costs no requests. Non-EVM
+fetchers additionally throttle per host and retry with exponential backoff on
+HTTP 429, so free endpoints degrade gracefully instead of erroring out.
 
-Legend: 🟢 exchange · 🟣 mixer · 🔴 sanctioned/scam · 🌉 bridge · ⚪ unknown
-
-## How it works
-
-The blockchain is public — every transaction is queryable. `crypttrace`:
-
-1. Fetches an address's full tx history via Etherscan (cached in SQLite so
-   repeated traces don't re-hit the API).
-2. Matches addresses against a local label DB (`labels/known.json`) —
-   exchanges, Tornado Cash, bridges, sanctioned wallets.
-3. For `trace`, follows the largest outgoing transfers recursively, stopping
-   when it reaches an identifiable entity (exchange/mixer/sanctioned) — that's
-   the OSINT handoff point.
+---
 
 ## Honest limitations
 
-- **Pseudonymity.** You see funds land on `0xABC`, not who owns it. The tool
-  brings the trail to a *point of identification* (usually an exchange with
-  KYC). The final name comes from a legal request to that exchange, not from
-  the chain.
-- **Mixers break the trail.** Tornado Cash / privacy pools sever the on-chain
-  link. Recovery there needs timing/amount heuristics and isn't guaranteed.
-- **Labels are only as good as the DB.** The seed set here is small. Real use
-  means importing OFAC SDN, Chainabuse, and exchange deposit-address sets.
+Read this before relying on the tool — and before promising anything to a
+victim.
+
+- **Pseudonymity.** You see that funds landed on `0xABC`, not who owns it. The
+  tool brings a trail to a *point of identification* (usually an exchange with
+  KYC). The name comes from a legal request to that exchange, not from the chain.
+- **Mixers break the trail.** Tornado Cash and privacy pools sever the on-chain
+  link. Anything past them is heuristic and not guaranteed.
+- **Heuristics are leads, not proof.** Off-ramp detection, cross-chain matching
+  and Bitcoin clustering are strong signals that can coincide by chance. Verify
+  before acting on them.
+- **Labels are only as good as the database.** Unlabelled ≠ innocent.
+- **Recovery depends on others.** crypttrace can tell you *when* and *where* to
+  act; freezing funds depends on exchanges and law enforcement responding.
 
 ## Layout
 
 ```
 src/crypttrace/
-  cli.py            # typer CLI: profile / trace / label / chains
-  config.py         # chains, API key, paths
+  cli.py           # Typer CLI — every command
+  chains.py        # unified multi-chain adapter (one transfer shape for all)
+  config.py        # chains, keys, paths
   fetchers/
-    etherscan.py    # Etherscan v2 client + SQLite cache
+    etherscan.py   # EVM (Etherscan v2) + SQLite cache
+    bitcoin.py     # Bitcoin UTXO (mempool.space) + clustering
+    tron.py        # Tron / TRC20 (TronGrid) + base58 conversion
+    solana.py      # Solana JSON-RPC
+    http.py        # shared cache, throttling, 429 backoff
   labels/
-    known.json      # seed label DB
-    labels.py       # lookup + risk scoring
-  trace.py          # recursive fund-flow tree
-  render.py         # rich terminal rendering
+    known.json     # curated label DB
+    labels.py      # lookup, risk scoring, source imports
+  trace.py         # fund-flow tree + graph builder
+  funder.py        # first-funder heuristic
+  offramp.py       # exchange-deposit detection
+  bridges.py       # cross-chain matching
+  watch.py         # watchlist + alerts
+  report.py        # Markdown + JSON reports
+  prices.py        # USD valuation
+  render.py        # rich terminal rendering
+  webapp.py        # Flask backend for the web UI
+  web/index.html   # single-page frontend (interactive graph)
 ```
 
-## Roadmap ideas
+## Roadmap
 
-- `watch` command: alert (telegram/webhook) when a watched address moves funds
-- `report --pdf`: export the report to PDF for an exchange/police filing
-- Cross-chain: follow value through bridges into other networks
-- ERC-20 / stablecoin tracing (data already fetched via `get_token_txs`)
-- Entity clustering: gas-funding heuristic, common-input-ownership (BTC)
+- Exchange/service labels for Bitcoin, Tron and Solana
+- `report --pdf` for exchange and law-enforcement filings
+- Internal transactions (completes `funder` and contract-mediated transfers)
+- Token tracing on Tron (USDT-TRC20 flows in the graph) and Solana SPL
 - More label sources: Chainabuse, CryptoScamDB, exchange deposit-address sets
+- Spam/dust token filtering in `tokens`
+- Entity clustering on EVM via the gas-funding heuristic
+
+## Contributing
+
+Label data is the highest-leverage contribution: exchange wallets, known scam
+and drainer addresses, bridges. Add them to `labels/known.json` (or a new source
+in `labels/labels.py`) and open a PR. Accuracy matters more than volume — a
+wrong label is worse than no label.
+
+## Licence
+
+MIT — see [LICENSE](LICENSE).
+
+*Use responsibly. This is an investigative aid, not evidence of wrongdoing, and
+not a substitute for law enforcement.*
