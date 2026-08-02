@@ -91,9 +91,28 @@ an anonymous wallet to something identifiable:
 
 ![Tracing a wallet's funding backward](assets/graph-inflow.png)
 
+## If your crypto was stolen — start here
+
+```bash
+crypttrace investigate 0xADDRESS_THE_FUNDS_WENT_TO
+```
+
+One command. It follows the money, works out where it ended up, saves a case
+file you can send to an exchange or attach to a police report, and then explains
+**in plain language what to do next** — which exchange to contact, where to file,
+how to keep watching the money, and how to avoid the "recovery services" that
+target victims a second time.
+
+It is also honest with you: most stolen crypto is not recovered, and what
+matters is speed and whether the funds touch a regulated exchange. The tool
+gives you evidence and timing — it cannot move funds or name a person by itself.
+
 ## Commands
 
 ```bash
+# The one-command investigation (recommended starting point)
+crypttrace investigate 0xADDRESS --chain eth
+
 # What is this address? (local label DB, works offline)
 crypttrace label 0x28c6c06298d514db089934071355e5743bf21d60
 

@@ -31,6 +31,89 @@ CHAIN_OPT = typer.Option("eth", "--chain", "-c",
 
 
 @app.command()
+def investigate(
+    address: str = typer.Argument(..., help="The address your funds were sent to"),
+    chain: str = CHAIN_OPT,
+    asset: str = ASSET_OPT,
+    depth: int = typer.Option(3, "--depth", "-d", help="How many hops to follow"),
+    out: Path = typer.Option(Path.home() / "crypttrace-reports", "--out", "-o",
+                             help="Where to save the case file"),
+):
+    """Start here. Runs the whole investigation and tells you what to do next."""
+    from crypttrace import investigate as inv
+    from rich.panel import Panel
+
+    try:
+        asset_desc = assets.resolve_asset(asset, chain)
+    except ValueError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
+
+    console.print(Panel.fit(
+        f"[bold]Investigating[/bold] {address}\n[dim]chain: {chain}[/dim]",
+        border_style="cyan"))
+
+    with console.status("Reading the blockchain and following the money…"):
+        r = inv.analyse(address, chain, asset_desc, depth, 3)
+
+    if r["errors"]:
+        for e in r["errors"]:
+            console.print(f"[yellow]![/yellow] {e}")
+
+    # --- what we found ---
+    console.print("\n[bold]What we found[/bold]")
+    bal = f"{r['balance']:.6f} {chains_mod.symbol(chain)}"
+    usd = prices.usd(r["balance"], prices.native_price(chain))
+    if usd is not None:
+        bal += f"  ≈ {prices.fmt_usd(usd)}"
+    console.print(f"  Balance still on this address: {bal}")
+    console.print(f"  Transfers analysed: {r['transfers']}")
+    if r["label"]:
+        console.print(f"  This address is known: [bold red]{r['label']}[/bold red]")
+
+    if r["tree"] is not None and r["findings"]:
+        console.print("\n[bold]Where the money went[/bold]")
+        console.print(r["tree"])
+    elif r["tree"] is not None:
+        console.print("\n[dim]No onward movement to known services found at this depth.[/dim]")
+
+    if r["findings"]:
+        console.print("\n[bold]Key destinations[/bold]")
+        for f in r["findings"]:
+            colour = {"exchange": "green", "offramp": "green", "mixer": "magenta",
+                      "sanctioned": "red", "bridge": "cyan"}.get(f["type"], "white")
+            amount = f"{f['value_reached']} {f.get('symbol','')}"
+            if f.get("usd_reached") is not None:
+                amount += f" ≈ {prices.fmt_usd(f['usd_reached'])}"
+            console.print(f"  [{colour}]{f['label']}[/{colour}] — {amount}")
+
+    # --- guidance ---
+    g = r["guidance"]
+    console.print(Panel(g["headline"], title="[bold]In plain terms[/bold]",
+                        border_style="cyan", padding=(1, 2)))
+
+    console.print("\n[bold]What to do next[/bold]\n")
+    for i, s in enumerate(g["steps"], 1):
+        tag = " [bold red](do this first)[/bold red]" if s.get("urgent") else ""
+        console.print(f"[bold]{i}. {s['title']}[/bold]{tag}")
+        for line in s["body"].split("\n"):
+            console.print(f"   {line}")
+        console.print()
+
+    console.print(Panel(g["warning"], title="[bold red]Beware of recovery scams[/bold red]",
+                        border_style="red", padding=(1, 2)))
+    console.print(Panel(g["expectation"], title="[bold]Realistic expectations[/bold]",
+                        border_style="yellow", padding=(1, 2)))
+
+    try:
+        path = inv.save_case(r, out, asset_desc)
+        console.print(f"\n[green]✓ Case file saved:[/green] {path}")
+        console.print("[dim]  Send this file to the exchange and attach it to your police report.[/dim]")
+    except Exception as e:
+        console.print(f"[yellow]Could not save the case file:[/yellow] {e}")
+
+
+@app.command()
 def profile(
     address: str = typer.Argument(..., help="Address to investigate (0x…)"),
     chain: str = CHAIN_OPT,
