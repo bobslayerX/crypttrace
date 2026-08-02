@@ -13,7 +13,8 @@ _STABLE = {"usdt", "usdc", "dai", "busd", "tusd", "usdp", "gusd", "frax", "lusd"
 
 # CoinGecko platform id per chain
 _PLATFORM = {"eth": "ethereum", "bsc": "binance-smart-chain", "polygon": "polygon-pos",
-             "arbitrum": "arbitrum-one", "optimism": "optimistic-ethereum", "base": "base"}
+             "arbitrum": "arbitrum-one", "optimism": "optimistic-ethereum", "base": "base",
+             "tron": "tron", "sol": "solana"}
 _COINGECKO_NATIVE = {"eth": "ethereum", "bsc": "binancecoin", "polygon": "matic-network",
                      "arbitrum": "ethereum", "optimism": "ethereum", "base": "ethereum",
                      "btc": "bitcoin", "tron": "tron", "sol": "solana"}

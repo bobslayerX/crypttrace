@@ -226,12 +226,28 @@ Arbitrum / Base bridges, Across, Synapse and Celer cBridge (extend the
 
 ### Assets & USD values
 
-The tracer follows the chain's native coin by default. `--asset` switches to an
-ERC-20 token — a known symbol (`usdt`, `usdc`, `dai`, `weth`, `wbtc`) or any
-`0x` contract. Amounts carry approximate USD values (stablecoins pinned to $1,
-others priced via CoinGecko). If pricing is unavailable, USD shows as `—` rather
-than a guess. Token tracing is EVM-only for now; native-coin tracing works on
-every chain.
+The tracer follows the chain's native coin by default. `--asset` switches to a
+token — most thefts and scams move stablecoins, so this is usually what you
+want:
+
+```bash
+crypttrace trace 0xADDRESS --asset usdt                   # USDT on Ethereum
+crypttrace trace TADDRESS  --chain tron --asset usdt      # USDT-TRC20 on Tron
+crypttrace tokens TADDRESS --chain tron
+```
+
+Token contracts differ per chain, so the registry is chain-aware: `usdt` on Tron
+resolves to `TR7NHqje…jLj6t`, on Ethereum to `0xdac17f95…31ec7`. Known symbols
+are `usdt`, `usdc`, `dai`, `weth`, `wbtc` on EVM and `usdt`, `usdc` on
+Tron/Solana; you can also pass any contract address directly.
+
+Matching is by **exact contract**, which matters: attackers routinely airdrop
+fake tokens named "USDT" to poison wallets, and those are ignored rather than
+traced. Native coins and tokens are also kept strictly separate — summing TRX
+with USDT would be meaningless.
+
+Amounts carry approximate USD values (stablecoins pinned to $1, others priced
+via CoinGecko). If pricing is unavailable, USD shows as `—` rather than a guess.
 
 ### Labels
 
@@ -310,7 +326,7 @@ src/crypttrace/
 - Exchange/service labels for Bitcoin, Tron and Solana
 - `report --pdf` for exchange and law-enforcement filings
 - Internal transactions (completes `funder` and contract-mediated transfers)
-- Token tracing on Tron (USDT-TRC20 flows in the graph) and Solana SPL
+- Per-mint filtering for Solana SPL tokens
 - More label sources: Chainabuse, CryptoScamDB, exchange deposit-address sets
 - Spam/dust token filtering in `tokens`
 - Entity clustering on EVM via the gas-funding heuristic

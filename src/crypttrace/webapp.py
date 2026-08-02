@@ -55,6 +55,17 @@ def create_app() -> Flask:
     def index():
         return send_from_directory(_WEB_DIR, "index.html")
 
+    @app.route("/api/assets")
+    def api_assets():
+        """Which assets can be traced on a given chain (drives the UI dropdown)."""
+        chain = request.args.get("chain", "eth")
+        native = chains.symbol(chain)
+        opts = [{"value": "native", "label": f"{native} (native)"}]
+        for sym, meta in assets.tokens_for(chain).items():
+            opts.append({"value": sym, "label": meta["symbol"]})
+        return jsonify({"chain": chain, "assets": opts,
+                        "tokens_supported": chain != "btc"})
+
     @app.route("/api/label")
     def api_label():
         addr = request.args.get("address", "")
@@ -108,7 +119,7 @@ def create_app() -> Flask:
         if bad:
             return jsonify({"error": bad}), 400
         try:
-            asset = assets.resolve_asset(asset_arg)
+            asset = assets.resolve_asset(asset_arg, chain)
             graph = trace_mod.build_graph(addr, chain, depth, branching, asset, direction)
         except _KNOWN_ERRORS as e:
             return jsonify({"error": str(e)}), 400

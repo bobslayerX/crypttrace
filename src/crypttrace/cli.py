@@ -65,7 +65,7 @@ def trace(
 ):
     """Trace where funds moved, hop by hop, as a coloured tree (ETH or a token)."""
     try:
-        asset_desc = assets.resolve_asset(asset)
+        asset_desc = assets.resolve_asset(asset, chain)
     except ValueError as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1)
@@ -89,10 +89,10 @@ def tokens(
     address: str = typer.Argument(..., help="Address to inspect (0x…)"),
     chain: str = CHAIN_OPT,
 ):
-    """Show an address's ERC-20 token holdings (approx from transfer history) with USD."""
+    """Show an address's token holdings (approx from transfer history) with USD."""
     try:
-        holdings = assets.token_holdings(address, chain)
-    except etherscan.EtherscanError as e:
+        holdings = chains_mod.token_holdings(address, chain)
+    except (chains_mod.ChainError, etherscan.EtherscanError) as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1)
     if not holdings:
@@ -115,7 +115,7 @@ def report(
 ):
     """Run a full investigation and save a Markdown + JSON report to disk."""
     try:
-        asset_desc = assets.resolve_asset(asset)
+        asset_desc = assets.resolve_asset(asset, chain)
     except ValueError as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1)

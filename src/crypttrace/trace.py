@@ -8,31 +8,10 @@ from crypttrace.labels import labels
 from crypttrace import config, render, assets, prices, offramp
 
 
-def _native_outflows(address, chain, top, direction="out"):
-    """Native-coin flows for any supported chain (EVM, BTC, Tron, Solana)."""
-    from crypttrace import chains
-    return chains.flows(address, chain, top, direction)
-
-
-def _token_outflows(address, chain, top, contract, direction="out"):
-    me = address.lower()
-    near, far = ("from", "to") if direction == "out" else ("to", "from")
-    agg = {}
-    for r in assets.token_transfers(address, chain, contract):
-        if r[near] != me:
-            continue
-        other = r[far]
-        if not other:
-            continue
-        rec = agg.setdefault(other, [0.0, 0]); rec[0] += r["value"]; rec[1] += 1
-    ranked = sorted(agg.items(), key=lambda kv: kv[1][0], reverse=True)
-    return [(a, v, c) for a, (v, c) in ranked if v > 0][:top]
-
-
 def _outflows(address, chain, top, asset, direction="out"):
-    if asset is None:
-        return _native_outflows(address, chain, top, direction)
-    return _token_outflows(address, chain, top, asset["contract"], direction)
+    """Flows for one asset on any supported chain (native coin or a token)."""
+    from crypttrace import chains
+    return chains.flows(address, chain, top, direction, asset=asset)
 
 
 class _Ctx:

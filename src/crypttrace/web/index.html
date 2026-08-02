@@ -145,9 +145,8 @@
     <option value="optimism">optimism</option><option value="base">base</option>
     <option value="btc">btc</option><option value="tron">tron</option><option value="sol">sol</option>
   </select>
-  <select id="asset" title="Asset">
-    <option value="eth">ETH (native)</option><option value="usdt">USDT</option>
-    <option value="usdc">USDC</option><option value="dai">DAI</option><option value="weth">WETH</option>
+  <select id="asset" title="Asset to trace">
+    <option value="native">ETH (native)</option>
   </select>
   <select id="direction" title="Which way to follow the money">
     <option value="out">→ where funds went</option>
@@ -379,17 +378,21 @@ async function run(){
   }catch(e){ setStatus(e.message,true); loader(100); $('#hint').classList.remove('hide'); }
 }
 
-// Token tracing is EVM-only — reflect that in the UI instead of failing silently.
-function syncAssets(){
-  const nonEvm=!!NON_EVM[chain()], sel=$('#asset');
-  [...sel.options].forEach(o=>{ if(o.value!=='eth') o.disabled=nonEvm; });
-  if(nonEvm) sel.value='eth';
-  sel.title=nonEvm?'Token tracing is available on EVM chains':'Asset';
-  sel.style.opacity=nonEvm?.55:1;
-  $('#addr').placeholder=nonEvm
-    ? (chain()==='btc'?'bc1… / 1… / 3…  Bitcoin address'
-      :chain()==='tron'?'T…  Tron address':'Solana account address')
+// The asset list depends on the chain (USDT on Tron ≠ USDT on Ethereum),
+// so ask the backend which assets it can actually trace here.
+async function syncAssets(){
+  const sel=$('#asset'), c=chain();
+  $('#addr').placeholder = c==='btc' ? 'bc1… / 1… / 3…  Bitcoin address'
+    : c==='tron' ? 'T…  Tron address'
+    : c==='sol'  ? 'Solana account address'
     : '0x…  paste an address to investigate';
+  try{
+    const r=await api(`/api/assets?chain=${c}`);
+    sel.innerHTML=r.assets.map(o=>`<option value="${o.value}">${o.label}</option>`).join('');
+    sel.disabled=r.assets.length<2;
+    sel.style.opacity=sel.disabled?.55:1;
+    sel.title=sel.disabled?'No tokens on this chain':'Asset to trace';
+  }catch{ /* keep whatever is there if the backend is unreachable */ }
 }
 $('#chain').addEventListener('change',syncAssets); syncAssets();
 
