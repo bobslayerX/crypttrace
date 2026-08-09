@@ -13,7 +13,7 @@ Bitcoin also enables the strongest clustering heuristic in blockchain forensics:
 common-input-ownership. If several addresses sign inputs of the same
 transaction, one party almost certainly controls all of them.
 """
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 import requests
 
@@ -53,10 +53,30 @@ def balance(address: str) -> float:
     return sats / SATS
 
 
-def raw_txs(address: str) -> List[dict]:
-    """Recent transactions touching this address (mempool.space returns ~50)."""
-    d = _get(f"/address/{address}/txs")
-    return d if isinstance(d, list) else []
+def raw_txs(address: str, max_txs: int = 500) -> List[dict]:
+    """Transactions touching this address, paging back through history.
+
+    mempool.space returns ~50 per call. A single page is not enough for
+    investigations: famous addresses get spammed with dust, which pushes the
+    transactions that actually matter out of the recent window. So we follow
+    the /txs/chain/:last_txid cursor until we have enough history.
+    """
+    out: List[dict] = []
+    last: Optional[str] = None
+    while len(out) < max_txs:
+        path = f"/address/{address}/txs" if last is None \
+            else f"/address/{address}/txs/chain/{last}"
+        batch = _get(path)
+        if not isinstance(batch, list) or not batch:
+            break
+        out.extend(batch)
+        if len(batch) < 25:      # last page
+            break
+        nxt = batch[-1].get("txid")
+        if not nxt or nxt == last:
+            break
+        last = nxt
+    return out[:max_txs]
 
 
 def _in_addrs(tx: dict) -> List[str]:
@@ -79,7 +99,7 @@ def transfers(address: str, limit: int = 1000) -> List[Dict]:
     """Normalized {from,to,value,timestamp,hash,symbol} rows."""
     me = address
     rows: List[Dict] = []
-    for tx in raw_txs(address):
+    for tx in raw_txs(address, max_txs=max(limit, 200)):
         ts = int((tx.get("status") or {}).get("block_time") or 0)
         h = tx.get("txid", "")
         ins = _in_addrs(tx)

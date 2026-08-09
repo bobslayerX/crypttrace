@@ -249,6 +249,13 @@ crypttrace victims  bc1qADDRESS --chain btc --depth 2 -o victims.csv
 crypttrace timeline bc1qADDRESS --chain btc --buckets 24
 ```
 
+**Dust is filtered by default.** Addresses that become publicly known get spammed
+with tiny transfers, which otherwise bury the transactions that matter and can
+flip the timing verdict entirely. Each chain has a dust threshold; override with
+`--min-value`, or keep everything with `--include-dust`. Bitcoin history is
+paged rather than read one page deep, so an old sweep isn't hidden behind recent
+spam.
+
 ### Bitcoin clustering (common-input-ownership)
 
 Bitcoin's UTXO model enables the strongest clustering heuristic in blockchain

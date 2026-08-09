@@ -18,6 +18,20 @@ from crypttrace import chains
 from crypttrace.labels import labels
 
 
+# Amounts below these are treated as dust: spam sent to well-known addresses to
+# pollute their history (and sometimes to deanonymise the owner). Left in, dust
+# drowns out the transfers an investigation is actually about.
+DUST = {"btc": 0.0005, "eth": 0.002, "bsc": 0.005, "polygon": 5.0,
+        "arbitrum": 0.002, "optimism": 0.002, "base": 0.002,
+        "tron": 5.0, "sol": 0.01}
+
+
+def dust_threshold(chain: str, asset: Optional[dict] = None) -> float:
+    if asset:                      # stablecoins: anything under a dollar is noise
+        return 1.0 if asset.get("stable") else 0.0
+    return DUST.get(chain, 0.0)
+
+
 def _ts(unix) -> str:
     try:
         return datetime.fromtimestamp(int(unix), tz=timezone.utc).strftime("%Y-%m-%d %H:%M")
@@ -26,7 +40,7 @@ def _ts(unix) -> str:
 
 
 def _direct(address: str, chain: str, asset: Optional[dict], limit: int,
-            direction: str = "in") -> Dict[str, dict]:
+            direction: str = "in", min_value: float = 0.0) -> Dict[str, dict]:
     """Aggregate counterparties one hop away, keeping amounts and timestamps."""
     me = chains.norm_addr(address, chain)
     near, far = ("to", "from") if direction == "in" else ("from", "to")
@@ -36,7 +50,7 @@ def _direct(address: str, chain: str, asset: Optional[dict], limit: int,
             continue
         other = r.get(far)
         val = r.get("value", 0) or 0
-        if not other or val <= 0:
+        if not other or val <= 0 or val < min_value:
             continue
         rec = agg.setdefault(other, {"address": other, "value": 0.0, "txs": 0,
                                      "first_ts": None, "last_ts": None})
@@ -50,12 +64,18 @@ def _direct(address: str, chain: str, asset: Optional[dict], limit: int,
 
 def collect_sources(address: str, chain: str = "btc", depth: int = 1,
                     asset: Optional[dict] = None, limit: int = 1000,
-                    max_addresses: int = 400) -> List[dict]:
+                    max_addresses: int = 400,
+                    min_value: Optional[float] = None) -> List[dict]:
     """Every address that fed `address`, walking back `depth` hops.
 
     In a mass-drain incident this is the victim list. Results carry the hop
-    distance so direct senders can be told apart from earlier sources.
+    distance so direct senders can be told apart from earlier sources. Dust is
+    excluded by default — well-known addresses get spammed, and those senders
+    are not victims.
     """
+    if min_value is None:
+        min_value = dust_threshold(chain, asset)
+
     found: Dict[str, dict] = {}
     frontier = [chains.norm_addr(address, chain)]
     seen = {chains.norm_addr(address, chain)}
@@ -66,7 +86,7 @@ def collect_sources(address: str, chain: str = "btc", depth: int = 1,
             if len(found) >= max_addresses:
                 break
             try:
-                sources = _direct(node, chain, asset, limit, "in")
+                sources = _direct(node, chain, asset, limit, "in", min_value)
             except chains.ChainError:
                 continue
             for addr, rec in sources.items():
@@ -130,16 +150,21 @@ def tightest_window(timestamps: List[int], fraction: float = 0.8) -> Optional[Tu
 
 
 def timeline(address: str, chain: str = "eth", asset: Optional[dict] = None,
-             limit: int = 1000, buckets: int = 24) -> dict:
-    """Bucketed in/out activity plus burst detection."""
+             limit: int = 1000, buckets: int = 24,
+             min_value: Optional[float] = None) -> dict:
+    """Bucketed in/out activity plus burst detection (dust excluded by default)."""
+    if min_value is None:
+        min_value = dust_threshold(chain, asset)
     me = chains.norm_addr(address, chain)
     rows = chains.transfers(address, chain, limit, asset=asset)
+    total_rows = len(rows)
     events = [{"ts": int(r.get("timestamp") or 0),
                "value": r.get("value", 0) or 0,
                "dir": "out" if r.get("from") == me else "in"} for r in rows]
-    events = [e for e in events if e["ts"] > 0]
+    events = [e for e in events if e["ts"] > 0 and e["value"] >= min_value]
+    dust_skipped = total_rows - len(events)
     if not events:
-        return {"events": 0, "buckets": [], "burst": None,
+        return {"events": 0, "buckets": [], "burst": None, "dust_skipped": dust_skipped,
                 "first_ts": None, "last_ts": None, "in_total": 0.0, "out_total": 0.0}
 
     events.sort(key=lambda e: e["ts"])
@@ -147,21 +172,21 @@ def timeline(address: str, chain: str = "eth", asset: Optional[dict] = None,
     span = max(1, last - first)
     width = max(1, span // buckets)
 
-    grid = []
-    for i in range(buckets):
-        start = first + i * width
-        end = start + width
-        sel = [e for e in events if start <= e["ts"] < end or (i == buckets - 1 and e["ts"] == last)]
-        grid.append({
-            "start": start, "end": end, "count": len(sel),
-            "in": sum(e["value"] for e in sel if e["dir"] == "in"),
-            "out": sum(e["value"] for e in sel if e["dir"] == "out"),
-        })
+    # assign each event to exactly one bucket (clamping the final edge inwards),
+    # otherwise the last event lands in two buckets and gets counted twice
+    grid = [{"start": first + i * width, "end": first + (i + 1) * width,
+             "count": 0, "in": 0.0, "out": 0.0} for i in range(buckets)]
+    for e in events:
+        idx = min(buckets - 1, (e["ts"] - first) // width)
+        b = grid[idx]
+        b["count"] += 1
+        b["in" if e["dir"] == "in" else "out"] += e["value"]
 
     return {
         "events": len(events),
         "buckets": grid,
         "burst": tightest_window([e["ts"] for e in events]),
+        "dust_skipped": dust_skipped,
         "first_ts": first, "last_ts": last,
         "in_total": sum(e["value"] for e in events if e["dir"] == "in"),
         "out_total": sum(e["value"] for e in events if e["dir"] == "out"),

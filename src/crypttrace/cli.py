@@ -311,6 +311,9 @@ def victims(
     depth: int = typer.Option(1, "--depth", "-d", help="How many hops back to collect sources"),
     out: Optional[Path] = typer.Option(None, "--out", "-o", help="CSV file to write"),
     top: int = typer.Option(25, "--top", help="How many rows to print"),
+    min_value: Optional[float] = typer.Option(
+        None, "--min-value", help="Ignore transfers below this amount (default: per-chain dust level)"),
+    include_dust: bool = typer.Option(False, "--include-dust", help="Keep dust-sized transfers"),
 ):
     """List every address that fed this wallet — in a mass theft, the victim list."""
     from crypttrace import analysis
@@ -319,9 +322,11 @@ def victims(
     except ValueError as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1)
+    floor = 0.0 if include_dust else min_value
     try:
         with console.status("Walking the money backwards…"):
-            rows = analysis.collect_sources(address, chain, depth, asset_desc)
+            rows = analysis.collect_sources(address, chain, depth, asset_desc,
+                                            min_value=floor)
     except (chains_mod.ChainError, etherscan.EtherscanError) as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1)
@@ -352,6 +357,9 @@ def timeline(
     chain: str = CHAIN_OPT,
     asset: str = ASSET_OPT,
     buckets: int = typer.Option(24, "--buckets", "-b", help="Number of time buckets"),
+    min_value: Optional[float] = typer.Option(
+        None, "--min-value", help="Ignore transfers below this amount (default: per-chain dust level)"),
+    include_dust: bool = typer.Option(False, "--include-dust", help="Keep dust-sized transfers"),
 ):
     """When did the money move? Reveals automated sweeps vs ordinary use."""
     from crypttrace import analysis
@@ -360,9 +368,11 @@ def timeline(
     except ValueError as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1)
+    floor = 0.0 if include_dust else min_value
     try:
         with console.status("Reading transfer history…"):
-            tl = analysis.timeline(address, chain, asset_desc, buckets=buckets)
+            tl = analysis.timeline(address, chain, asset_desc, buckets=buckets,
+                                   min_value=floor)
     except (chains_mod.ChainError, etherscan.EtherscanError) as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1)
@@ -377,6 +387,9 @@ def timeline(
     console.print(f"  last activity  : {render._ts(str(tl['last_ts']))} UTC")
     console.print(f"  transfers      : {tl['events']}")
     console.print(f"  received / sent: {tl['in_total']:.6f} / {tl['out_total']:.6f} {sym}")
+    if tl.get("dust_skipped"):
+        console.print(f"  [dim]dust ignored   : {tl['dust_skipped']} tiny transfers "
+                      f"(spam sent to well-known addresses; use --include-dust to keep)[/dim]")
 
     note = analysis.describe_burst(tl["burst"], tl["events"])
     if note:
