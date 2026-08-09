@@ -20,6 +20,7 @@ from crypttrace import config
 _HERE = Path(__file__).parent
 _IMPORTED = config.DATA_DIR / "imported_labels.json"
 _KNOWN: Dict[str, dict] = {}
+_PARTIAL: List[dict] = []
 
 
 # Public label sources. Each is fetched and merged on `update-labels`.
@@ -38,11 +39,43 @@ SOURCES: List[dict] = [
 
 
 def _valid(addr: str) -> bool:
-    return addr.startswith("0x") and len(addr) == 42
+    """Accept address shapes from every supported chain, not just EVM."""
+    a = addr.strip()
+    if a.startswith("0x"):
+        return len(a) == 42                       # EVM
+    if a.startswith(("bc1", "tb1")):
+        return 26 <= len(a) <= 62                 # Bitcoin bech32
+    if a.startswith(("1", "3")):
+        return 26 <= len(a) <= 35                 # Bitcoin legacy / p2sh
+    if a.startswith("t"):
+        return len(a) == 34                       # Tron (lower-cased 'T…')
+    return 32 <= len(a) <= 44                     # Solana / other base58
+
+
+def _load_partials() -> List[dict]:
+    """Addresses published only in truncated form (e.g. 'bc1qq85v2c9…cu9r').
+
+    Incident reports often abbreviate. Requiring BOTH prefix and suffix to match
+    is specific enough to be safe, and lets the tool flag a wallet before the
+    full string is public. Exact labels always take priority.
+    """
+    path = _HERE / "partial.json"
+    if not path.exists():
+        return []
+    try:
+        data = json.loads(path.read_text())
+    except (ValueError, OSError):
+        return []
+    out = []
+    for e in data.get("entries", []):
+        pre, suf = e.get("prefix", ""), e.get("suffix", "")
+        if len(pre) >= 8 and len(suf) >= 4:       # guard against loose patterns
+            out.append(e)
+    return out
 
 
 def _load() -> None:
-    global _KNOWN
+    global _KNOWN, _PARTIAL
     if _KNOWN:
         return
     merged: Dict[str, dict] = {}
@@ -57,6 +90,16 @@ def _load() -> None:
     seed = json.loads((_HERE / "known.json").read_text())
     merged.update({k.lower(): v for k, v in seed.items() if _valid(k.lower())})
     _KNOWN = merged
+    _PARTIAL = _load_partials()
+
+
+def _match_partial(address: str) -> Optional[dict]:
+    a = address.strip().lower()
+    for e in _PARTIAL:
+        if a.startswith(e["prefix"].lower()) and a.endswith(e["suffix"].lower()):
+            return {"name": e["name"], "type": e["type"], "partial": True,
+                    "source": e.get("source", "")}
+    return None
 
 
 def update(timeout: int = 30) -> List[tuple]:
@@ -126,7 +169,10 @@ TYPE_ICON = {
 
 def lookup(address: str) -> Optional[dict]:
     _load()
-    return _KNOWN.get(address.lower())
+    hit = _KNOWN.get(address.lower())
+    if hit:
+        return hit
+    return _match_partial(address)
 
 
 def label_of(address: str) -> str:

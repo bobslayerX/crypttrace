@@ -1,0 +1,15 @@
+{
+  "_comment": [
+    "Addresses known publicly only in truncated form, as incident reports and",
+    "researcher threads often abbreviate them (e.g. 'bc1qq85v2c9…cu9r').",
+    "Matching requires BOTH prefix and suffix, which is specific enough to be",
+    "safe; minimum lengths are enforced in labels.py. Exact entries in",
+    "known.json always take priority — promote an address here to known.json as",
+    "soon as the full string is confirmed.",
+    "",
+    "Example entry:",
+    "{ \"prefix\": \"bc1qq85v2c9\", \"suffix\": \"cu9r\", \"chain\": \"btc\",",
+    "  \"name\": \"Some Exploiter (2026)\", \"type\": \"scam\", \"source\": \"where it came from\" }"
+  ],
+  "entries": []
+}

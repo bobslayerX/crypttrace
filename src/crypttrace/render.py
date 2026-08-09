@@ -130,6 +130,42 @@ def counterparties_rows_table(address: str, chain: str, rows: list, top: int = 1
     return t
 
 
+def sources_table(rows: list, symbol: str, top: int = 25) -> Table:
+    """Addresses that fed a wallet — in a mass theft, the victim list."""
+    t = Table(title=f"Addresses that sent funds here (top {min(top, len(rows))} of {len(rows)})",
+              header_style="bold")
+    t.add_column("Address")
+    t.add_column("Hop", justify="right")
+    t.add_column(f"Sent ({symbol})", justify="right")
+    t.add_column("Txs", justify="right")
+    t.add_column("When (UTC)")
+    for r in rows[:top]:
+        t.add_row(addr_label(r["address"]), str(r.get("hop", 1)),
+                  f"{r['value']:.8f}".rstrip("0").rstrip("."), str(r["txs"]),
+                  _ts(str(r.get("first_ts") or 0)))
+    return t
+
+
+def timeline_chart(tl: dict, symbol: str, width: int = 42) -> Table:
+    """Text histogram of activity over time."""
+    t = Table(title="Activity over time", header_style="bold", box=None, pad_edge=False)
+    t.add_column("From (UTC)")
+    t.add_column("Transfers", justify="right")
+    t.add_column("")
+    t.add_column(f"In ({symbol})", justify="right")
+    t.add_column(f"Out ({symbol})", justify="right")
+    peak = max((b["count"] for b in tl["buckets"]), default=0) or 1
+    for b in tl["buckets"]:
+        if b["count"] == 0:
+            continue
+        bar = "█" * max(1, int(b["count"] / peak * width))
+        t.add_row(_ts(str(b["start"])), str(b["count"]),
+                  f"[cyan]{bar}[/cyan]",
+                  f"{b['in']:.4f}" if b["in"] else "",
+                  f"{b['out']:.4f}" if b["out"] else "")
+    return t
+
+
 def cluster_table(address: str, peers: list) -> Table:
     """Bitcoin common-input-ownership clustering results."""
     t = Table(title=f"Likely same-owner addresses — {address}", header_style="bold")

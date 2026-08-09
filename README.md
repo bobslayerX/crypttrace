@@ -141,6 +141,12 @@ crypttrace offramp 0xADDRESS
 # Bitcoin only: find other wallets owned by the same person
 crypttrace cluster bc1qADDRESS
 
+# Who fed this wallet? In a mass theft, that's the victim list → CSV
+crypttrace victims bc1qADDRESS --chain btc --depth 1 -o victims.csv
+
+# When did the money move? Spots automated sweeps vs ordinary use
+crypttrace timeline bc1qADDRESS --chain btc
+
 # Follow funds across bridges into other chains
 crypttrace crosschain 0xADDRESS --window 48
 
@@ -221,6 +227,27 @@ from somewhere, and the chain frequently terminates at an exchange withdrawal �
 an identification point. A core primitive for tying "unrelated" wallets to one
 controller. (Uses external transactions; wallets first funded by an internal
 contract call need internal-tx data — a planned extension.)
+
+### Victim lists and timing analysis
+
+Two things a graph shows but can't hand you as evidence.
+
+`victims` walks the money backwards from a consolidation wallet and lists every
+address that fed it — amounts, transaction counts, first/last seen, explorer
+links — and writes it to **CSV**. After a mass drain that list *is* the set of
+victims, in the form an exchange's compliance team or a police report can
+actually use.
+
+`timeline` answers *when*. It buckets activity into a histogram and finds the
+tightest window containing most of the transfers. This separates a theft from
+ordinary wallet use: hundreds of transfers inside minutes is an automated tool
+spending keys it already holds, whereas a real owner's activity is spread over
+months. The tool says so in plain language rather than leaving you to eyeball it.
+
+```
+crypttrace victims  bc1qADDRESS --chain btc --depth 2 -o victims.csv
+crypttrace timeline bc1qADDRESS --chain btc --buckets 24
+```
 
 ### Bitcoin clustering (common-input-ownership)
 

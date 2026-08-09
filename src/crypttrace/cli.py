@@ -4,7 +4,9 @@ Give it a suspicious address; it pulls the public on-chain history, labels
 known entities (exchanges, mixers, sanctioned wallets), and traces where the
 funds went.
 """
+from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 import typer
 from rich.console import Console
@@ -299,6 +301,87 @@ def update_labels():
             console.print(f"  [green]✓[/green] {name}: [bold]{cnt}[/bold] addresses")
     console.print(f"[green]Done.[/green] {labels.count()} labelled addresses now loaded.")
     console.print(f"[dim]Cache: {config.DATA_DIR / 'imported_labels.json'}[/dim]")
+
+
+@app.command()
+def victims(
+    address: str = typer.Argument(..., help="The address funds were consolidated into"),
+    chain: str = CHAIN_OPT,
+    asset: str = ASSET_OPT,
+    depth: int = typer.Option(1, "--depth", "-d", help="How many hops back to collect sources"),
+    out: Optional[Path] = typer.Option(None, "--out", "-o", help="CSV file to write"),
+    top: int = typer.Option(25, "--top", help="How many rows to print"),
+):
+    """List every address that fed this wallet — in a mass theft, the victim list."""
+    from crypttrace import analysis
+    try:
+        asset_desc = assets.resolve_asset(asset, chain)
+    except ValueError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
+    try:
+        with console.status("Walking the money backwards…"):
+            rows = analysis.collect_sources(address, chain, depth, asset_desc)
+    except (chains_mod.ChainError, etherscan.EtherscanError) as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
+
+    if not rows:
+        console.print("[dim]No incoming transfers found — nothing fed this address.[/dim]")
+        return
+
+    sym = asset_desc["symbol"] if asset_desc else chains_mod.symbol(chain)
+    console.print(render.sources_table(rows, sym, top))
+    total = sum(r["value"] for r in rows)
+    console.print(f"\n[bold]{len(rows)}[/bold] addresses sent a total of "
+                  f"[bold]{total:.8f} {sym}[/bold] into this wallet.")
+
+    path = out or (Path.home() / "crypttrace-reports" /
+                   f"sources_{chain}_{address[:12]}_{datetime.now():%Y%m%d_%H%M%S}.csv")
+    try:
+        analysis.export_csv(rows, path, chain, sym)
+        console.print(f"[green]✓ CSV saved:[/green] {path}")
+        console.print("[dim]  Attach this to an exchange request or police report.[/dim]")
+    except OSError as e:
+        console.print(f"[yellow]Could not write CSV:[/yellow] {e}")
+
+
+@app.command()
+def timeline(
+    address: str = typer.Argument(..., help="Address to analyse"),
+    chain: str = CHAIN_OPT,
+    asset: str = ASSET_OPT,
+    buckets: int = typer.Option(24, "--buckets", "-b", help="Number of time buckets"),
+):
+    """When did the money move? Reveals automated sweeps vs ordinary use."""
+    from crypttrace import analysis
+    try:
+        asset_desc = assets.resolve_asset(asset, chain)
+    except ValueError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
+    try:
+        with console.status("Reading transfer history…"):
+            tl = analysis.timeline(address, chain, asset_desc, buckets=buckets)
+    except (chains_mod.ChainError, etherscan.EtherscanError) as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
+
+    if not tl["events"]:
+        console.print("[dim]No dated transfers found for this address.[/dim]")
+        return
+
+    sym = asset_desc["symbol"] if asset_desc else chains_mod.symbol(chain)
+    console.print(render.timeline_chart(tl, sym))
+    console.print(f"\n  first activity : {render._ts(str(tl['first_ts']))} UTC")
+    console.print(f"  last activity  : {render._ts(str(tl['last_ts']))} UTC")
+    console.print(f"  transfers      : {tl['events']}")
+    console.print(f"  received / sent: {tl['in_total']:.6f} / {tl['out_total']:.6f} {sym}")
+
+    note = analysis.describe_burst(tl["burst"], tl["events"])
+    if note:
+        style = "bold yellow" if "automated" in note else "dim"
+        console.print(f"\n[{style}]{note}[/{style}]")
 
 
 @app.command()
