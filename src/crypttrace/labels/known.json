@@ -27,9 +27,9 @@
   "0x098b716b8aaf21512996dc57eb0615e2383e2f96": {"name": "Ronin Bridge Exploiter (Lazarus)", "type": "sanctioned"},
   "0x2f2974fabc54dba33442261211c06bd20e0feefc": {"name": "AFX Trade Exploiter (Jul 2026, $24M)", "type": "scam"},
 
-  "bc1qq85v2c926eg6pgxhwp6q7lf6cnsz80qs3fcu9r": {"name": "Coldcard Exploiter (Jul 2026) — 562.02 BTC", "type": "scam"},
-  "bc1qx76cae2706qd5q576feh7xq8rfcsjpf2htfhe3": {"name": "Coldcard Exploiter (Jul 2026) — 398.48 BTC", "type": "scam"},
-  "bc1q8jy96fe5lf8vfugydnte3cguk92gpev7kwtp3q": {"name": "Coldcard Exploiter (Jul 2026) — 89.62 BTC", "type": "scam"},
-  "bc1qnk4zh9qcnap2mycp56qjrgza3cc8ylrh8fecp0": {"name": "Coldcard Exploiter (Jul 2026) — 32.45 BTC", "type": "scam"},
-  "bc1qc779m8gec84k3t0ffvu0pps94zheht7lr7ueyn": {"name": "Coldcard Exploiter (Jul 2026) — staging address", "type": "scam"}
+  "bc1qq85v2c926eg6pgxhwp6q7lf6cnsz80qs3fcu9r": {"name": "Coldcard Exploiter (Jul 2026) - consolidation", "type": "scam"},
+  "bc1qx76cae2706qd5q576feh7xq8rfcsjpf2htfhe3": {"name": "Coldcard Exploiter (Jul 2026) - 398 BTC pile", "type": "scam"},
+  "bc1q8jy96fe5lf8vfugydnte3cguk92gpev7kwtp3q": {"name": "Coldcard Exploiter (Jul 2026) - 89 BTC pile", "type": "scam"},
+  "bc1qnk4zh9qcnap2mycp56qjrgza3cc8ylrh8fecp0": {"name": "Coldcard Exploiter (Jul 2026) - relay to consolidation", "type": "scam"},
+  "bc1qc779m8gec84k3t0ffvu0pps94zheht7lr7ueyn": {"name": "Coldcard Exploiter (Jul 2026) - staging", "type": "scam"}
 }

@@ -7,6 +7,7 @@ calls the CLI already makes.
 
 Launch with:  crypttrace serve   (then open http://127.0.0.1:8000)
 """
+from datetime import datetime
 from pathlib import Path
 
 from flask import Flask, jsonify, request, send_from_directory
@@ -51,9 +52,20 @@ def create_app() -> Flask:
         code = getattr(e, "code", 500)
         return jsonify({"error": getattr(e, "description", None) or str(e)}), code
 
+    @app.after_request
+    def _no_cache(resp):
+        # The UI is a single file that changes with every release; a cached copy
+        # means users keep seeing an old interface after upgrading.
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        resp.headers["Pragma"] = "no-cache"
+        resp.headers["Expires"] = "0"
+        return resp
+
     @app.route("/")
     def index():
-        return send_from_directory(_WEB_DIR, "index.html")
+        resp = send_from_directory(_WEB_DIR, "index.html")
+        resp.headers["Cache-Control"] = "no-store"
+        return resp
 
     @app.route("/api/assets")
     def api_assets():
@@ -125,6 +137,69 @@ def create_app() -> Flask:
             return jsonify({"error": str(e)}), 400
         return jsonify(graph)
 
+    @app.route("/api/victims")
+    def api_victims():
+        """Addresses that fed this wallet — in a mass theft, the victim list."""
+        from crypttrace import analysis
+        addr = request.args.get("address", "")
+        chain = request.args.get("chain", "eth")
+        depth = int(request.args.get("depth", 1))
+        asset_arg = request.args.get("asset", "native")
+        include_dust = request.args.get("dust") == "1"
+        bad = validate(addr, chain)
+        if bad:
+            return jsonify({"error": bad}), 400
+        try:
+            asset = assets.resolve_asset(asset_arg, chain)
+            rows = analysis.collect_sources(addr, chain, depth, asset,
+                                            min_value=0.0 if include_dust else None)
+        except _KNOWN_ERRORS as e:
+            return jsonify({"error": str(e)}), 400
+        sym = asset["symbol"] if asset else chains.symbol(chain)
+        return jsonify({
+            "symbol": sym,
+            "total": round(sum(r["value"] for r in rows), 8),
+            "count": len(rows),
+            "rows": [{
+                "address": r["address"], "hop": r.get("hop", 1),
+                "value": round(r["value"], 8), "txs": r["txs"],
+                "first_seen": r.get("first_ts"), "last_seen": r.get("last_ts"),
+                "label": r.get("label", ""), "type": r.get("type", "unknown"),
+                "into": r.get("into", ""),
+                "explorer": chains.explorer_url(r["address"], chain),
+            } for r in rows],
+        })
+
+    @app.route("/api/timeline")
+    def api_timeline():
+        """When the money moved, plus a plain-language read on the timing."""
+        from crypttrace import analysis
+        addr = request.args.get("address", "")
+        chain = request.args.get("chain", "eth")
+        asset_arg = request.args.get("asset", "native")
+        buckets = int(request.args.get("buckets", 24))
+        include_dust = request.args.get("dust") == "1"
+        bad = validate(addr, chain)
+        if bad:
+            return jsonify({"error": bad}), 400
+        try:
+            asset = assets.resolve_asset(asset_arg, chain)
+            tl = analysis.timeline(addr, chain, asset, buckets=buckets,
+                                   min_value=0.0 if include_dust else None)
+        except _KNOWN_ERRORS as e:
+            return jsonify({"error": str(e)}), 400
+        burst = tl.get("burst")
+        return jsonify({
+            "symbol": asset["symbol"] if asset else chains.symbol(chain),
+            "events": tl["events"], "buckets": tl["buckets"],
+            "first_ts": tl["first_ts"], "last_ts": tl["last_ts"],
+            "in_total": tl["in_total"], "out_total": tl["out_total"],
+            "dust_skipped": tl.get("dust_skipped", 0),
+            "burst": ({"span_seconds": burst[0], "count": burst[1],
+                       "start": burst[2], "end": burst[3]} if burst else None),
+            "verdict": analysis.describe_burst(burst, tl["events"]),
+        })
+
     @app.route("/api/funder")
     def api_funder():
         addr = request.args.get("address", "")
@@ -151,6 +226,23 @@ def create_app() -> Flask:
         return jsonify({"offramp": hit})
 
     return app
+
+
+def where() -> dict:
+    """Which files this process is actually running — the answer to 'my edits
+    aren't showing up', which usually means a stale non-editable install is
+    shadowing the source tree."""
+    import crypttrace
+    index = _WEB_DIR / "index.html"
+    return {
+        "package": str(Path(crypttrace.__file__).parent),
+        "index_html": str(index),
+        "exists": index.exists(),
+        "size": index.stat().st_size if index.exists() else 0,
+        "modified": (datetime.fromtimestamp(index.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+                     if index.exists() else "-"),
+        "editable": "site-packages" not in str(_WEB_DIR),
+    }
 
 
 def serve(host: str = "127.0.0.1", port: int = 8000, debug: bool = False) -> None:

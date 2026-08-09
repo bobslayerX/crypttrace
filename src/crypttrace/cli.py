@@ -441,7 +441,14 @@ def serve(
         console.print("[red]Flask is not installed.[/red] Run: pip install 'crypttrace[web]'  "
                       "(or pip install flask)")
         raise typer.Exit(1)
+    info = webapp.where()
     console.print(f"[green]crypttrace web UI[/green] → http://{host}:{port}  (Ctrl-C to stop)")
+    console.print(f"[dim]serving: {info['index_html']}[/dim]")
+    console.print(f"[dim]         {info['size']} bytes, modified {info['modified']}[/dim]")
+    if not info["editable"]:
+        console.print("[yellow]![/yellow] Running from an installed copy, not your source tree — "
+                      "edits to src/ will NOT appear.\n"
+                      "  Fix with: [bold]pip uninstall -y crypttrace && pip install -e \".[web]\"[/bold]")
     webapp.serve(host=host, port=port)
 
 

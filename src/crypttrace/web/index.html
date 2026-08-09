@@ -13,11 +13,16 @@
     --green:#3fdf87; --purple:#c48cff; --red:#ff6b60; --cyan:#3fd8e8; --accent:#4d9dff;
   }
   *{box-sizing:border-box}
+  html{height:100%;overflow:hidden}
   html,body{height:100%}
+  /* flex column: every row takes its natural height, the stage gets the rest.
+     A fixed calc() height broke as soon as a new row (the tabs) was added. */
   body{
     margin:0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
     color:var(--text);background:var(--bg);overflow:hidden;
+    height:100vh;display:flex;flex-direction:column;
   }
+  header,.bar,.tabs,.legend{flex:0 0 auto}
   /* animated aurora backdrop — the light that the glass refracts */
   .aurora{position:fixed;inset:0;z-index:0;overflow:hidden}
   .aurora i{position:absolute;border-radius:50%;filter:blur(90px);opacity:.5;animation:drift 22s ease-in-out infinite}
@@ -58,6 +63,40 @@
   button.ghost{background:var(--glass-2);box-shadow:none;font-weight:500;border:1px solid var(--stroke)}
   button.ghost:hover{border-color:var(--stroke-2);box-shadow:0 6px 18px rgba(0,0,0,.3)}
 
+  /* Tabs live inside the graph column, never in the header stack — that way they
+     cannot collide with the search row regardless of window size. */
+  .main{flex:1 1 auto;display:flex;flex-direction:column;min-width:0;min-height:0}
+  .tabs{flex:0 0 auto;display:flex;gap:6px;margin-bottom:10px}
+  .tab{font-size:13px;font-weight:600;padding:8px 15px;border-radius:12px;cursor:pointer;
+    background:var(--glass-2);border:1px solid var(--stroke);color:var(--dim);
+    backdrop-filter:blur(12px);transition:.25s cubic-bezier(.22,1,.36,1)}
+  .tab:hover{color:var(--text);transform:translateY(-1px)}
+  .tab.on{color:#fff;border-color:rgba(255,255,255,.28);
+    background:linear-gradient(135deg,rgba(77,157,255,.9),rgba(123,47,247,.8));
+    box-shadow:0 6px 18px rgba(77,157,255,.28)}
+  .view{position:absolute;inset:0;overflow:auto;padding:18px 20px;display:none;animation:rise .4s both}
+  .view.on{display:block}
+  #graph.on{display:block}
+  .stat{display:flex;gap:22px;flex-wrap:wrap;margin-bottom:16px;font-size:13px;color:var(--dim)}
+  .stat b{color:var(--text);font-size:15px;display:block}
+  .verdict{padding:13px 16px;border-radius:14px;margin-bottom:16px;font-size:13.5px;line-height:1.6;
+    background:rgba(255,193,86,.09);border:1px solid rgba(255,193,86,.30);color:#ffd591}
+  .verdict.calm{background:var(--glass-2);border-color:var(--stroke);color:var(--dim)}
+  table.grid{width:100%;border-collapse:collapse;font-size:12.5px}
+  table.grid th{text-align:left;color:var(--dim);font-weight:600;padding:7px 9px;
+    border-bottom:1px solid var(--stroke);position:sticky;top:0;background:rgba(12,16,24,.95);
+    backdrop-filter:blur(8px)}
+  table.grid td{padding:7px 9px;border-bottom:1px solid rgba(255,255,255,.045)}
+  table.grid tr:hover td{background:rgba(255,255,255,.035)}
+  table.grid td.num{text-align:right;font-variant-numeric:tabular-nums}
+  .bars{display:flex;flex-direction:column;gap:5px}
+  .barrow{display:grid;grid-template-columns:132px 46px 1fr;align-items:center;gap:10px;font-size:12px}
+  .barrow .t{color:var(--dim)}
+  .barrow .n{text-align:right;color:var(--text);font-variant-numeric:tabular-nums}
+  /* histogram column — must NOT be called .bar, that class is the search row */
+  .tlbar{height:16px;border-radius:5px;background:linear-gradient(90deg,var(--accent),var(--purple));
+    box-shadow:0 0 12px rgba(77,157,255,.35);min-width:3px;transition:width .5s cubic-bezier(.22,1,.36,1)}
+
   .legend{position:relative;z-index:2;display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:0 22px 12px}
   .chip{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim);
     padding:5px 11px;border-radius:999px;background:var(--glass-2);border:1px solid var(--stroke);
@@ -65,8 +104,9 @@
   .chip:hover{color:var(--text);border-color:var(--stroke-2);transform:translateY(-1px)}
   .dot{width:9px;height:9px;border-radius:50%;box-shadow:0 0 10px currentColor}
 
-  .wrap{position:relative;z-index:1;display:flex;gap:16px;padding:0 22px 18px;height:calc(100vh - 175px)}
-  .stage{flex:1;position:relative;border-radius:20px;overflow:hidden;
+  .wrap{position:relative;z-index:1;display:flex;gap:16px;padding:0 22px 18px;
+    flex:1 1 auto;min-height:0}
+  .stage{flex:1 1 auto;min-height:0;position:relative;border-radius:20px;overflow:hidden;
     background:rgba(12,16,24,.42);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
     border:1px solid var(--stroke);box-shadow:0 12px 40px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.08);
     animation:rise .6s cubic-bezier(.22,1,.36,1) both}
@@ -167,18 +207,27 @@
 </div>
 
 <div class="wrap">
+ <div class="main">
+  <div class="tabs">
+    <button class="tab on" data-view="graph">Flow graph</button>
+    <button class="tab" data-view="timeline">Timeline</button>
+    <button class="tab" data-view="victims">Who sent funds here</button>
+  </div>
   <div class="stage">
     <div class="loader" id="loader"></div>
     <div id="graph"></div>
     <div class="hint" id="hint">Paste an address above and hit <b style="color:var(--text);margin:0 4px">Investigate</b><br>
       — flow runs left → right. Click a node to inspect it, click a transfer line to open it on the explorer.</div>
+    <div class="view" id="v-timeline"></div>
+    <div class="view" id="v-victims"></div>
     <div class="scaleview" id="scaleview" style="display:none">100%</div>
-    <div class="zoomctl">
+    <div class="zoomctl" id="zoomctl">
       <button id="zin"  title="Zoom in">+</button>
       <button id="zout" title="Zoom out">−</button>
       <button id="zroot" title="Centre on the investigated address">⌖</button>
     </div>
   </div>
+ </div>
   <div class="side" id="side">
     <div class="card"><h3>How it works</h3>
       <div class="muted">The graph maps where funds moved, hop by hop. Nodes are coloured by what
@@ -359,6 +408,8 @@ async function run(){
   if(!a){ setStatus('enter an address',true); return; }
   setStatus('tracing the chain…',false,true); loader(35);
   $('#hint').classList.add('hide');
+  loaded={};                       // new address -> other views must reload
+  $('#v-timeline').innerHTML=''; $('#v-victims').innerHTML='';
   try{
     const dir=$('#direction').value;
     const g=await api(`/api/trace?address=${a}&chain=${chain()}&depth=${$('#depth').value}&asset=${$('#asset').value}&direction=${dir}`);
@@ -395,6 +446,89 @@ async function syncAssets(){
   }catch{ /* keep whatever is there if the backend is unreachable */ }
 }
 $('#chain').addEventListener('change',syncAssets); syncAssets();
+
+// ---------- views: flow graph / timeline / victims ----------
+let currentView='graph', loaded={};
+
+function showView(v){
+  currentView=v;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.view===v));
+  $('#graph').style.display   = v==='graph'?'block':'none';
+  $('#zoomctl').style.display = v==='graph'?'flex':'none';
+  $('#scaleview').style.display = (v==='graph'&&network)?'block':'none';
+  $('#v-timeline').classList.toggle('on',v==='timeline');
+  $('#v-victims').classList.toggle('on',v==='victims');
+  const a=$('#addr').value.trim();
+  if(a && !loaded[v+a]) { loaded[v+a]=true; if(v==='timeline') loadTimeline(a); if(v==='victims') loadVictims(a); }
+}
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>showView(t.dataset.view));
+
+const dstamp=t=>t?new Date(t*1000).toISOString().slice(0,16).replace('T',' '):'—';
+const esc=s=>String(s??'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+
+async function loadTimeline(a){
+  const el=$('#v-timeline');
+  el.innerHTML='<div class="muted"><span class="spin"></span>Reading transfer history…</div>';
+  try{
+    const t=await api(`/api/timeline?address=${a}&chain=${chain()}&asset=${$('#asset').value}&buckets=24`);
+    if(!t.events){ el.innerHTML='<div class="muted">No dated transfers found.</div>'; return; }
+    const peak=Math.max(...t.buckets.map(b=>b.count),1);
+    const bars=t.buckets.filter(b=>b.count).map(b=>`
+      <div class="barrow"><span class="t">${dstamp(b.start)}</span><span class="n">${b.count}</span>
+        <div class="tlbar" style="width:${Math.max(3,b.count/peak*100)}%"></div></div>`).join('');
+    const calm=!(t.verdict||'').includes('automated');
+    el.innerHTML=`
+      <div class="stat">
+        <div>transfers<b>${t.events}</b></div>
+        <div>received<b>${t.in_total.toFixed(6)} ${t.symbol}</b></div>
+        <div>sent<b>${t.out_total.toFixed(6)} ${t.symbol}</b></div>
+        <div>first<b>${dstamp(t.first_ts)}</b></div>
+        <div>last<b>${dstamp(t.last_ts)}</b></div>
+      </div>
+      ${t.verdict?`<div class="verdict ${calm?'calm':''}">${esc(t.verdict)}</div>`:''}
+      <div class="bars">${bars}</div>
+      ${t.dust_skipped?`<div class="muted" style="margin-top:14px">${t.dust_skipped} dust-sized transfers ignored (spam sent to well-known addresses).</div>`:''}`;
+  }catch(e){ el.innerHTML=`<div class="err">${esc(e.message)}</div>`; }
+}
+
+let victimRows=[], victimSym='';
+async function loadVictims(a){
+  const el=$('#v-victims');
+  el.innerHTML='<div class="muted"><span class="spin"></span>Walking the money backwards…</div>';
+  try{
+    const v=await api(`/api/victims?address=${a}&chain=${chain()}&asset=${$('#asset').value}&depth=1`);
+    victimRows=v.rows; victimSym=v.symbol;
+    if(!v.count){ el.innerHTML='<div class="muted">Nothing fed this address.</div>'; return; }
+    const rows=v.rows.slice(0,300).map(r=>`
+      <tr><td class="mono">${esc(r.address.slice(0,18))}…${esc(r.address.slice(-6))}
+            ${r.label?`<span class="pill t-${r.type}" style="margin-left:6px">${esc(r.label)}</span>`:''}</td>
+          <td class="num">${r.hop}</td><td class="num">${r.value}</td><td class="num">${r.txs}</td>
+          <td>${dstamp(r.first_seen)}</td>
+          <td><a class="btnlink" style="padding:3px 9px;margin:0" href="${r.explorer}" target="_blank" rel="noopener">open ↗</a></td></tr>`).join('');
+    el.innerHTML=`
+      <div class="stat">
+        <div>addresses<b>${v.count}</b></div>
+        <div>total sent in<b>${v.total} ${v.symbol}</b></div>
+        <div>&nbsp;<button class="ghost" id="csv" style="padding:7px 13px">Download CSV</button></div>
+      </div>
+      <table class="grid"><thead><tr>
+        <th>Address</th><th style="text-align:right">Hop</th>
+        <th style="text-align:right">Sent (${v.symbol})</th><th style="text-align:right">Txs</th>
+        <th>First seen (UTC)</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+      ${v.count>300?`<div class="muted" style="margin-top:12px">Showing the first 300 of ${v.count}; the CSV contains all.</div>`:''}`;
+    $('#csv').onclick=downloadCsv;
+  }catch(e){ el.innerHTML=`<div class="err">${esc(e.message)}</div>`; }
+}
+
+function downloadCsv(){
+  const head=['address','hop',`amount_sent_${victimSym}`,'transactions','first_seen_utc','last_seen_utc','label','explorer'];
+  const body=victimRows.map(r=>[r.address,r.hop,r.value,r.txs,dstamp(r.first_seen),dstamp(r.last_seen),
+    (r.label||'').replace(/,/g,';'),r.explorer].join(','));
+  const blob=new Blob([[head.join(','),...body].join('\n')],{type:'text/csv;charset=utf-8'});
+  const u=URL.createObjectURL(blob), l=document.createElement('a');
+  l.href=u; l.download=`sources_${chain()}_${$('#addr').value.trim().slice(0,12)}.csv`;
+  l.click(); URL.revokeObjectURL(u);
+}
 
 $('#go').onclick=run;
 $('#fit').onclick=()=>network&&fitNice();
