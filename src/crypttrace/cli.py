@@ -341,6 +341,14 @@ def victims(
     console.print(f"\n[bold]{len(rows)}[/bold] addresses sent a total of "
                   f"[bold]{total:.8f} {sym}[/bold] into this wallet.")
 
+    # This list is about to become evidence — say whether it reconciles.
+    from crypttrace import verify as verify_mod
+    v = verify_mod.reconcile(address, chain, asset_desc)
+    style = _verdict_style(v["status"])
+    console.print(f"[{style}]{v['status'].upper()}[/{style}] — {verify_mod.headline(v)}")
+    for n in v["notes"][:2]:
+        console.print(f"  [dim]• {n}[/dim]")
+
     path = out or (Path.home() / "crypttrace-reports" /
                    f"sources_{chain}_{address[:12]}_{datetime.now():%Y%m%d_%H%M%S}.csv")
     try:
@@ -395,6 +403,49 @@ def timeline(
     if note:
         style = "bold yellow" if "automated" in note else "dim"
         console.print(f"\n[{style}]{note}[/{style}]")
+
+
+def _verdict_style(status: str) -> str:
+    return {"verified": "green", "consistent": "cyan", "partial": "yellow",
+            "mismatch": "bold red", "unchecked": "dim"}.get(status, "dim")
+
+
+@app.command()
+def verify(
+    address: str = typer.Argument(..., help="Address to cross-check"),
+    chain: str = CHAIN_OPT,
+    asset: str = ASSET_OPT,
+    limit: int = typer.Option(1000, "--limit", help="How many transfers to read"),
+):
+    """Check the tool's own totals against the chain. Run this before trusting a report."""
+    from crypttrace import verify as verify_mod
+    try:
+        asset_desc = assets.resolve_asset(asset, chain)
+    except ValueError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
+
+    with console.status("Re-deriving totals and comparing with the chain…"):
+        v = verify_mod.reconcile(address, chain, asset_desc, limit)
+
+    sym = asset_desc["symbol"] if asset_desc else chains_mod.symbol(chain)
+    style = _verdict_style(v["status"])
+    console.print(f"\n[{style}]{v['status'].upper()}[/{style}]  {verify_mod.headline(v)}\n")
+
+    if v["checks"]:
+        t = render.Table(title="Cross-check against the chain", header_style="bold")
+        t.add_column("Figure"); t.add_column("Computed", justify="right")
+        t.add_column("Chain", justify="right"); t.add_column("", justify="center")
+        for c in v["checks"]:
+            t.add_row(c["name"], f"{c['computed']:.8f} {sym}",
+                      f"{c['chain']:.8f} {sym}", "✓" if c["ok"] else "✗")
+        console.print(t)
+
+    console.print(f"\n  transfers analysed : {v['analysed']}")
+    if v.get("chain_tx_count") is not None:
+        console.print(f"  transactions on chain: {v['chain_tx_count']}")
+    for n in v["notes"]:
+        console.print(f"  [dim]• {n}[/dim]")
 
 
 @app.command()

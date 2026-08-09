@@ -320,6 +320,34 @@ with `--out`): a readable Markdown report (assessment, summary, key findings,
 counterparties, the full fund-flow trace, methodology note) plus a `.json` with
 the raw structured data.
 
+### Self-verification
+
+A forensics tool that quietly miscounts is worse than no tool: the output looks
+authoritative and ends up in reports. `verify` re-derives the totals from what
+the tool parsed and compares them against the figures the chain index reports
+independently.
+
+```
+crypttrace verify bc1qADDRESS --chain btc
+```
+
+It reports one of:
+
+| Status | Meaning |
+|---|---|
+| **verified** | Gross totals match the chain independently. |
+| **consistent** | Balance reconciles, but this chain publishes no independent gross totals, so attribution is only partly checked. |
+| **partial** | Only part of the address's history was read — totals are a floor, not the whole picture. |
+| **mismatch** | Computed totals disagree with the chain. Don't rely on the output until it's explained. |
+
+`victims` runs this automatically, because that list is the output most likely
+to be quoted as evidence; the web UI shows the same status as a badge.
+
+This exists because the tool *did* once miscount — attributing a whole
+multi-input Bitcoin transaction to its first input address, crediting one
+wallet with 89 BTC it never handled. That was caught by hand against a block
+explorer; the check now catches it automatically.
+
 ### Caching & rate limits
 
 Every API response is cached in SQLite under `~/.crypttrace/`, so re-running a

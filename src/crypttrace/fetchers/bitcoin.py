@@ -44,13 +44,28 @@ def _get(path: str, timeout: int = 30):
     return data
 
 
-def balance(address: str) -> float:
+def stats(address: str) -> Dict:
+    """Authoritative totals straight from the chain index.
+
+    These are the numbers our own parsing must agree with — the reference for
+    checking that a trace didn't miscount or silently miss history.
+    """
     d = _get(f"/address/{address}")
     cs = d.get("chain_stats", {}) or {}
     ms = d.get("mempool_stats", {}) or {}
-    sats = ((cs.get("funded_txo_sum", 0) - cs.get("spent_txo_sum", 0)) +
-            (ms.get("funded_txo_sum", 0) - ms.get("spent_txo_sum", 0)))
-    return sats / SATS
+    recv = (cs.get("funded_txo_sum", 0) + ms.get("funded_txo_sum", 0)) / SATS
+    sent = (cs.get("spent_txo_sum", 0) + ms.get("spent_txo_sum", 0)) / SATS
+    return {
+        "received": recv,
+        "sent": sent,
+        "balance": recv - sent,
+        "tx_count": (cs.get("tx_count", 0) + ms.get("tx_count", 0)),
+        "funded_outputs": (cs.get("funded_txo_count", 0) + ms.get("funded_txo_count", 0)),
+    }
+
+
+def balance(address: str) -> float:
+    return stats(address)["balance"]
 
 
 def raw_txs(address: str, max_txs: int = 500) -> List[dict]:
@@ -129,11 +144,17 @@ def transfers(address: str, limit: int = 1000) -> List[Dict]:
             # outgoing: our share of the inputs funds our share of each output
             mine_in = sum(v for a, v in ins if a == me)
             share = mine_in / total_in
+            # The chain counts a spent output at full value; the recipient gets
+            # less, because the miner fee comes out in between. Carry our share
+            # of that fee so totals can be reconciled exactly rather than
+            # hidden inside a tolerance.
+            fee_share = (total_in - sum(v for _, v in outs)) * share
             for a, v in outs:
                 if a == me or v <= 0:
                     continue                      # change back to self
                 rows.append({"from": me, "to": a, "value": v * share,
-                             "timestamp": ts, "hash": h, "symbol": "BTC"})
+                             "timestamp": ts, "hash": h, "symbol": "BTC",
+                             "fee_share": fee_share})
         else:
             # incoming: credit every funder in proportion to what it put in
             mine_out = sum(v for a, v in outs if a == me)

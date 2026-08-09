@@ -82,6 +82,17 @@
   .verdict{padding:13px 16px;border-radius:14px;margin-bottom:16px;font-size:13.5px;line-height:1.6;
     background:rgba(255,193,86,.09);border:1px solid rgba(255,193,86,.30);color:#ffd591}
   .verdict.calm{background:var(--glass-2);border-color:var(--stroke);color:var(--dim)}
+  /* verification badge — says whether the numbers reconcile with the chain */
+  .vfy{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;
+    font-size:12px;font-weight:650;border:1px solid currentColor;backdrop-filter:blur(10px)}
+  .vfy-verified{color:var(--green);background:rgba(63,223,135,.10)}
+  .vfy-consistent{color:var(--cyan);background:rgba(63,216,232,.10)}
+  .vfy-partial{color:#ffc857;background:rgba(255,200,87,.10)}
+  .vfy-mismatch{color:var(--red);background:rgba(255,107,96,.12)}
+  .vfy-unchecked,.vfy-unavailable{color:var(--dim);background:rgba(147,161,181,.10)}
+  .vfy-note{font-size:12px;color:var(--dim);line-height:1.55;margin-top:9px}
+  .vfy-rows{margin-top:10px;font-size:12px}
+  .vfy-rows div{display:flex;justify-content:space-between;gap:10px;padding:3px 0}
   table.grid{width:100%;border-collapse:collapse;font-size:12.5px}
   table.grid th{text-align:left;color:var(--dim);font-weight:600;padding:7px 9px;
     border-bottom:1px solid var(--stroke);position:sticky;top:0;background:rgba(12,16,24,.95);
@@ -499,6 +510,7 @@ async function loadVictims(a){
     const v=await api(`/api/victims?address=${a}&chain=${chain()}&asset=${$('#asset').value}&depth=1`);
     victimRows=v.rows; victimSym=v.symbol;
     if(!v.count){ el.innerHTML='<div class="muted">Nothing fed this address.</div>'; return; }
+    verifyInto(el, a);                       // is this list trustworthy?
     const rows=v.rows.slice(0,300).map(r=>`
       <tr><td class="mono">${esc(r.address.slice(0,18))}…${esc(r.address.slice(-6))}
             ${r.label?`<span class="pill t-${r.type}" style="margin-left:6px">${esc(r.label)}</span>`:''}</td>
@@ -518,6 +530,27 @@ async function loadVictims(a){
       ${v.count>300?`<div class="muted" style="margin-top:12px">Showing the first 300 of ${v.count}; the CSV contains all.</div>`:''}`;
     $('#csv').onclick=downloadCsv;
   }catch(e){ el.innerHTML=`<div class="err">${esc(e.message)}</div>`; }
+}
+
+// Ask the backend whether our own totals reconcile with the chain, and show it
+// next to any figure a user might quote. A silent miscount is the worst failure
+// mode for a tool like this.
+const VFY_ICON={verified:'✓',consistent:'≈',partial:'◐',mismatch:'✗',unchecked:'–',unavailable:'–'};
+async function verifyInto(container, addr){
+  const slot=document.createElement('div');
+  slot.style.margin='0 0 14px';
+  slot.innerHTML='<span class="vfy vfy-unchecked">checking…</span>';
+  container.prepend(slot);
+  try{
+    const v=await api(`/api/verify?address=${addr}&chain=${chain()}&asset=${$('#asset').value}`);
+    const rows=(v.checks||[]).map(c=>`<div><span>${c.name}</span>
+        <span class="mono">${c.computed.toFixed(8)} vs ${c.chain.toFixed(8)} ${v.symbol} ${c.ok?'✓':'✗'}</span></div>`).join('');
+    slot.innerHTML=`
+      <span class="vfy vfy-${v.status}">${VFY_ICON[v.status]||''} ${v.status}</span>
+      <div class="vfy-note">${esc(v.headline)}</div>
+      ${rows?`<div class="vfy-rows">${rows}</div>`:''}
+      ${(v.notes||[]).slice(0,2).map(n=>`<div class="vfy-note">• ${esc(n)}</div>`).join('')}`;
+  }catch(e){ slot.innerHTML=`<span class="vfy vfy-unavailable">verification unavailable</span>`; }
 }
 
 function downloadCsv(){
