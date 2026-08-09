@@ -88,6 +88,15 @@ def _in_addrs(tx: dict) -> List[str]:
     return out
 
 
+def _in_pairs(tx: dict):
+    """(address, value) for every input — a UTXO tx can be funded by many parties."""
+    for v in tx.get("vin", []) or []:
+        p = v.get("prevout") or {}
+        a = p.get("scriptpubkey_address")
+        if a:
+            yield a, (p.get("value", 0) or 0) / SATS
+
+
 def _out_pairs(tx: dict):
     for o in tx.get("vout", []) or []:
         a = o.get("scriptpubkey_address")
@@ -96,25 +105,45 @@ def _out_pairs(tx: dict):
 
 
 def transfers(address: str, limit: int = 1000) -> List[Dict]:
-    """Normalized {from,to,value,timestamp,hash,symbol} rows."""
+    """Normalized {from,to,value,timestamp,hash,symbol} rows.
+
+    A Bitcoin transaction has no single sender: it can be funded by many inputs
+    from different owners and pay many outputs. Attributing a whole transfer to
+    the first input address — the naive shortcut — badly misreports
+    consolidations, e.g. crediting one wallet with funds a hundred others
+    supplied. So value is split in proportion to what each side actually
+    contributed or received.
+    """
     me = address
     rows: List[Dict] = []
     for tx in raw_txs(address, max_txs=max(limit, 200)):
         ts = int((tx.get("status") or {}).get("block_time") or 0)
         h = tx.get("txid", "")
-        ins = _in_addrs(tx)
-        if me in ins:
-            for a, v in _out_pairs(tx):
+        ins = list(_in_pairs(tx))
+        outs = list(_out_pairs(tx))
+        total_in = sum(v for _, v in ins)
+        if total_in <= 0:
+            continue
+
+        if me in (a for a, _ in ins):
+            # outgoing: our share of the inputs funds our share of each output
+            mine_in = sum(v for a, v in ins if a == me)
+            share = mine_in / total_in
+            for a, v in outs:
                 if a == me or v <= 0:
-                    continue  # change back to self
-                rows.append({"from": me, "to": a, "value": v,
+                    continue                      # change back to self
+                rows.append({"from": me, "to": a, "value": v * share,
                              "timestamp": ts, "hash": h, "symbol": "BTC"})
         else:
-            src = ins[0] if ins else ""
-            for a, v in _out_pairs(tx):
-                if a != me or v <= 0:
-                    continue
-                rows.append({"from": src, "to": me, "value": v,
+            # incoming: credit every funder in proportion to what it put in
+            mine_out = sum(v for a, v in outs if a == me)
+            if mine_out <= 0:
+                continue
+            merged: Dict[str, float] = {}
+            for a, v in ins:
+                merged[a] = merged.get(a, 0.0) + v
+            for a, v in merged.items():
+                rows.append({"from": a, "to": me, "value": mine_out * (v / total_in),
                              "timestamp": ts, "hash": h, "symbol": "BTC"})
         if len(rows) >= limit:
             break
