@@ -289,4 +289,23 @@ def where() -> dict:
 
 
 def serve(host: str = "127.0.0.1", port: int = 8000, debug: bool = False) -> None:
-    create_app().run(host=host, port=port, debug=debug)
+    import threading
+    import time
+    import urllib.request
+    import webbrowser
+
+    url = f"http://{host}:{port}/"
+
+    def _open_browser():
+        for _ in range(50):
+            time.sleep(0.1)
+            try:
+                urllib.request.urlopen(url, timeout=0.5)
+                webbrowser.open(url)
+                return
+            except Exception:
+                continue
+
+    threading.Thread(target=_open_browser, daemon=True).start()
+    # Reloader forks a second process and would open the browser twice.
+    create_app().run(host=host, port=port, debug=debug, use_reloader=False, threaded=True)

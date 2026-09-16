@@ -4,239 +4,388 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>crypttrace — on-chain investigation</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314110e'/%3E%3Crect x='3' y='3' width='26' height='26' fill='none' stroke='%23c4a35a' stroke-width='1'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='Georgia' font-size='16' fill='%23c4a35a'%3ECT%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.9/dist/vis-network.min.js"></script>
 <style>
   :root{
-    --bg:#080b12; --glass:rgba(22,27,34,.55); --glass-2:rgba(38,45,58,.45);
-    --stroke:rgba(255,255,255,.09); --stroke-2:rgba(255,255,255,.16);
-    --text:#e8eef7; --dim:#93a1b5;
-    --green:#3fdf87; --purple:#c48cff; --red:#ff6b60; --cyan:#3fd8e8; --accent:#4d9dff;
+    --bg:#14110e;
+    --bg-2:#1a1713;
+    --panel:#1c1915;
+    --inset:#100e0c;
+    --stroke:#3a352e;
+    --stroke-2:#524c43;
+    --text:#e8e2d6;
+    --dim:#8a8478;
+    --mute:#6a655c;
+    --brass:#c4a35a;
+    --brass-2:#d4b56a;
+    --green:#7a9b6a;
+    --purple:#9a86b8;
+    --red:#c45c4a;
+    --cyan:#6a9aa3;
+    --amber:#c4a35a;
+    --accent:#c4a35a;
   }
   *{box-sizing:border-box}
-  html{height:100%;overflow:hidden}
-  html,body{height:100%}
-  /* flex column: every row takes its natural height, the stage gets the rest.
-     A fixed calc() height broke as soon as a new row (the tabs) was added. */
+  html,body{height:100%;margin:0}
+  html{overflow:hidden}
   body{
-    margin:0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
-    color:var(--text);background:var(--bg);overflow:hidden;
-    height:100vh;display:flex;flex-direction:column;
+    font-family:"IBM Plex Sans", "Segoe UI", Helvetica, Arial, sans-serif;
+    color:var(--text);
+    background-color:var(--bg);
+    background-image:
+      linear-gradient(rgba(196,163,90,.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(196,163,90,.035) 1px, transparent 1px);
+    background-size:28px 28px;
+    overflow:hidden;
+    height:100vh;
+    display:flex;
+    flex-direction:column;
   }
-  header,.bar,.tabs,.legend{flex:0 0 auto}
-  /* animated aurora backdrop — the light that the glass refracts */
-  .aurora{position:fixed;inset:0;z-index:0;overflow:hidden}
-  .aurora i{position:absolute;border-radius:50%;filter:blur(90px);opacity:.5;animation:drift 22s ease-in-out infinite}
-  .aurora i:nth-child(1){width:520px;height:520px;background:#1e4bd8;top:-120px;left:-80px}
-  .aurora i:nth-child(2){width:460px;height:460px;background:#7b2ff7;bottom:-140px;right:10%;animation-delay:-7s}
-  .aurora i:nth-child(3){width:380px;height:380px;background:#0e8f8f;top:35%;right:-100px;animation-delay:-14s}
-  @keyframes drift{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(60px,40px) scale(1.12)}66%{transform:translate(-40px,20px) scale(.94)}}
+  body::before{
+    content:"";
+    position:fixed;inset:0;pointer-events:none;z-index:80;opacity:.045;
+    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  header,.bar,.legend{flex:0 0 auto}
 
-  .glass{
-    background:var(--glass);backdrop-filter:blur(22px) saturate(160%);
-    -webkit-backdrop-filter:blur(22px) saturate(160%);
-    border:1px solid var(--stroke);
-    box-shadow:0 8px 32px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.10);
+  .silk{
+    font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--brass);font-family:"IBM Plex Sans",sans-serif;
   }
 
-  header{position:relative;z-index:2;display:flex;align-items:center;gap:12px;padding:14px 22px;
-    border-bottom:1px solid var(--stroke);background:rgba(10,14,22,.5);backdrop-filter:blur(18px)}
-  header h1{margin:0;font-size:18px;font-weight:700;letter-spacing:-.02em}
-  header .tag{color:var(--dim);font-size:13px}
+  header{
+    position:relative;z-index:2;
+    display:flex;align-items:center;gap:18px;
+    padding:0 22px;height:52px;
+    background:linear-gradient(180deg,#201c17,#171410);
+    border-bottom:1px solid var(--stroke);
+    box-shadow:inset 0 1px 0 rgba(232,226,214,.06);
+  }
+  .mark{
+    display:flex;align-items:baseline;gap:10px;
+  }
+  .mark h1{
+    margin:0;font-size:15px;font-weight:700;letter-spacing:.22em;
+    text-transform:uppercase;color:var(--text);
+  }
+  .mark h1 span{color:var(--brass)}
+  header .tag{color:var(--dim);font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+  header .meta{
+    margin-left:auto;display:flex;align-items:center;gap:14px;
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:11px;color:var(--dim);
+  }
+  .live{
+    display:inline-flex;align-items:center;gap:7px;
+    padding:4px 9px;border:1px solid var(--stroke);background:var(--inset);
+  }
+  .live i{
+    width:6px;height:6px;border-radius:50%;background:var(--green);
+    box-shadow:0 0 6px var(--green);
+  }
+  #clock{font-variant-numeric:tabular-nums;letter-spacing:.04em}
 
-  .bar{position:relative;z-index:2;display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:14px 22px}
+  .bar{
+    position:relative;z-index:2;
+    display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;
+    padding:12px 22px 10px;
+    background:var(--bg-2);
+    border-bottom:1px solid var(--stroke);
+  }
+  .field{display:flex;flex-direction:column;gap:4px;min-width:0}
+  .field label{
+    font-size:9px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--mute);
+  }
+  .field.grow{flex:1;min-width:280px}
+  .actions{display:flex;gap:8px;align-items:stretch}
+  .actions button{height:36px}
   input,select,button{
-    color:var(--text);font-size:14px;border-radius:12px;padding:10px 13px;
-    background:var(--glass-2);border:1px solid var(--stroke);
-    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
-    transition:all .25s cubic-bezier(.22,1,.36,1);outline:none;
+    color:var(--text);font-size:13px;border-radius:2px;height:36px;padding:0 11px;
+    background:var(--inset);border:1px solid var(--stroke);
+    font-family:inherit;outline:none;transition:border-color .15s, background .15s;
   }
-  input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 4px rgba(77,157,255,.16);transform:translateY(-1px)}
-  input#addr{flex:1;min-width:340px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.2px}
-  select{cursor:pointer}
-  select option{background:#161b22;color:var(--text)}
-  button{cursor:pointer;font-weight:650;
-    background:linear-gradient(135deg,rgba(77,157,255,.92),rgba(123,47,247,.85));
-    border:1px solid rgba(255,255,255,.22);
-    box-shadow:0 6px 20px rgba(77,157,255,.30), inset 0 1px 0 rgba(255,255,255,.35)}
-  button:hover{transform:translateY(-2px);box-shadow:0 10px 28px rgba(77,157,255,.42), inset 0 1px 0 rgba(255,255,255,.45)}
-  button:active{transform:translateY(0) scale(.98)}
-  button.ghost{background:var(--glass-2);box-shadow:none;font-weight:500;border:1px solid var(--stroke)}
-  button.ghost:hover{border-color:var(--stroke-2);box-shadow:0 6px 18px rgba(0,0,0,.3)}
+  input:focus,select:focus{border-color:var(--brass)}
+  input#addr{
+    width:100%;
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:12.5px;letter-spacing:.02em;
+  }
+  select{cursor:pointer;appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238a8478'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 10px center;padding-right:26px}
+  select option{background:#1c1915;color:var(--text)}
+  button{cursor:pointer;font-weight:600;letter-spacing:.04em}
+  button:active{transform:translateY(1px)}
+  #go{
+    height:36px;padding:0 18px;
+    background:var(--brass);color:#161310;
+    border:1px solid var(--brass-2);
+    font-weight:700;letter-spacing:.14em;text-transform:uppercase;font-size:12px;
+  }
+  #go:hover{background:var(--brass-2)}
+  button.ghost{
+    background:transparent;color:var(--text);border:1px solid var(--stroke);
+    letter-spacing:.1em;text-transform:uppercase;font-size:11px;font-weight:600;
+  }
+  button.ghost:hover{border-color:var(--brass);color:var(--brass)}
 
-  /* Tabs live inside the graph column, never in the header stack — that way they
-     cannot collide with the search row regardless of window size. */
+  .legend{
+    position:relative;z-index:2;
+    display:flex;gap:6px;flex-wrap:wrap;align-items:center;
+    padding:8px 22px;background:var(--bg-2);
+  }
+  .chip{
+    display:flex;align-items:center;gap:6px;
+    font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);
+    padding:4px 8px;border:1px solid var(--stroke);background:var(--inset);
+  }
+  .dot{width:7px;height:7px;border-radius:1px}
+  .status{
+    margin-left:auto;font-size:11px;color:var(--dim);
+    font-family:"IBM Plex Mono",ui-monospace,monospace;letter-spacing:.04em;
+  }
+
+  .wrap{
+    position:relative;z-index:1;display:flex;gap:0;
+    flex:1 1 auto;min-height:0;
+    border-top:1px solid var(--stroke);
+  }
   .main{flex:1 1 auto;display:flex;flex-direction:column;min-width:0;min-height:0}
-  .tabs{flex:0 0 auto;display:flex;gap:6px;margin-bottom:10px}
-  .tab{font-size:13px;font-weight:600;padding:8px 15px;border-radius:12px;cursor:pointer;
-    background:var(--glass-2);border:1px solid var(--stroke);color:var(--dim);
-    backdrop-filter:blur(12px);transition:.25s cubic-bezier(.22,1,.36,1)}
-  .tab:hover{color:var(--text);transform:translateY(-1px)}
-  .tab.on{color:#fff;border-color:rgba(255,255,255,.28);
-    background:linear-gradient(135deg,rgba(77,157,255,.9),rgba(123,47,247,.8));
-    box-shadow:0 6px 18px rgba(77,157,255,.28)}
-  .view{position:absolute;inset:0;overflow:auto;padding:18px 20px;display:none;animation:rise .4s both}
-  .view.on{display:block}
-  #graph.on{display:block}
-  .stat{display:flex;gap:22px;flex-wrap:wrap;margin-bottom:16px;font-size:13px;color:var(--dim)}
-  .stat b{color:var(--text);font-size:15px;display:block}
-  .verdict{padding:13px 16px;border-radius:14px;margin-bottom:16px;font-size:13.5px;line-height:1.6;
-    background:rgba(255,193,86,.09);border:1px solid rgba(255,193,86,.30);color:#ffd591}
-  .verdict.calm{background:var(--glass-2);border-color:var(--stroke);color:var(--dim)}
-  /* verification badge — says whether the numbers reconcile with the chain */
-  .vfy{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;
-    font-size:12px;font-weight:650;border:1px solid currentColor;backdrop-filter:blur(10px)}
-  .vfy-verified{color:var(--green);background:rgba(63,223,135,.10)}
-  .vfy-consistent{color:var(--cyan);background:rgba(63,216,232,.10)}
-  .vfy-partial{color:#ffc857;background:rgba(255,200,87,.10)}
-  .vfy-mismatch{color:var(--red);background:rgba(255,107,96,.12)}
-  .vfy-unchecked,.vfy-unavailable{color:var(--dim);background:rgba(147,161,181,.10)}
-  .vfy-note{font-size:12px;color:var(--dim);line-height:1.55;margin-top:9px}
+  .tabs{
+    flex:0 0 auto;display:flex;gap:0;padding:0 18px;
+    background:var(--panel);border-bottom:1px solid var(--stroke);
+    overflow-x:auto;scrollbar-width:none;
+  }
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{
+    height:38px;padding:0 14px;margin:0;flex:0 0 auto;white-space:nowrap;
+    font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+    background:transparent;border:0;border-bottom:2px solid transparent;
+    border-radius:0;color:var(--dim);box-shadow:none;
+  }
+  .tab:hover{color:var(--text);transform:none}
+  .tab.on{
+    color:var(--brass);border-bottom-color:var(--brass);
+    background:transparent;box-shadow:none;
+  }
 
-  /* assessment: a stated conclusion and what it rests on */
-  .concl{padding:18px 20px;border-radius:16px;margin-bottom:18px;font-size:14.5px;line-height:1.65;
-    border:1px solid currentColor;backdrop-filter:blur(14px)}
-  .concl-high{color:var(--red);background:rgba(255,107,96,.09)}
-  .concl-med{color:#ffc857;background:rgba(255,200,87,.08)}
-  .concl-low{color:var(--green);background:rgba(63,223,135,.07)}
-  .concl b{color:var(--text)}
-  .sig{padding:13px 15px;border-radius:14px;margin-bottom:10px;
-    background:var(--glass-2);border:1px solid var(--stroke);transition:.25s}
-  .sig:hover{border-color:var(--stroke-2);transform:translateY(-1px)}
-  .sig-head{display:flex;align-items:center;gap:9px;margin-bottom:7px}
-  .sig-name{font-weight:650;font-size:13.5px}
-  .sig-conf{font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;
+  .stage{
+    flex:1 1 auto;min-height:0;position:relative;overflow:hidden;
+    background:var(--inset);
+  }
+  .stage::before,.stage::after{
+    content:"";position:absolute;width:14px;height:14px;z-index:4;pointer-events:none;
+    border-color:var(--brass);border-style:solid;opacity:.55;
+  }
+  .stage::before{top:8px;left:8px;border-width:1px 0 0 1px}
+  .stage::after{bottom:8px;right:8px;border-width:0 1px 1px 0}
+  #graph{position:absolute;inset:0;opacity:0;transition:opacity .45s ease;background:
+    radial-gradient(ellipse at center, rgba(196,163,90,.04), transparent 60%)}
+  #graph.on{opacity:1}
+  .view{position:absolute;inset:0;overflow:auto;padding:22px 24px;display:none}
+  .view.on{display:block}
+  .hint{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:10px;
+    color:var(--dim);font-size:13px;text-align:center;padding:36px 28px;pointer-events:none;
+  }
+  .hint span:last-child{max-width:560px}
+  .hint kbd{
+    display:inline-block;padding:1px 7px;margin:0 4px;
+    border:1px solid var(--brass);color:var(--brass);
+    font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.12em;
+  }
+  .hint.hide{opacity:0}
+  .loader{
+    position:absolute;top:0;left:0;height:2px;width:0;z-index:5;
+    background:var(--brass);transition:width .35s ease;
+  }
+
+  .zoomctl{position:absolute;right:16px;bottom:16px;display:flex;flex-direction:column;gap:4px;z-index:3}
+  .zoomctl button{
+    width:32px;height:32px;padding:0;font-size:15px;font-weight:500;
+    background:var(--panel);border:1px solid var(--stroke);color:var(--text);
+    display:flex;align-items:center;justify-content:center;
+  }
+  .zoomctl button:hover{border-color:var(--brass);color:var(--brass);transform:none}
+  .scaleview{
+    position:absolute;left:16px;bottom:16px;z-index:3;
+    font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--dim);
+    padding:5px 9px;background:var(--panel);border:1px solid var(--stroke);
+  }
+
+  .side{
+    width:360px;flex:0 0 360px;overflow-y:auto;
+    background:var(--panel);border-left:1px solid var(--stroke);
+    padding:0;
+  }
+  .side-head{
+    padding:12px 16px;border-bottom:1px solid var(--stroke);
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .side-body{padding:14px 16px 20px}
+  .side::-webkit-scrollbar{width:8px}
+  .side::-webkit-scrollbar-thumb{background:var(--stroke)}
+
+  .stat{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:18px;font-size:11px;color:var(--dim);letter-spacing:.06em;text-transform:uppercase}
+  .stat b{color:var(--text);font-size:15px;display:block;margin-top:4px;letter-spacing:0;text-transform:none;font-family:"IBM Plex Mono",monospace;font-weight:500}
+  .verdict{padding:12px 14px;margin-bottom:16px;font-size:13px;line-height:1.6;
+    background:rgba(196,163,90,.08);border:1px solid rgba(196,163,90,.35);color:var(--brass-2);border-left:3px solid var(--brass)}
+  .verdict.calm{background:var(--bg-2);border-color:var(--stroke);border-left-color:var(--stroke);color:var(--dim)}
+  .vfy{display:inline-flex;align-items:center;gap:7px;padding:4px 9px;
+    font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
     border:1px solid currentColor}
-  .conf-high{color:var(--green)} .conf-medium{color:#ffc857} .conf-low{color:var(--dim)}
+  .vfy-verified{color:var(--green);background:rgba(122,155,106,.10)}
+  .vfy-consistent{color:var(--cyan);background:rgba(106,154,163,.10)}
+  .vfy-partial{color:var(--brass);background:rgba(196,163,90,.10)}
+  .vfy-mismatch{color:var(--red);background:rgba(196,92,74,.12)}
+  .vfy-unchecked,.vfy-unavailable{color:var(--dim);background:transparent}
+  .vfy-note{font-size:12px;color:var(--dim);line-height:1.55;margin-top:8px}
+
+  .concl{padding:16px 18px;margin-bottom:18px;font-size:14px;line-height:1.65;border:1px solid currentColor;border-left-width:3px}
+  .concl-high{color:var(--red);background:rgba(196,92,74,.08)}
+  .concl-med{color:var(--brass);background:rgba(196,163,90,.07)}
+  .concl-low{color:var(--green);background:rgba(122,155,106,.07)}
+  .concl b{color:var(--text)}
+  .sig{padding:12px 14px;margin-bottom:8px;background:var(--bg-2);border:1px solid var(--stroke)}
+  .sig-head{display:flex;align-items:center;gap:9px;margin-bottom:7px}
+  .sig-name{font-weight:600;font-size:13px;letter-spacing:.04em;text-transform:uppercase}
+  .sig-conf{font-size:10px;font-weight:600;padding:2px 7px;letter-spacing:.1em;text-transform:uppercase;border:1px solid currentColor}
+  .conf-high{color:var(--green)} .conf-medium{color:var(--brass)} .conf-low{color:var(--dim)}
   .sig-line{font-size:12.5px;color:var(--dim);line-height:1.55}
   .sig-line b{color:var(--text);font-weight:600}
-  .meters{display:flex;gap:20px;margin:6px 0 18px;font-size:12.5px;color:var(--dim)}
-  .meters b{display:block;color:var(--text);font-size:16px;margin-top:2px}
-  .caveat{padding:12px 15px;border-radius:13px;margin-top:16px;font-size:12.5px;line-height:1.6;
-    color:#ffd591;background:rgba(255,193,86,.08);border:1px solid rgba(255,193,86,.28)}
+  .meters{display:flex;gap:22px;margin:6px 0 18px;font-size:11px;color:var(--dim);letter-spacing:.08em;text-transform:uppercase}
+  .meters b{display:block;color:var(--text);font-size:16px;margin-top:3px;letter-spacing:0;text-transform:none;font-family:"IBM Plex Mono",monospace;font-weight:500}
+  .caveat{padding:12px 14px;margin-top:16px;font-size:12.5px;line-height:1.6;
+    color:var(--brass-2);background:rgba(196,163,90,.07);border:1px solid rgba(196,163,90,.3);border-left:3px solid var(--brass)}
   .vfy-rows{margin-top:10px;font-size:12px}
-  .vfy-rows div{display:flex;justify-content:space-between;gap:10px;padding:3px 0}
+  .vfy-rows div{display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px solid var(--stroke)}
   table.grid{width:100%;border-collapse:collapse;font-size:12.5px}
-  table.grid th{text-align:left;color:var(--dim);font-weight:600;padding:7px 9px;
-    border-bottom:1px solid var(--stroke);position:sticky;top:0;background:rgba(12,16,24,.95);
-    backdrop-filter:blur(8px)}
-  table.grid td{padding:7px 9px;border-bottom:1px solid rgba(255,255,255,.045)}
-  table.grid tr:hover td{background:rgba(255,255,255,.035)}
-  table.grid td.num{text-align:right;font-variant-numeric:tabular-nums}
+  table.grid th{text-align:left;color:var(--mute);font-weight:600;padding:8px 9px;
+    border-bottom:1px solid var(--stroke);position:sticky;top:0;background:var(--inset);
+    font-size:10px;letter-spacing:.12em;text-transform:uppercase}
+  table.grid td{padding:8px 9px;border-bottom:1px solid var(--stroke)}
+  table.grid tr:hover td{background:rgba(196,163,90,.05)}
+  table.grid td.num{text-align:right;font-variant-numeric:tabular-nums;font-family:"IBM Plex Mono",monospace}
   .bars{display:flex;flex-direction:column;gap:5px}
-  .barrow{display:grid;grid-template-columns:132px 46px 1fr;align-items:center;gap:10px;font-size:12px}
-  .barrow .t{color:var(--dim)}
-  .barrow .n{text-align:right;color:var(--text);font-variant-numeric:tabular-nums}
-  /* histogram column — must NOT be called .bar, that class is the search row */
-  .tlbar{height:16px;border-radius:5px;background:linear-gradient(90deg,var(--accent),var(--purple));
-    box-shadow:0 0 12px rgba(77,157,255,.35);min-width:3px;transition:width .5s cubic-bezier(.22,1,.36,1)}
+  .barrow{display:grid;grid-template-columns:148px 40px 1fr;align-items:center;gap:10px;font-size:12px}
+  .barrow .t{color:var(--dim);font-family:"IBM Plex Mono",monospace;font-size:11px}
+  .barrow .n{text-align:right;color:var(--text);font-variant-numeric:tabular-nums;font-family:"IBM Plex Mono",monospace}
+  .tlbar{height:10px;background:var(--brass);min-width:3px}
 
-  .legend{position:relative;z-index:2;display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:0 22px 12px}
-  .chip{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim);
-    padding:5px 11px;border-radius:999px;background:var(--glass-2);border:1px solid var(--stroke);
-    backdrop-filter:blur(12px);transition:.25s}
-  .chip:hover{color:var(--text);border-color:var(--stroke-2);transform:translateY(-1px)}
-  .dot{width:9px;height:9px;border-radius:50%;box-shadow:0 0 10px currentColor}
-
-  .wrap{position:relative;z-index:1;display:flex;gap:16px;padding:0 22px 18px;
-    flex:1 1 auto;min-height:0}
-  .stage{flex:1 1 auto;min-height:0;position:relative;border-radius:20px;overflow:hidden;
-    background:rgba(12,16,24,.42);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-    border:1px solid var(--stroke);box-shadow:0 12px 40px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.08);
-    animation:rise .6s cubic-bezier(.22,1,.36,1) both}
-  #graph{position:absolute;inset:0;opacity:0;transition:opacity .7s ease}
-  #graph.on{opacity:1}
-  .hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-    color:var(--dim);font-size:14px;text-align:center;padding:30px;pointer-events:none;transition:.4s}
-  .hint.hide{opacity:0}
-  .loader{position:absolute;top:0;left:0;height:2px;width:0;background:linear-gradient(90deg,var(--accent),var(--purple));
-    box-shadow:0 0 12px var(--accent);transition:width .4s ease;border-radius:2px}
-
-  /* floating zoom controls over the graph */
-  .zoomctl{position:absolute;right:14px;bottom:14px;display:flex;flex-direction:column;gap:6px;z-index:3}
-  .zoomctl button{width:38px;height:38px;padding:0;font-size:16px;font-weight:600;border-radius:12px;
-    background:var(--glass);border:1px solid var(--stroke);box-shadow:0 4px 16px rgba(0,0,0,.35);
-    backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);display:flex;align-items:center;justify-content:center}
-  .zoomctl button:hover{background:var(--glass-2);border-color:var(--stroke-2);transform:translateY(-2px)}
-  .scaleview{position:absolute;left:14px;bottom:14px;z-index:3;font-size:11.5px;color:var(--dim);
-    padding:6px 11px;border-radius:999px;background:var(--glass);border:1px solid var(--stroke);
-    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
-
-  .side{width:352px;overflow-y:auto;border-radius:20px;padding:16px;
-    background:var(--glass);backdrop-filter:blur(22px) saturate(160%);-webkit-backdrop-filter:blur(22px) saturate(160%);
-    border:1px solid var(--stroke);box-shadow:0 12px 40px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.10);
-    animation:rise .6s .08s cubic-bezier(.22,1,.36,1) both}
-  .side::-webkit-scrollbar{width:8px}
-  .side::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:10px}
-  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
-
-  .card{border-radius:16px;padding:14px 15px;margin-bottom:13px;
-    background:var(--glass-2);border:1px solid var(--stroke);
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
-    animation:rise .45s cubic-bezier(.22,1,.36,1) both;transition:.3s}
-  .card:hover{border-color:var(--stroke-2);transform:translateY(-2px);box-shadow:0 10px 26px rgba(0,0,0,.28)}
-  .card:nth-child(2){animation-delay:.05s} .card:nth-child(3){animation-delay:.1s}
-  .card:nth-child(4){animation-delay:.15s} .card:nth-child(5){animation-delay:.2s}
-  .card h3{margin:0 0 11px;font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--dim);font-weight:700}
+  .card{padding:12px 0;margin-bottom:4px;border-bottom:1px solid var(--stroke)}
+  .card:last-child{border-bottom:0}
+  .card h3{margin:0 0 10px;font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--brass);font-weight:600}
   .kv{display:flex;justify-content:space-between;gap:10px;padding:5px 0;font-size:13px;
-    border-bottom:1px solid rgba(255,255,255,.045)}
+    border-bottom:1px solid rgba(58,53,46,.6)}
   .kv:last-child{border-bottom:0}
-  .kv .k{color:var(--dim)}
+  .kv .k{color:var(--dim);font-size:11px;letter-spacing:.06em;text-transform:uppercase}
   .kv .v{text-align:right}
-  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
-  .pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:700;
-    border:1px solid currentColor;backdrop-filter:blur(8px)}
-  .t-exchange{color:var(--green);background:rgba(63,223,135,.12)}
-  .t-mixer{color:var(--purple);background:rgba(196,140,255,.12)}
-  .t-sanctioned,.t-scam{color:var(--red);background:rgba(255,107,96,.12)}
-  .t-bridge{color:var(--cyan);background:rgba(63,216,232,.12)}
-  .t-unknown,.t-offramp{color:var(--dim);background:rgba(147,161,181,.12)}
-  .muted{color:var(--dim);font-size:13px;line-height:1.55}
+  .mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12px}
+  .pill{display:inline-block;padding:2px 7px;font-size:10px;font-weight:600;
+    letter-spacing:.08em;text-transform:uppercase;border:1px solid currentColor}
+  .t-exchange{color:var(--green);background:rgba(122,155,106,.10)}
+  .t-mixer{color:var(--purple);background:rgba(154,134,184,.10)}
+  .t-sanctioned,.t-scam{color:var(--red);background:rgba(196,92,74,.10)}
+  .t-bridge{color:var(--cyan);background:rgba(106,154,163,.10)}
+  .t-unknown,.t-offramp{color:var(--dim);background:transparent}
+  .muted{color:var(--dim);font-size:13px;line-height:1.6}
   .err{color:var(--red);font-size:13px}
-  .alert{border-color:rgba(255,107,96,.4);background:rgba(255,107,96,.08)}
-  a.btnlink{display:inline-block;margin-top:9px;font-size:12.5px;color:var(--accent);text-decoration:none;
-    padding:7px 12px;border-radius:10px;background:rgba(77,157,255,.10);border:1px solid rgba(77,157,255,.28);transition:.25s}
-  a.btnlink:hover{background:rgba(77,157,255,.2);transform:translateY(-1px)}
-  .status{margin-left:auto;font-size:12px;color:var(--dim)}
-  .spin{display:inline-block;width:11px;height:11px;margin-right:6px;vertical-align:-1px;
-    border:2px solid rgba(255,255,255,.2);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite}
+  .alert{border-left:3px solid var(--red);padding-left:10px}
+  a.btnlink{display:inline-block;margin-top:10px;font-size:11px;color:var(--brass);text-decoration:none;
+    padding:6px 10px;border:1px solid var(--stroke);letter-spacing:.1em;text-transform:uppercase}
+  a.btnlink:hover{border-color:var(--brass)}
+  .spin{display:inline-block;width:9px;height:9px;margin-right:6px;vertical-align:-1px;
+    border:1px solid var(--stroke);border-top-color:var(--brass);border-radius:50%;animation:sp .7s linear infinite}
   @keyframes sp{to{transform:rotate(360deg)}}
+
+  .proto{margin:0;padding:0;list-style:none;counter-reset:p}
+  .proto li{position:relative;padding:8px 0 8px 28px;color:var(--dim);font-size:12.5px;line-height:1.5;
+    border-bottom:1px solid var(--stroke)}
+  .proto li:last-child{border-bottom:0}
+  .proto li::before{
+    counter-increment:p;content:counter(p, decimal-leading-zero);
+    position:absolute;left:0;top:9px;
+    font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--brass);letter-spacing:.06em;
+  }
+
+  @media (max-width: 900px){
+    header{flex-wrap:wrap;height:auto;padding:10px 14px;gap:8px}
+    header .meta{margin-left:0;width:100%}
+    .bar{padding:10px 14px}
+    .field.grow{min-width:100%;flex-basis:100%}
+    .legend{padding:8px 14px}
+    .status{margin-left:0;flex-basis:100%}
+    .tabs{padding:0 10px}
+    .wrap{flex-direction:column}
+    .side{width:100%;flex:0 0 auto;max-height:36%;border-left:0;border-top:1px solid var(--stroke)}
+  }
 </style>
 </head>
 <body>
-<div class="aurora"><i></i><i></i><i></i></div>
 
 <header>
-  <h1>🔎 crypttrace</h1>
-  <span class="tag">trace stolen crypto — on-chain investigation</span>
+  <div class="mark">
+    <h1>crypt<span>trace</span></h1>
+    <span class="tag">on-chain investigation</span>
+  </div>
+  <div class="meta">
+    <span class="live"><i></i>LOCAL</span>
+    <span id="clock"></span>
+  </div>
 </header>
 
 <div class="bar">
-  <input id="addr" placeholder="0x…  paste an address to investigate" spellcheck="false">
-  <select id="chain" title="Chain">
-    <option value="eth">eth</option><option value="bsc">bsc</option>
-    <option value="polygon">polygon</option><option value="arbitrum">arbitrum</option>
-    <option value="optimism">optimism</option><option value="base">base</option>
-    <option value="btc">btc</option><option value="tron">tron</option><option value="sol">sol</option>
-  </select>
-  <select id="asset" title="Asset to trace">
-    <option value="native">ETH (native)</option>
-  </select>
-  <select id="direction" title="Which way to follow the money">
-    <option value="out">→ where funds went</option>
-    <option value="in">← where funds came from</option>
-  </select>
-  <select id="depth" title="Depth"><option>2</option><option selected>3</option><option>4</option><option>5</option></select>
-  <button id="go">Investigate</button>
-  <button id="fit" class="ghost" title="Fit graph to view">Fit</button>
+  <div class="field grow">
+    <label for="addr">Address</label>
+    <input id="addr" placeholder="0x…  paste an address to investigate" spellcheck="false">
+  </div>
+  <div class="field">
+    <label for="chain">Chain</label>
+    <select id="chain" title="Chain">
+      <option value="eth">eth</option><option value="bsc">bsc</option>
+      <option value="polygon">polygon</option><option value="arbitrum">arbitrum</option>
+      <option value="optimism">optimism</option><option value="base">base</option>
+      <option value="btc">btc</option><option value="tron">tron</option><option value="sol">sol</option>
+    </select>
+  </div>
+  <div class="field">
+    <label for="asset">Asset</label>
+    <select id="asset" title="Asset to trace">
+      <option value="native">ETH (native)</option>
+    </select>
+  </div>
+  <div class="field">
+    <label for="direction">Direction</label>
+    <select id="direction" title="Which way to follow the money">
+      <option value="out">out — where funds went</option>
+      <option value="in">in — where funds came from</option>
+    </select>
+  </div>
+  <div class="field">
+    <label for="depth">Depth</label>
+    <select id="depth" title="Depth"><option>2</option><option selected>3</option><option>4</option><option>5</option></select>
+  </div>
+  <div class="field">
+    <label>&nbsp;</label>
+    <div class="actions">
+      <button id="go">Trace</button>
+      <button id="fit" class="ghost" title="Fit graph to view">Fit</button>
+    </div>
+  </div>
 </div>
 
 <div class="legend">
-  <span class="chip"><span class="dot" style="color:var(--green);background:var(--green)"></span>exchange</span>
-  <span class="chip"><span class="dot" style="color:var(--purple);background:var(--purple)"></span>mixer</span>
-  <span class="chip"><span class="dot" style="color:var(--red);background:var(--red)"></span>sanctioned / scam</span>
-  <span class="chip"><span class="dot" style="color:var(--cyan);background:var(--cyan)"></span>bridge</span>
-  <span class="chip"><span class="dot" style="color:var(--dim);background:var(--dim)"></span>unknown</span>
-  <span class="status" id="status"></span>
+  <span class="chip"><span class="dot" style="background:var(--green)"></span>exchange</span>
+  <span class="chip"><span class="dot" style="background:var(--purple)"></span>mixer</span>
+  <span class="chip"><span class="dot" style="background:var(--red)"></span>sanctioned / scam</span>
+  <span class="chip"><span class="dot" style="background:var(--cyan)"></span>bridge</span>
+  <span class="chip"><span class="dot" style="background:var(--dim)"></span>unknown</span>
+  <span class="status" id="status">idle</span>
 </div>
 
 <div class="wrap">
@@ -245,13 +394,16 @@
     <button class="tab on" data-view="graph">Flow graph</button>
     <button class="tab" data-view="assess">Assessment</button>
     <button class="tab" data-view="timeline">Timeline</button>
-    <button class="tab" data-view="victims">Who sent funds here</button>
+    <button class="tab" data-view="victims">Sources</button>
   </div>
   <div class="stage">
     <div class="loader" id="loader"></div>
     <div id="graph"></div>
-    <div class="hint" id="hint">Paste an address above and hit <b style="color:var(--text);margin:0 4px">Investigate</b><br>
-      — flow runs left → right. Click a node to inspect it, click a transfer line to open it on the explorer.</div>
+    <div class="hint" id="hint">
+      <span class="silk">Ready</span>
+      Paste an address and press <kbd>TRACE</kbd>
+      <span style="font-size:12px;color:var(--mute)">Flow runs left → right. Click a node to inspect it; click a transfer line to open the explorer.</span>
+    </div>
     <div class="view" id="v-assess"></div>
     <div class="view" id="v-timeline"></div>
     <div class="view" id="v-victims"></div>
@@ -263,17 +415,29 @@
     </div>
   </div>
  </div>
-  <div class="side" id="side">
-    <div class="card"><h3>How it works</h3>
-      <div class="muted">The graph maps where funds moved, hop by hop. Nodes are coloured by what
-      they are — exchanges are cash-out points, mixers break the trail. Click any node for its
-      profile, first-funder chain and off-ramp check.</div>
+  <aside class="side" id="side">
+    <div class="side-head">
+      <span class="silk">Dossier</span>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--mute)">NO TARGET</span>
     </div>
-  </div>
+    <div class="side-body">
+      <div class="card"><h3>How it works</h3>
+        <div class="muted">The graph maps where funds moved, hop by hop. Nodes are coloured by what they are — exchanges are cash-out points, mixers break the trail.</div>
+      </div>
+      <div class="card"><h3>Protocol</h3>
+        <ol class="proto">
+          <li>Enter the address the funds were sent to.</li>
+          <li>Trace outward for cash-out, or inward for the source.</li>
+          <li>Click a node for profile, first-funder and off-ramp.</li>
+          <li>If an exchange appears, contact them with the case file.</li>
+        </ol>
+      </div>
+    </div>
+  </aside>
 </div>
 
 <script>
-const COLORS={exchange:'#3fdf87',mixer:'#c48cff',sanctioned:'#ff6b60',scam:'#ff6b60',bridge:'#3fd8e8',unknown:'#93a1b5'};
+const COLORS={exchange:'#7a9b6a',mixer:'#9a86b8',sanctioned:'#c45c4a',scam:'#c45c4a',bridge:'#6a9aa3',unknown:'#8a8478'};
 const EXPLORER={eth:'https://etherscan.io',bsc:'https://bscscan.com',polygon:'https://polygonscan.com',
   arbitrum:'https://arbiscan.io',optimism:'https://optimistic.etherscan.io',base:'https://basescan.org'};
 const NON_EVM={btc:a=>`https://mempool.space/address/${a}`,
@@ -282,6 +446,13 @@ const NON_EVM={btc:a=>`https://mempool.space/address/${a}`,
 const $=s=>document.querySelector(s);
 let network=null, lastGraph=null, rootId=null;
 const MIN_SCALE=0.42;   // below this, nodes/labels become unreadable dots
+
+function tickClock(){
+  const el=$('#clock');
+  if(!el) return;
+  el.textContent=new Date().toISOString().replace('T',' ').slice(0,19)+'Z';
+}
+tickClock(); setInterval(tickClock,1000);
 
 function showScale(){
   if(!network) return;
@@ -346,24 +517,25 @@ function renderGraph(g){
       id:n.id,
       label:(n.label?n.label+'\n':'')+n.short,
       title:`${n.label||n.type}\n${n.id}\n(click to inspect · double-click opens explorer)`,
-      shape:'dot', size:n.root?26:(n.terminal?18:14),
-      color:{background:c,border:n.root?'#ffffff':c,
-             highlight:{background:c,border:'#ffffff'},hover:{background:c,border:'#ffffff'}},
-      borderWidth:n.root?4:2,
-      shadow:{enabled:true,color:c+'88',size:n.root?26:14,x:0,y:0},
+      shape:'dot', size:n.root?24:(n.terminal?16:12),
+      color:{background:c,border:n.root?'#c4a35a':c,
+             highlight:{background:c,border:'#d4b56a'},hover:{background:c,border:'#d4b56a'}},
+      borderWidth:n.root?3:1.5,
+      shadow:{enabled:false},
       level:n.level,          // our own hop distance — keeps the layout compact
-      font:{color:'#e8eef7',size:12,face:'-apple-system, Segoe UI, sans-serif',
-            strokeWidth:4,strokeColor:'rgba(8,11,18,.85)',multi:false}
+      font:{color:'#e8e2d6',size:11,face:'IBM Plex Mono, ui-monospace, monospace',
+            strokeWidth:3,strokeColor:'rgba(16,14,12,.92)',multi:false}
     };
   });
   const edges=g.edges.map(e=>({
-    from:e.from,to:e.to,arrows:{to:{enabled:true,scaleFactor:.7}},
+    from:e.from,to:e.to,arrows:{to:{enabled:true,scaleFactor:.65}},
     label:`${e.value} ${g.symbol}${e.usd!=null?'  ≈'+fmtUsd(e.usd):''}`,
     title:`${e.value} ${g.symbol} in ${e.tx} tx — click to open on explorer`,
-    font:{color:'#93a1b5',size:10.5,strokeWidth:4,strokeColor:'rgba(8,11,18,.85)',align:'horizontal'},
-    color:{color:'rgba(255,255,255,.18)',highlight:'#4d9dff',hover:'#4d9dff'},
-    width:1.2, hoverWidth:2.4, selectionWidth:2.4,
-    smooth:{type:'cubicBezier',forceDirection:'horizontal',roundness:.5}
+    font:{color:'#8a8478',size:10,strokeWidth:3,strokeColor:'rgba(16,14,12,.92)',align:'horizontal',
+          face:'IBM Plex Mono, ui-monospace, monospace'},
+    color:{color:'rgba(196,163,90,.28)',highlight:'#c4a35a',hover:'#c4a35a'},
+    width:1.1, hoverWidth:2.2, selectionWidth:2.2,
+    smooth:{type:'cubicBezier',forceDirection:'horizontal',roundness:.45}
   }));
 
   const data={nodes:new vis.DataSet(nodes),edges:new vis.DataSet(edges)};
@@ -379,8 +551,8 @@ function renderGraph(g){
             blockShifting:true,edgeMinimization:true,parentCentralization:true}},
     physics:false,
     interaction:{hover:true,tooltipDelay:120,navigationButtons:false,zoomView:true,dragView:true},
-    nodes:{borderWidthSelected:4},
-    edges:{selectionWidth:2.4}
+    nodes:{borderWidthSelected:3},
+    edges:{selectionWidth:2.2}
   };
   const el=$('#graph');
   el.classList.remove('on');
@@ -403,9 +575,18 @@ const card=(t,r,cls='')=>`<div class="card ${cls}"><h3>${t}</h3>${r}</div>`;
 const kv=(k,v)=>`<div class="kv"><span class="k">${k}</span><span class="v">${v}</span></div>`;
 const pill=(t,l)=>`<span class="pill t-${t}">${l||t}</span>`;
 
+function setDossierHead(label){
+  const h=$('.side-head');
+  if(!h) return;
+  h.innerHTML=`<span class="silk">Dossier</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--mute)">${label}</span>`;
+}
+
 async function inspect(addr){
   const c=chain();
-  $('#side').innerHTML=`<div class="card"><div class="muted"><span class="spin"></span>Loading ${short(addr)}…</div></div>`;
+  setDossierHead(short(addr));
+  $('#side').innerHTML=`<div class="side-head"><span class="silk">Dossier</span>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--mute)">${short(addr)}</span></div>
+    <div class="side-body"><div class="card"><div class="muted"><span class="spin"></span>Loading ${short(addr)}…</div></div></div>`;
   try{
     const [p,f,o]=await Promise.all([
       api(`/api/profile?address=${addr}&chain=${c}`),
@@ -418,13 +599,13 @@ async function inspect(addr){
     const basis = ev.known
       ? (ev.source
           ? `<div class="vfy-note"><b>basis:</b> ${esc(ev.source)}</div>`
-          : `<div class="vfy-note" style="color:#ffc857">No source recorded for this label —
+          : `<div class="vfy-note" style="color:var(--brass)">No source recorded for this label —
              it is inherited, not evidenced. Verify before acting on it.</div>`)
       : '';
 
     let h='';
-    h+=card('Address',
-      kv('address',`<span class="mono">${short(addr)}</span>`)+
+    h+=card('Subject',
+      kv('id',`<span class="mono">${short(addr)}</span>`)+
       (p.label?kv('label',pill(p.type,p.label)):kv('type',pill(p.type)))+
       kv('risk',`${p.risk||0}/100`)+
       basis+
@@ -435,24 +616,30 @@ async function inspect(addr){
       kv('first seen',fmtTs(p.first_seen))+
       kv('last seen',fmtTs(p.last_seen)));
     if(o.offramp){
-      h+=card('⚠ Off-ramp detected',
+      h+=card('Off-ramp detected',
         `<div class="muted">~${Math.round(o.offramp.fraction*100)}% of outgoing funds forwarded to
         <b style="color:var(--green)">${o.offramp.exchange}</b> — likely a deposit address, i.e. a
         <b>KYC identification point</b>.</div>`,'alert');
     }
     if(f.hops&&f.hops.length){
       h+=card('First-funder chain',
-        f.hops.map(x=>kv('◀ funded by',
+        f.hops.map(x=>kv('funded by',
           `<span class="mono">${short(x.funder)}</span> · ${x.value.toFixed(3)} ${x.terminal?pill(x.funder_type,x.funder_label||x.funder_type):''}`)).join(''));
     }
-    $('#side').innerHTML=h;
-  }catch(e){ $('#side').innerHTML=card('Error',`<div class="err">${e.message}</div>`); }
+    $('#side').innerHTML=`<div class="side-head"><span class="silk">Dossier</span>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--mute)">${short(addr)}</span></div>
+      <div class="side-body">${h}</div>`;
+  }catch(e){
+    $('#side').innerHTML=`<div class="side-head"><span class="silk">Dossier</span>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--red)">ERROR</span></div>
+      <div class="side-body">${card('Error',`<div class="err">${e.message}</div>`)}</div>`;
+  }
 }
 
 async function run(){
   const a=$('#addr').value.trim();
   if(!a){ setStatus('enter an address',true); return; }
-  setStatus('tracing the chain…',false,true); loader(35);
+  setStatus('tracing…',false,true); loader(35);
   $('#hint').classList.add('hide');
   loaded={};                       // new address -> other views must reload
   $('#v-timeline').innerHTML=''; $('#v-victims').innerHTML=''; $('#v-assess').innerHTML='';
@@ -460,15 +647,15 @@ async function run(){
     const dir=$('#direction').value;
     const g=await api(`/api/trace?address=${a}&chain=${chain()}&depth=${$('#depth').value}&asset=${$('#asset').value}&direction=${dir}`);
     loader(80); renderGraph(g);
-    setStatus(`${g.nodes.length} addresses · ${g.edges.length} transfers`);
+    setStatus(`${g.nodes.length} addr  ·  ${g.edges.length} xfer`);
     // BTC/Tron/Solana addresses are case-sensitive — never lowercase them
     inspect(NON_EVM[chain()] ? a : a.toLowerCase()); loader(100);
     if(!g.edges.length){                     // explain an empty graph instead of showing nothing
-      const other=dir==='out'?'← where funds came from':'→ where funds went';
+      const other=dir==='out'?'in — where funds came from':'out — where funds went';
       $('#hint').innerHTML=dir==='out'
-        ? `This address has no <b>outgoing</b> transfers — it only ever received funds.<br>
-           Switch the direction to <b>${other}</b> to trace where its money came from.`
-        : `This address has no <b>incoming</b> transfers on record.<br>
+        ? `<span class="silk">No outflow</span>This address has no <b>outgoing</b> transfers — it only ever received funds.<br>
+           Switch direction to <b>${other}</b> to trace where its money came from.`
+        : `<span class="silk">No inflow</span>This address has no <b>incoming</b> transfers on record.<br>
            Try <b>${other}</b> instead.`;
       $('#hint').classList.remove('hide');
     }
@@ -572,7 +759,7 @@ async function loadAssessment(a){
         <div>received<b>${(r.totals?.received??0).toFixed(8)}</b></div>
         <div>sent<b>${(r.totals?.sent??0).toFixed(8)}</b></div>
       </div>
-      <h3 style="font-size:11px;letter-spacing:.09em;color:var(--dim);margin:0 0 11px">WHAT THIS RESTS ON</h3>
+      <h3 class="silk" style="margin:0 0 11px">What this rests on</h3>
       ${sigs}
       ${(r.caveats||[]).length?`<div class="caveat"><b>Read this before quoting the above.</b><br>
         ${r.caveats.map(c=>esc(c)).join('<br>')}</div>`:''}`;
@@ -598,7 +785,7 @@ async function loadVictims(a){
       <div class="stat">
         <div>addresses<b>${v.count}</b></div>
         <div>total sent in<b>${v.total} ${v.symbol}</b></div>
-        <div>&nbsp;<button class="ghost" id="csv" style="padding:7px 13px">Download CSV</button></div>
+        <div>&nbsp;<button class="ghost" id="csv" style="padding:0 13px;height:32px">Download CSV</button></div>
       </div>
       <table class="grid"><thead><tr>
         <th>Address</th><th style="text-align:right">Hop</th>

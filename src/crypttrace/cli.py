@@ -685,6 +685,7 @@ def serve(
         raise typer.Exit(1)
     info = webapp.where()
     console.print(f"[green]crypttrace web UI[/green] → http://{host}:{port}  (Ctrl-C to stop)")
+    console.print("[dim]Your browser should open on its own. If it does not, paste that URL.[/dim]")
     console.print(f"[dim]serving: {info['index_html']}[/dim]")
     console.print(f"[dim]         {info['size']} bytes, modified {info['modified']}[/dim]")
     if not info["editable"]:
