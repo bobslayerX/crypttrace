@@ -94,6 +94,19 @@ print(f"        source: {e.get('source','')[:80]}")
 e2 = audit.evidence("bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq")
 check("unlabelled address makes no claim", not e2["known"])
 
+# exchange labels on the non-EVM chains, from Binance's own reserve list
+for addr, chain in [("34xp4vRoCGJym3xR7yCVPFHoCNxv4Twseo", "btc"),
+                    ("TMuA6YqfCeX8EhbfYEg5y7S4DqzSJireY9", "tron"),
+                    ("38xCLm9kSExfGU1GdyVuX4vop7SZns9kU2mQyTmmMdUP", "sol")]:
+    check(f"{chain} exchange wallet is labelled", labels.type_of(addr) == "exchange",
+          labels.label_of(addr) or "no label")
+# a Solana key starting with '3' looks like a Bitcoin address by prefix alone
+check("Solana label starting with '3' survives loading",
+      labels.label_of("3JR4ETCTVqnysiARm9LvuigzuXnDydbWXYYYpgZzzhDi") != "")
+e3 = audit.evidence("TMuA6YqfCeX8EhbfYEg5y7S4DqzSJireY9".lower())
+check("evidence found for a case-sensitive address given in lower case",
+      e3["known"] and e3["source_kind"] == "self-published", str(e3)[:160])
+
 
 # ---------------------------------------------------------------- store
 section("4. Local store: caching, dedup, offline")
