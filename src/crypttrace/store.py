@@ -132,7 +132,9 @@ def load(chain: str, address: str, contract: str = "", native_symbol: str = "") 
                  " AND (contract IS NULL OR contract='')"
                  + (" AND symbol=?" if native_symbol else "") + " ORDER BY ts DESC")
             args = (chain, address, address) + ((native_symbol,) if native_symbol else ())
-        rows = c.execute(q, args).fetchall()
+        # Stores written before 0.5.0 hold Tron Approval events read as transfers of
+        # ~1e59 tokens (an unlimited allowance). No real transfer comes near 1e30.
+        rows = [r for r in c.execute(q, args).fetchall() if (r[2] or 0) < 1e30]
     finally:
         c.close()
     out = []
