@@ -48,6 +48,7 @@ ISSUERS = {
 }
 
 SUPPORTED = ("eth", "tron", "sol")
+MIN_ACTIONABLE = 1.0          # USDT/USDC below this is dust
 
 
 class FreezeError(RuntimeError):
@@ -117,8 +118,18 @@ def _one(address: str, chain: str, symbol: str, contract: str) -> Dict:
         balance = sum(a["amount"] for a in accts)
         frozen_amount = sum(a["amount"] for a in accts if a["state"] == "frozen")
         frozen = any(a["state"] == "frozen" for a in accts)
+    movable = balance - frozen_amount
     return {"token": symbol, "balance": balance, "frozen": frozen,
-            "frozen_amount": frozen_amount, "movable": balance - frozen_amount}
+            "frozen_amount": frozen_amount, "movable": movable,
+            # leftover dust is not worth a freeze request, or a victim's panic
+            "actionable": movable >= MIN_ACTIONABLE}
+
+
+def describe_frozen(e: Dict) -> str:
+    """'4,021.97 USDT here is frozen by Tether', or the blacklisting alone when empty."""
+    if (e.get("frozen_amount") or 0) >= MIN_ACTIONABLE:
+        return f"{e['frozen_amount']:,.2f} {e['token']} here is frozen by {e['issuer']}"
+    return f"This address is blacklisted by {e['issuer']} (no {e['token']} left on it)"
 
 
 def check(address: str, chain: str) -> List[Dict]:
@@ -144,7 +155,7 @@ def check(address: str, chain: str) -> List[Dict]:
             entry.update(_one(address, chain, symbol, tok["contract"]))
         except (FreezeError, KeyError, TypeError, ValueError) as e:
             entry.update({"balance": None, "frozen": None, "frozen_amount": None,
-                          "movable": None, "error": str(e)})
+                          "movable": None, "actionable": None, "error": str(e)})
         out.append(entry)
     return out
 

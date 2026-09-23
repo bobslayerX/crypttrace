@@ -224,7 +224,7 @@ def report(
         help="Folder to save the report in",
     ),
 ):
-    """Run a full investigation and save a Markdown + JSON report to disk."""
+    """Run a full investigation and save it as an HTML case file (plus Markdown and JSON)."""
     try:
         asset_desc = assets.resolve_asset(asset, chain)
     except ValueError as e:
@@ -232,12 +232,14 @@ def report(
         raise typer.Exit(1)
     try:
         with console.status("Gathering on-chain data and tracing funds…"):
-            md_path = report_mod.generate(address, chain, depth, branching, out, asset_desc)
-    except etherscan.EtherscanError as e:
+            paths = report_mod.generate(address, chain, depth, branching, out, asset_desc)
+    except (chains_mod.ChainError, etherscan.EtherscanError) as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1)
-    console.print(f"[green]✓ Report saved:[/green] {md_path}")
-    console.print(f"[dim]  Raw data (JSON) saved alongside it in the same folder.[/dim]")
+    console.print(f"[green]✓ Case file saved:[/green] {paths['html']}")
+    console.print("[dim]  One self-contained page: open it in a browser, print it to PDF, or "
+                  "send it as it is.[/dim]")
+    console.print("[dim]  Markdown and raw JSON are saved next to it.[/dim]")
 
 
 @app.command()
@@ -279,14 +281,15 @@ def freeze(
         if e.get("error"):
             console.print(f"{head}: [yellow]could not be read[/yellow] — {e['error']}")
         elif e["frozen"]:
-            console.print(f"{head}: [bold green]FROZEN[/bold green] — {e['frozen_amount']:,.2f} "
-                          f"{e['token']} cannot move" + (f"; {e['movable']:,.2f} still can"
-                                                          if e["movable"] else ""))
-        elif e["balance"]:
+            console.print(f"{head}: [bold green]FROZEN[/bold green] — {freeze_mod.describe_frozen(e)}"
+                          + (f"; {e['movable']:,.2f} still can move" if e["actionable"] else ""))
+        elif e["actionable"]:
             console.print(f"{head}: [bold red]{e['balance']:,.2f} {e['token']} NOT frozen[/bold red]"
                           " — it can still be moved")
             console.print(f"    {e['how']}")
             console.print(f"    [dim]{e['url']}[/dim]")
+        elif e["balance"]:
+            console.print(f"{head}: only dust ({e['balance']:.6f}) — nothing to freeze")
         else:
             console.print(f"{head}: none at this address")
     if labels.type_of(address) == "exchange":

@@ -447,13 +447,13 @@ async function inspect(addr){
         <b>KYC identification point</b>.</div>`,'alert');
     }
     // Tether/Circle can freeze USDT/USDC in place — the one thing that stops them
-    const fzs=(fz.freeze||[]).filter(e=>e.error||e.frozen||e.balance>0);
+    const fzs=(fz.freeze||[]).filter(e=>e.error||e.frozen||e.actionable);
     if(fzs.length&&!fz.exchange){
       const amt=v=>Number(v).toLocaleString(undefined,{maximumFractionDigits:2});
-      const open=fzs.filter(e=>!e.frozen&&e.balance>0);
+      const open=fzs.filter(e=>!e.frozen&&e.actionable);
       h+=card('Stablecoin freeze',
         fzs.map(e=>kv(esc(e.token), e.error ? '<span class="muted">could not be read</span>'
-          : e.frozen ? `<b style="color:var(--green)">${amt(e.frozen_amount)} frozen by ${esc(e.issuer)}</b>`
+          : e.frozen ? `<b style="color:var(--green)">${e.frozen_amount>=1 ? amt(e.frozen_amount)+' frozen' : 'address blacklisted'} by ${esc(e.issuer)}</b>`
           : `<b style="color:#ff6b6b">${amt(e.balance)} not frozen</b>`)).join('')+
         (open.length?`<div class="vfy-note">${esc(open[0].how)}
           <a href="${safeUrl(open[0].url)}" target="_blank" rel="noopener">${esc(open[0].issuer)} policy ↗</a></div>`:''),

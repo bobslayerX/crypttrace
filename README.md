@@ -191,7 +191,7 @@ crypttrace crosschain 0xADDRESS --window 48
 crypttrace watch add 0xADDRESS --note "my stolen ETH"
 crypttrace watch run --interval 300     # or --once for cron / Task Scheduler
 
-# Full investigation report to disk (Markdown + JSON)
+# Full investigation as a case file to send: one HTML page (plus Markdown + JSON)
 crypttrace report 0xADDRESS --depth 3
 
 # Refresh label lists (OFAC sanctions, …)
@@ -426,10 +426,24 @@ are ignored, and every address is checked before it is stored.
 
 ### Reports
 
-`report` runs the full analysis and writes to `~/crypttrace-reports/` (override
-with `--out`): a readable Markdown report (assessment, summary, key findings,
-counterparties, the full fund-flow trace, methodology note) plus a `.json` with
-the raw structured data.
+`report` runs the full analysis and writes a **case file** to
+`~/crypttrace-reports/` (override with `--out`); `investigate` saves the same
+file with the victim's next steps in it. The case file is one HTML page, made
+for whoever receives it — an exchange's compliance team, the police, a lawyer:
+
+- the conclusion in plain words, and what to do now: stablecoins still at the
+  address and who can freeze them, the exchanges the money reached, address
+  poisoning;
+- the fund-flow graph, each address linking to a block explorer;
+- every transfer along the trace with its transaction hashes — the first thing
+  an exchange asks for;
+- where each label comes from, how the tool checked its own arithmetic, and
+  what the method cannot tell you.
+
+It has no scripts and loads nothing from the internet, so it opens in any
+browser or mail client, prints (or saves as PDF) cleanly, and opening it tells
+no one. The raw data is embedded for analysts and written next to it as JSON,
+with its SHA-256 printed on the page; a Markdown version is written too.
 
 ### Self-verification
 
@@ -527,9 +541,6 @@ cases/             # worked investigations with their data
 
 - More exchanges on Bitcoin, Tron and Solana (now: Binance, OKX, HTX, Bybit),
   and refreshing these lists as the exchanges republish them
-- `report --html`: one self-contained file with the interactive graph, to
-  send to an exchange or attach to a police report
-- `report --pdf` for exchange and law-enforcement filings
 - Internal transactions (completes `funder` and contract-mediated transfers)
 - Per-mint filtering for Solana SPL tokens
 - More label sources: Chainabuse, CryptoScamDB, exchange deposit-address sets
