@@ -15,7 +15,7 @@ from typing import Optional, Dict, List
 
 import requests
 
-from crypttrace import config
+from crypttrace import addresses, config
 
 _HERE = Path(__file__).parent
 _IMPORTED = config.DATA_DIR / "imported_labels.json"
@@ -86,9 +86,15 @@ def _load() -> None:
             merged.update({k.lower(): v for k, v in raw.items() if _valid(k.lower())})
         except (ValueError, OSError):
             pass
-    # ...then curated seed overrides.
-    seed = json.loads((_HERE / "known.json").read_text())
-    merged.update({k.lower(): v for k, v in seed.items() if _valid(k.lower())})
+    # ...then curated seed overrides. An entry that declares its chain is checked
+    # with that chain's validator on the original-case key: guessing from the
+    # lower-cased prefix drops Solana addresses that happen to start with 1, 3 or T.
+    seed = json.loads((_HERE / "known.json").read_text(encoding="utf-8"))
+    for k, v in seed.items():
+        chain = v.get("chain") if isinstance(v, dict) else None
+        ok = addresses.validate(k, chain)[0] if chain else _valid(k.lower())
+        if ok:
+            merged[k.lower()] = v
     _KNOWN = merged
     _PARTIAL = _load_partials()
 
