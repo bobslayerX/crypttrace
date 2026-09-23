@@ -129,6 +129,11 @@ It is also honest with you: most stolen crypto is not recovered, and what
 matters is speed and whether the funds touch a regulated exchange. The tool
 gives you evidence and timing — it cannot move funds or name a person by itself.
 
+**Stolen USDT or USDC?** Check at once whether it is still sitting at the
+thief's address — Tether and Circle can freeze it there, and only there:
+`crypttrace freeze THEIR_ADDRESS --chain tron`. `investigate` does this too
+and puts it first.
+
 **Sent money to an address that looked right?** That is usually address
 poisoning — see below. Check your own wallet with
 `crypttrace poisoning YOUR_ADDRESS`.
@@ -160,6 +165,9 @@ crypttrace tokens 0xADDRESS
 
 # Who bootstrapped this wallet's first gas? Follow it toward a KYC point
 crypttrace funder 0xADDRESS --hops 6
+
+# Is the USDT/USDC at this address frozen by Tether/Circle — and who can freeze it?
+crypttrace freeze TADDRESS --chain tron
 
 # Address poisoning: look-alike addresses planted in a wallet's history
 crypttrace poisoning TADDRESS --chain tron
@@ -240,6 +248,29 @@ crypttrace watch run --once             # single check, for scheduled tasks
 
 Optional Telegram alerts: set `CRYPTTRACE_TG_TOKEN` and `CRYPTTRACE_TG_CHAT`,
 then pass `--telegram`.
+
+### Stablecoin freezes
+
+Tether and Circle can freeze USDT and USDC at any address. For a victim of a
+stablecoin theft that is the one lever that actually stops the money — while it
+is still there. `crypttrace freeze` reads the issuers' own contracts (USDT's
+`isBlackListed`, USDC's `isBlacklisted`, balances; token-account state on
+Solana) on Ethereum, Tron and Solana, and answers three things: how much is
+there, whether it is already frozen, and if not, who can freeze it:
+
+- **Tether** freezes USDT at the request of law enforcement, often before a
+  court case — so the route is the police, quickly
+  ([policy](https://tether.to/en/legal/?tab=law-enforcement-requests)).
+- **Circle** freezes USDC only on a legal order such as a court order
+  ([terms](https://www.circle.com/legal/usdc-terms)), which takes longer.
+
+No API key is needed: Ethereum is read through a public node (set
+`CRYPTTRACE_ETH_RPC` to use your own). `investigate` runs the check on the
+address the money went to and makes it the first step; the web UI shows it in
+the side panel; a freeze also counts in the assessment. A check that fails is
+reported as unknown, never as "not frozen". Other chains carry bridged or
+third-party versions of these tokens that the issuers cannot freeze in the same
+way, so they are not checked.
 
 ### Address poisoning
 
@@ -496,8 +527,6 @@ cases/             # worked investigations with their data
 
 - More exchanges on Bitcoin, Tron and Solana (now: Binance, OKX, HTX, Bybit),
   and refreshing these lists as the exchanges republish them
-- Stablecoin freeze check: whether USDT/USDC at an address is already frozen
-  by the issuer, and who to ask for a freeze
 - `report --html`: one self-contained file with the interactive graph, to
   send to an exchange or attach to a police report
 - `report --pdf` for exchange and law-enforcement filings

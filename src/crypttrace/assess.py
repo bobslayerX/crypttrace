@@ -14,7 +14,7 @@ from collections import Counter
 from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Optional
 
-from crypttrace import analysis, chains, poisoning
+from crypttrace import analysis, chains, freeze, poisoning
 from crypttrace.labels import labels
 
 
@@ -234,6 +234,17 @@ def assess(address: str, chain: str = "eth", asset: Optional[dict] = None,
             implication="this wallet was likely the victim of address poisoning",
             confidence=p["confidence"], weight=0, evidence={"pairs": sent_to_fake[:5]}))
 
+    # --- stablecoin issuer freeze ---------------------------------------
+    frozen = [e for e in freeze.check(address, chain) if e.get("frozen")]
+    if frozen:
+        e = frozen[0]
+        signals.append(Signal(
+            name="frozen by issuer",
+            observed=f"{e['frozen_amount']:,.2f} {e['token']} at this address is frozen by {e['issuer']}",
+            implication="the issuer blocked it — usually at the request of law enforcement "
+                        "or under sanctions",
+            confidence="high", weight=40, evidence={"freezes": frozen}))
+
     # --- holding behaviour ---------------------------------------------
     if received > 0 and sent == 0 and len(inbound) >= 3:
         signals.append(Signal(
@@ -314,6 +325,9 @@ def _statement(signals: List[Signal], risk: int, confidence: str, hit) -> str:
     if "paid a look-alike" in names:
         parts.append("This wallet sent money to a look-alike of an address it had used "
                      "before — the signature of an address-poisoning theft.")
+    if "frozen by issuer" in names:
+        parts.append("Stablecoins here are frozen by their issuer, which usually follows a "
+                     "law-enforcement request or a sanctions listing.")
     if "funds held" in names:
         parts.append("The proceeds have not been spent, so intervention is still possible.")
     parts.append(f"Overall risk {risk}/100, confidence {confidence}.")

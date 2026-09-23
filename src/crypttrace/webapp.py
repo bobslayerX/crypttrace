@@ -255,6 +255,17 @@ def create_app() -> Flask:
             return jsonify({"error": str(e)}), 400
         return jsonify({"hops": hops})
 
+    @app.route("/api/freeze")
+    def api_freeze():
+        addr = request.args.get("address", "")
+        chain = request.args.get("chain", "eth")
+        bad = validate(addr, chain)
+        if bad:
+            return jsonify({"error": bad}), 400
+        from crypttrace import freeze as freeze_mod
+        return jsonify({"freeze": freeze_mod.check(addr, chain),
+                        "exchange": labels.type_of(addr) == "exchange"})
+
     @app.route("/api/offramp")
     def api_offramp():
         addr = request.args.get("address", "")

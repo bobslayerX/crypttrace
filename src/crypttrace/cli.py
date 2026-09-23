@@ -263,6 +263,38 @@ def crosschain(
 
 
 @app.command()
+def freeze(
+    address: str = typer.Argument(..., help="Address holding the USDT/USDC"),
+    chain: str = CHAIN_OPT,
+):
+    """Is USDT/USDC at this address frozen by its issuer — and who can freeze it?"""
+    from crypttrace import freeze as freeze_mod
+    entries = freeze_mod.check(address, chain)
+    if not entries:
+        console.print("[dim]USDT/USDC freezes are checked on Ethereum, Tron and Solana, where "
+                      "Tether and Circle issue them directly and can freeze them.[/dim]")
+        return
+    for e in entries:
+        head = f"[bold]{e['token']}[/bold] ({e['issuer']})"
+        if e.get("error"):
+            console.print(f"{head}: [yellow]could not be read[/yellow] — {e['error']}")
+        elif e["frozen"]:
+            console.print(f"{head}: [bold green]FROZEN[/bold green] — {e['frozen_amount']:,.2f} "
+                          f"{e['token']} cannot move" + (f"; {e['movable']:,.2f} still can"
+                                                          if e["movable"] else ""))
+        elif e["balance"]:
+            console.print(f"{head}: [bold red]{e['balance']:,.2f} {e['token']} NOT frozen[/bold red]"
+                          " — it can still be moved")
+            console.print(f"    {e['how']}")
+            console.print(f"    [dim]{e['url']}[/dim]")
+        else:
+            console.print(f"{head}: none at this address")
+    if labels.type_of(address) == "exchange":
+        console.print("\n[dim]This is an exchange's own wallet: ask the exchange, "
+                      "not the issuer.[/dim]")
+
+
+@app.command()
 def poisoning(
     address: str = typer.Argument(..., help="Your wallet, or the address the money went to"),
     chain: str = CHAIN_OPT,

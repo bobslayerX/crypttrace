@@ -412,10 +412,11 @@ async function inspect(addr){
   const c=chain();
   $('#side').innerHTML=`<div class="card"><div class="muted"><span class="spin"></span>Loading ${esc(short(addr))}…</div></div>`;
   try{
-    const [p,f,o]=await Promise.all([
+    const [p,f,o,fz]=await Promise.all([
       api(`/api/profile?address=${q(addr)}&chain=${c}`),
       api(`/api/funder?address=${q(addr)}&chain=${c}`).catch(()=>({hops:[]})),
-      api(`/api/offramp?address=${q(addr)}&chain=${c}`).catch(()=>({offramp:null}))
+      api(`/api/offramp?address=${q(addr)}&chain=${c}`).catch(()=>({offramp:null})),
+      api(`/api/freeze?address=${q(addr)}&chain=${c}`).catch(()=>({freeze:[]}))
     ]);
     // A label is a claim about who controls an address — show what backs it.
     let ev={known:false};
@@ -444,6 +445,19 @@ async function inspect(addr){
         `<div class="muted">~${Math.round(o.offramp.fraction*100)}% of outgoing funds forwarded to
         <b style="color:var(--green)">${esc(o.offramp.exchange)}</b> — likely a deposit address, i.e. a
         <b>KYC identification point</b>.</div>`,'alert');
+    }
+    // Tether/Circle can freeze USDT/USDC in place — the one thing that stops them
+    const fzs=(fz.freeze||[]).filter(e=>e.error||e.frozen||e.balance>0);
+    if(fzs.length&&!fz.exchange){
+      const amt=v=>Number(v).toLocaleString(undefined,{maximumFractionDigits:2});
+      const open=fzs.filter(e=>!e.frozen&&e.balance>0);
+      h+=card('Stablecoin freeze',
+        fzs.map(e=>kv(esc(e.token), e.error ? '<span class="muted">could not be read</span>'
+          : e.frozen ? `<b style="color:var(--green)">${amt(e.frozen_amount)} frozen by ${esc(e.issuer)}</b>`
+          : `<b style="color:#ff6b6b">${amt(e.balance)} not frozen</b>`)).join('')+
+        (open.length?`<div class="vfy-note">${esc(open[0].how)}
+          <a href="${safeUrl(open[0].url)}" target="_blank" rel="noopener">${esc(open[0].issuer)} policy ↗</a></div>`:''),
+        open.length?'alert':'');
     }
     if(f.hops&&f.hops.length){
       h+=card('First-funder chain',

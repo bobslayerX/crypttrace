@@ -485,6 +485,57 @@ try:
 finally:
     sol_fetch.transfers = real_sol
 
+# ---------------------------------------------------------------- freezes
+section("12. Stablecoin freezes (Tether / Circle)")
+from crypttrace import freeze
+from crypttrace import investigate as inv_mod
+real_eth, real_tron, real_sol_accts = freeze._eth_call, freeze._tron_call, freeze._sol_accounts
+
+# what the issuers' contracts answer, keyed by (selector or signature)
+freeze._eth_call = lambda contract, sel, addr: {
+    ("0xdac17f958d2ee523a2206206994597c13d831ec7", "0xe47d6060"): 1,              # USDT frozen
+    ("0xdac17f958d2ee523a2206206994597c13d831ec7", "0x70a08231"): 12_449_010_000,
+}.get((contract, sel), 0)
+freeze._tron_call = lambda contract, sig, addr: 2_540_102_090_000 \
+    if sig == "balanceOf(address)" and contract.startswith("TR7NH") else 0
+freeze._sol_accounts = lambda owner, mint: [{"state": "frozen", "amount": 900.0},
+                                            {"state": "initialized", "amount": 100.0}] \
+    if mint.startswith("EPjF") else []
+try:
+    eth = {e["token"]: e for e in freeze.check("0x" + "7" * 40, "eth")}
+    check("a frozen USDT balance is reported as frozen, with the amount",
+          eth["USDT"]["frozen"] and eth["USDT"]["frozen_amount"] == 12449.01
+          and eth["USDC"]["frozen"] is False and eth["USDC"]["balance"] == 0, str(eth)[:200])
+    trx = {e["token"]: e for e in freeze.check(TG, "tron")}
+    check("an unfrozen USDT balance is movable, with who can freeze it",
+          trx["USDT"]["frozen"] is False and trx["USDT"]["movable"] == 2540102.09
+          and trx["USDT"]["issuer"] == "Tether", str(trx)[:200])
+    sol = {e["token"]: e for e in freeze.check(SA, "sol")}
+    check("on Solana only the frozen token accounts count as frozen",
+          sol["USDC"]["frozen"] and sol["USDC"]["frozen_amount"] == 900.0
+          and sol["USDC"]["movable"] == 100.0, str(sol)[:200])
+    check("chains without issuer-frozen stablecoins are not checked",
+          freeze.check(COLLECTOR, "btc") == [] and freeze.check("0x" + "7" * 40, "bsc") == [])
+
+    base = {"address": TG, "chain": "tron", "exchanges": [], "mixers": [], "sanctioned": [],
+            "bridges": [], "findings": []}
+    steps = inv_mod.build_guidance({**base, "freeze": trx.values()})["steps"]
+    check("investigate puts 'ask for a freeze' first while the money is still there",
+          steps[0]["urgent"] and "Ask for a freeze" in steps[0]["title"]
+          and "Tether" in steps[0]["body"], steps[0]["title"])
+    steps = inv_mod.build_guidance({**base, "freeze": eth.values()})["steps"]
+    check("and says so when it is already frozen",
+          "already frozen by Tether" in steps[0]["title"], steps[0]["title"])
+
+    def unreachable(*a):
+        raise freeze.FreezeError("node down")
+    freeze._eth_call = unreachable
+    down = freeze.check("0x" + "7" * 40, "eth")
+    check("an unreadable freeze is reported as unknown, never as 'not frozen'",
+          all(e["frozen"] is None and e["error"] for e in down), str(down)[:160])
+finally:
+    freeze._eth_call, freeze._tron_call, freeze._sol_accounts = real_eth, real_tron, real_sol_accts
+
 # ---------------------------------------------------------------- result
 print("\n" + "=" * 72)
 print(f"RESULT: {len(PASSED)} passed, {len(FAILED)} failed")
