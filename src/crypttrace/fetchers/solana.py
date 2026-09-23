@@ -82,7 +82,8 @@ def _parse_tx(sig: str) -> List[Dict]:
                 val = 0.0
             rows.append({"from": info.get("source", "") or info.get("authority", ""),
                          "to": info.get("destination", ""), "value": val,
-                         "timestamp": ts, "hash": sig, "symbol": "SPL"})
+                         "timestamp": ts, "hash": sig, "symbol": "SPL",
+                         "contract": "spl"})   # keeps token rows apart from SOL in the store
     return rows
 
 
