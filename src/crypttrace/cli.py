@@ -5,10 +5,12 @@ known entities (exchanges, mixers, sanctioned wallets), and traces where the
 funds went.
 """
 import sys
+import zipfile
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+import requests
 import typer
 from rich.console import Console
 
@@ -352,6 +354,17 @@ def labels_audit():
         for u in a["unsourced"][:8]:
             console.print(f"     [dim]{u['name']} ({u['type']})[/dim]")
 
+    from crypttrace.labels import bulk
+    downloaded = bulk.sets()
+    if downloaded:
+        console.print("\n  [bold]downloaded exchange address sets[/bold] (self-published, "
+                      "checked on import)")
+        for s in downloaded.values():
+            console.print(f"     {s['name']:<34} {s['count']:>8}   snapshot {s['snapshot']}")
+    else:
+        console.print("\n  [dim]No exchange address sets downloaded. "
+                      "`crypttrace update-labels --okx` adds OKX's ~300k deposit addresses.[/dim]")
+
 
 @labels_app.command("why")
 def labels_why(
@@ -393,15 +406,33 @@ def labels_check(
 
 
 @app.command(name="update-labels")
-def update_labels():
+def update_labels(
+    okx: bool = typer.Option(False, "--okx",
+                             help="Also download OKX's signed address list (~80 MB): "
+                                  "labels its ~300k deposit addresses directly"),
+    okx_file: Optional[Path] = typer.Option(None, "--okx-file",
+                                            help="Import an OKX proof-of-reserves zip you "
+                                                 "already downloaded, instead of fetching it"),
+):
     """Download the latest label lists (OFAC sanctions, etc.) into the local DB."""
+    from crypttrace.labels import bulk
     console.print("Updating label database…")
     for name, cnt, err in labels.update():
         if err:
             console.print(f"  [red]✗[/red] {name}: {err}")
         else:
             console.print(f"  [green]✓[/green] {name}: [bold]{cnt}[/bold] addresses")
-    console.print(f"[green]Done.[/green] {labels.count()} labelled addresses now loaded.")
+    if okx or okx_file:
+        try:
+            n, snap = bulk.import_okx(str(okx_file) if okx_file else None,
+                                      progress=lambda m: console.print(f"  [dim]OKX: {m}[/dim]"))
+            console.print(f"  [green]✓[/green] OKX signed addresses (snapshot {snap}): "
+                          f"[bold]{n}[/bold] addresses")
+        except (requests.RequestException, ValueError, OSError, zipfile.BadZipFile) as e:
+            console.print(f"  [red]✗[/red] OKX signed addresses: {e}")
+    console.print(f"[green]Done.[/green] {labels.count()} curated and imported labels loaded"
+                  + (f", plus {sum(s['count'] for s in bulk.sets().values())} exchange addresses"
+                     if bulk.sets() else "") + ".")
     console.print(f"[dim]Cache: {config.DATA_DIR / 'imported_labels.json'}[/dim]")
 
 

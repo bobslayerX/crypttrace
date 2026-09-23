@@ -32,7 +32,9 @@ def _one(address: str, chain: str, threshold: float, asset: Optional[dict]) -> O
             continue
         val = r.get("value", 0) or 0
         out_total += val
-        if labels.type_of(to) == "exchange":
+        # sending *into* another customer's deposit address is a cash-out by
+        # this wallet, not evidence that this wallet is itself a deposit address
+        if labels.type_of(to) == "exchange" and not labels.is_deposit(to):
             to_exchange[to] = to_exchange.get(to, 0.0) + val
 
     if out_total <= 0 or not to_exchange:

@@ -91,6 +91,9 @@ def evidence(address: str) -> Dict:
     # often pass addresses already lower-cased by the label layer.
     meta = raw.get(address) or {k.lower(): v for k, v in raw.items()}.get(address.lower())
     if not meta:
+        from crypttrace.labels import bulk     # large downloaded sets (OKX, …)
+        meta = bulk.lookup(address)
+    if not meta:
         return {"address": address, "known": False}
     return {
         "address": address, "known": True,

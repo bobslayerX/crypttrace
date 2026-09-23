@@ -334,6 +334,61 @@ try:
 finally:
     chains.transfers = real_transfers
 
+# ---------------------------------------------------------------- bulk sets
+section("10. OKX's signed address list (update-labels --okx)")
+# A miniature of OKX's real file: totals, a blank line, then one row per
+# address with its network and signature. Nothing is downloaded.
+import zipfile
+from crypttrace.labels import bulk
+OKX_BTC = "bc1q005s059684s5m8hdq7u7hahq9hje5yy34y2m3uwzz5lh7p5ucl9q0ntn93"
+okx_csv = "\n".join([
+    "coin,amount", "BTC,146359", "",
+    "coin,Type,Network,Snapshot Height,address,amount,message,signature1,signature2,"
+    "redeem script/ public key,EOA1,EOA2",
+    f"USDT-TRC20,Non Staking,TRON,85840149,{DEPOSIT},10,I am an OKX address,SIG,,,,",
+    f"TRX,Non Staking,TRON,85840149,{OKX_HOT},500000000,I am an OKX address,SIG,,,,",
+    f"BTC,Non Staking,BTC,965949,{OKX_BTC},0.5,I am an OKX address,SIG,,,,",
+    "ETH,Native Staking,ETH,25876316,0x" + "ab" * 48 + ",32,I am an OKX address,SIG,,,,",
+    "BTC,Non Staking,BTC,965949,1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNb,1,I am an OKX address,SIG,,,,",
+    "TRX,Non Staking,TRON,85840149,TL9szsuUPSBv6DUfqC64J88gaN7s26QJwq,1,I am an OKX address,,,,,",
+]) + "\n"
+okx_zip = os.path.join(os.environ["CRYPTTRACE_HOME"], "okx_por_test.zip")
+with zipfile.ZipFile(okx_zip, "w") as z:
+    z.writestr("okx_por_2026090800_V1.csv", okx_csv)
+
+messages = []
+n, snap = bulk.import_okx(okx_zip, progress=messages.append)
+check("signed, well-formed addresses are stored; keys and bad checksums are not",
+      n == 3, f"stored {n}; {messages}")
+check("the snapshot date is read from the file", snap == "2026-09-08", snap)
+check("staking validator keys are reported as such, not as malformed",
+      any("1 ETH staking validator keys" in m and "1 malformed" in m for m in messages),
+      str(messages))
+check("an OKX deposit address is labelled on arrival, without the heuristic",
+      labels.type_of(DEPOSIT) == "exchange" and labels.is_deposit(DEPOSIT)
+      and labels.company(labels.label_of(DEPOSIT)) == "OKX", str(labels.lookup(DEPOSIT)))
+check("curated labels still win over the downloaded set",
+      labels.label_of(OKX_HOT) == "OKX reserve wallet", labels.label_of(OKX_HOT))
+check("an unsigned row is not trusted",
+      labels.lookup("TL9szsuUPSBv6DUfqC64J88gaN7s26QJwq") is None)
+ev = audit.evidence(OKX_BTC)
+check("labels why explains a downloaded label",
+      ev["known"] and ev["source_kind"] == "self-published" and "OKX" in ev["source"], str(ev)[:160])
+
+# Paying *into* someone's deposit address makes this wallet a depositor, not a
+# deposit address; only exchange-owned wallets count as the off-ramp target.
+THIEF = "TQdrDrMKQbavukYJSUdrViUUwaqr88gQXf"
+def thief_pays_in(addr, chain="eth", limit=1000, asset=None, **kw):
+    if chain == "tron" and addr == THIEF and asset is None:
+        return [{"from": THIEF, "to": DEPOSIT, "value": 9000.0, "timestamp": T0, "hash": "t1"}]
+    return []
+chains.transfers = thief_pays_in
+try:
+    check("a wallet paying into a deposit address is not called a deposit address",
+          offramp.detect(THIEF, "tron") is None)
+finally:
+    chains.transfers = real_transfers
+
 # ---------------------------------------------------------------- result
 print("\n" + "=" * 72)
 print(f"RESULT: {len(PASSED)} passed, {len(FAILED)} failed")
