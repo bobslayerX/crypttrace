@@ -1,5 +1,10 @@
 # crypttrace
 
+[![selftest](https://github.com/bobslayerX/crypttrace/actions/workflows/selftest.yml/badge.svg)](https://github.com/bobslayerX/crypttrace/actions/workflows/selftest.yml)
+[![PyPI](https://img.shields.io/pypi/v/crypttrace)](https://pypi.org/project/crypttrace/)
+[![Python](https://img.shields.io/pypi/pyversions/crypttrace)](https://pypi.org/project/crypttrace/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 Open-source OSINT toolkit for crypto investigations. Give it a suspicious
 address; it pulls the public on-chain history, labels known entities (exchanges,
 mixers, sanctioned wallets), scores risk, and maps where the funds moved —
@@ -11,7 +16,7 @@ here's the wallet — where did the money go, and where can it still be stopped?
 Works as a terminal tool **and** as a local web app with an interactive
 fund-flow graph.
 
-![crypttrace tracing the AFX Trade exploit](assets/graph-outflow.png)
+![crypttrace tracing the AFX Trade exploit](https://raw.githubusercontent.com/bobslayerX/crypttrace/main/assets/graph-outflow.png)
 
 *Real case: the AFX Trade exploiter (July 2026, $24.15M). crypttrace follows the
 stolen ETH out of the attacker's wallet — 12,467 ETH (~$23.3M) to a holding
@@ -23,9 +28,17 @@ mapped in seconds.*
 ## Install
 
 ```bash
+pipx install "crypttrace[web]"     # or: pip install "crypttrace[web]"
+```
+
+`[web]` also installs Flask for the web UI; leave it off for the terminal tool
+alone. Python 3.9 or newer. To work on the code instead:
+
+```bash
 git clone https://github.com/bobslayerX/crypttrace
 cd crypttrace
-pip install -e ".[web]"        # ".[web]" also installs Flask for the web UI
+pip install -e ".[web]"
+python selftest.py                 # offline checks, no API keys needed
 ```
 
 ### API keys — what's actually required
@@ -39,6 +52,13 @@ pip install -e ".[web]"        # ".[web]" also installs Flask for the web UI
 export ETHERSCAN_API_KEY=xxxx           # required for EVM chains only
 ```
 
+On Windows (PowerShell):
+
+```powershell
+$env:ETHERSCAN_API_KEY = "xxxx"                            # this window only
+[Environment]::SetEnvironmentVariable("ETHERSCAN_API_KEY", "xxxx", "User")   # permanently
+```
+
 **About the keyless chains:** Bitcoin, Tron and Solana work with no signup at
 all, but their free public endpoints are **rate-limited**. crypttrace handles
 this for you — it caches every response, spaces requests out, and retries with
@@ -49,6 +69,8 @@ own credentials (all optional):
 export TRONGRID_API_KEY=xxxx            # optional: higher TronGrid quota
 export CRYPTTRACE_SOLANA_RPC=https://…  # optional: your own (faster) Solana RPC
 ```
+
+(In PowerShell: `$env:TRONGRID_API_KEY = "xxxx"` and so on.)
 
 ## Supported chains
 
@@ -84,12 +106,12 @@ picture, instead of command-line flags.
 **Both directions of the same investigation.** Forward — where the stolen money
 went:
 
-![Tracing stolen funds forward](assets/graph-outflow.png)
+![Tracing stolen funds forward](https://raw.githubusercontent.com/bobslayerX/crypttrace/main/assets/graph-outflow.png)
 
 Backward — how that wallet was funded in the first place, which is how you tie
 an anonymous wallet to something identifiable:
 
-![Tracing a wallet's funding backward](assets/graph-inflow.png)
+![Tracing a wallet's funding backward](https://raw.githubusercontent.com/bobslayerX/crypttrace/main/assets/graph-inflow.png)
 
 ## If your crypto was stolen — start here
 
@@ -249,6 +271,11 @@ crypttrace victims  bc1qADDRESS --chain btc --depth 2 -o victims.csv
 crypttrace timeline bc1qADDRESS --chain btc --buckets 24
 ```
 
+![The victim list for one branch of the Coldcard sweep in the web UI](https://raw.githubusercontent.com/bobslayerX/crypttrace/main/assets/web-victims.jpg)
+
+A worked example — 1,169 swept addresses, 1,082.58 BTC, with the commands to
+reproduce it — is in [`cases/coldcard-2026`](cases/coldcard-2026).
+
 **Dust is filtered by default.** Addresses that become publicly known get spammed
 with tiny transfers, which otherwise bury the transactions that matter and can
 flip the timing verdict entirely. Each chain has a dust threshold; override with
@@ -388,9 +415,17 @@ src/crypttrace/
     solana.py      # Solana JSON-RPC
     http.py        # shared cache, throttling, 429 backoff
   labels/
-    known.json     # curated label DB
+    known.json     # curated label DB, one source per claim
+    partial.json   # addresses known only in truncated form
     labels.py      # lookup, risk scoring, source imports
+    audit.py       # checksum + provenance audit of the label DB
+  addresses.py     # per-chain address validation (checksums)
+  store.py         # local SQLite store of every transfer read
   trace.py         # fund-flow tree + graph builder
+  investigate.py   # one-command victim workflow
+  analysis.py      # victim lists, timeline, burst detection
+  assess.py        # reasoned assessment with evidence and confidence
+  verify.py        # reconcile computed totals against the chain
   funder.py        # first-funder heuristic
   offramp.py       # exchange-deposit detection
   bridges.py       # cross-chain matching
@@ -400,6 +435,8 @@ src/crypttrace/
   render.py        # rich terminal rendering
   webapp.py        # Flask backend for the web UI
   web/index.html   # single-page frontend (interactive graph)
+selftest.py        # offline end-to-end checks, run by CI
+cases/             # worked investigations with their data
 ```
 
 ## Roadmap
@@ -415,9 +452,11 @@ src/crypttrace/
 ## Contributing
 
 Label data is the highest-leverage contribution: exchange wallets, known scam
-and drainer addresses, bridges. Add them to `labels/known.json` (or a new source
-in `labels/labels.py`) and open a PR. Accuracy matters more than volume — a
-wrong label is worse than no label.
+and drainer addresses, bridges. Add them to `labels/known.json` with a `chain`,
+a `source` a reader can check and a `source_kind` (`self-published`,
+`official-list`, `explorer-tag`, `research`, `community`), then run
+`crypttrace labels audit` and `python selftest.py` before opening a PR.
+Accuracy matters more than volume — a wrong label is worse than no label.
 
 ## Licence
 
