@@ -10,7 +10,7 @@ Launch with:  crypttrace serve   (then open http://127.0.0.1:8000)
 from datetime import datetime
 from pathlib import Path
 
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, Response, jsonify, request, send_from_directory
 
 from crypttrace.fetchers import etherscan
 from crypttrace.labels import labels
@@ -254,6 +254,40 @@ def create_app() -> Flask:
         except _KNOWN_ERRORS as e:
             return jsonify({"error": str(e)}), 400
         return jsonify({"hops": hops})
+
+    @app.route("/api/poisoning")
+    def api_poisoning():
+        addr = request.args.get("address", "")
+        chain = request.args.get("chain", "eth")
+        bad = validate(addr, chain)
+        if bad:
+            return jsonify({"error": bad}), 400
+        from crypttrace import poisoning
+        try:
+            return jsonify({"lookalikes": poisoning.lookalikes(addr, chain),
+                            "lured": poisoning.baited_payments(addr, chain),
+                            "campaign": poisoning.campaign(addr, chain)})
+        except _KNOWN_ERRORS as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/report")
+    def api_report():
+        """The HTML case file, built in memory and handed over as a download."""
+        addr = request.args.get("address", "")
+        chain = request.args.get("chain", "eth")
+        bad = validate(addr, chain)
+        if bad:
+            return jsonify({"error": bad}), 400
+        from crypttrace import report as report_mod
+        try:
+            asset = assets.resolve_asset(request.args.get("asset") or None, chain)
+            depth = max(1, min(5, int(request.args.get("depth", 3))))
+            data, raw, digest = report_mod.build(addr, chain, depth, 3, asset)
+        except _KNOWN_ERRORS as e:
+            return jsonify({"error": str(e)}), 400
+        name = report_mod.case_name(addr, chain) + ".html"
+        return Response(report_mod.render_html(data, raw, digest, None), mimetype="text/html",
+                        headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
     @app.route("/api/freeze")
     def api_freeze():

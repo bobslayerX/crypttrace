@@ -97,7 +97,11 @@ crypttrace serve            # then open http://127.0.0.1:8000
 Paste an address, pick a chain and direction, and get an interactive fund-flow
 graph: nodes coloured by what they are, arrows showing where value went, click a
 node for its full profile, click a transfer line to open it on the block
-explorer. A side panel shows the profile, first-funder chain and off-ramp check.
+explorer. A side panel shows the profile, first-funder chain, off-ramp check
+and whether USDT/USDC at the address is frozen. Tabs add the assessment, the
+timeline, the list of who sent funds here, and address poisoning (look-alikes
+planted in the wallet's history, and payments lured by this address). **Case
+file** downloads the same one-page HTML report `crypttrace report` writes.
 Everything runs on your machine — nothing is uploaded anywhere.
 
 This exists so non-technical victims can use the tool at all: a form and a

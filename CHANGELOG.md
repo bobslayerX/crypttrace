@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0
+
+### Added
+- **Web UI: Poisoning tab** — look-alike addresses planted in the wallet's
+  history, money sent to one, and payments this address received right after
+  luring the payer, with the imitated address.
+- **Web UI: Case file button** — downloads the same one-page HTML case file as
+  `crypttrace report`, built in memory (new `/api/report`, `/api/poisoning`).
+
 ## 0.7.0
 
 ### Added
