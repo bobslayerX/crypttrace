@@ -103,6 +103,24 @@ for addr, chain in [("34xp4vRoCGJym3xR7yCVPFHoCNxv4Twseo", "btc"),
 # a Solana key starting with '3' looks like a Bitcoin address by prefix alone
 check("Solana label starting with '3' survives loading",
       labels.label_of("3JR4ETCTVqnysiARm9LvuigzuXnDydbWXYYYpgZzzhDi") != "")
+# ...and from the lists OKX, HTX and Bybit publish themselves
+for addr, who in [("1CY7fykRLWXeSbKB885Kr4KjQxmDdvW923", "OKX"),
+                  ("C68a6RCGLiPskbPYtAcsCjhG8tfTWYcoB4JjCrXFdqyo", "OKX"),
+                  ("TCw6YaWm3y6DvxY7M8hrCDnrJGeGMumzGJ", "OKX"),
+                  ("143gLvWYUojXaWZRrxquRKpVNTkhmr415B", "HTX"),
+                  ("8NBEbxLknGv5aRYefFrW2qFXoDZyi9fSHJNiJRvEcMBE", "HTX"),
+                  ("TQVxjVy2sYt4at45ezD7VG4H6nQZtsua5C", "Bybit")]:
+    check(f"{who} wallet {addr[:8]}… is labelled as an exchange",
+          labels.type_of(addr) == "exchange" and labels.label_of(addr).startswith(who),
+          labels.label_of(addr) or "no label")
+
+# victims are told which company to contact, not our wallet label
+names = {l: labels.company(l) for l in ("Binance reserve wallet (custodied by Ceffu)",
+                                       "OKX reserve wallet", "Bybit (2022 reserve list)",
+                                       "Binance 14 (hot wallet)")}
+check("exchange labels reduce to the company name",
+      list(names.values()) == ["Binance", "OKX", "Bybit", "Binance"], str(names))
+
 e3 = audit.evidence("TMuA6YqfCeX8EhbfYEg5y7S4DqzSJireY9".lower())
 check("evidence found for a case-sensitive address given in lower case",
       e3["known"] and e3["source_kind"] == "self-published", str(e3)[:160])
@@ -276,6 +294,45 @@ run = subprocess.run(
 out = run.stdout.decode("utf-8", "replace")
 check("labelled output survives a cp1251 stdout", run.returncode == 0 and "Binance" in out,
       (run.stderr.decode("utf-8", "replace") or out)[-200:])
+
+# ---------------------------------------------------------------- off-ramp
+section("9. Off-ramp detection off Ethereum")
+# It used to read Etherscan directly, so on Bitcoin/Tron/Solana it raised
+# "unsupported chain" and took `crypttrace trace` down with it.
+from crypttrace import offramp
+DEPOSIT = "TM1zzNDZD2DPASbKcgdVoTYhfmYgtfwx9R"      # an OKX deposit address
+OKX_HOT = "TXkCx2gaEWrtU3g88aYxrqHxeWYXX5UUtL"      # an OKX reserve wallet
+real_transfers = chains.transfers
+
+def tron_sweeps(addr, chain="eth", limit=1000, asset=None, **kw):
+    if chain == "tron" and addr == DEPOSIT and asset and asset.get("symbol") == "USDT":
+        return [{"from": DEPOSIT, "to": OKX_HOT, "value": 5000.0, "timestamp": T0, "hash": "s1"},
+                {"from": DEPOSIT, "to": OKX_HOT, "value": 1200.0, "timestamp": T0 + 60, "hash": "s2"}]
+    return []
+
+chains.transfers = tron_sweeps
+try:
+    try:
+        hit = offramp.detect(DEPOSIT, "tron")
+    except Exception as e:
+        hit = {"exchange": "", "symbol": "", "error": repr(e)}
+    check("a Tron address sweeping USDT into OKX is an off-ramp",
+          bool(hit) and hit.get("company") == "OKX" and hit["symbol"] == "USDT", str(hit))
+    try:
+        offramp.detect("bc1qh0l7q0mca3ln7wsl9luwns0jc9jhgrtft025l4", "btc")
+        check("off-ramp check runs on Bitcoin instead of raising", True)
+    except Exception as e:
+        check("off-ramp check runs on Bitcoin instead of raising", False, repr(e))
+    try:
+        from crypttrace import webapp
+        j = webapp.create_app().test_client().get(
+            f"/api/offramp?address={DEPOSIT}&chain=tron").get_json()
+        check("the web UI gets the Tron off-ramp too",
+              bool(j.get("offramp")) and j["offramp"]["exchange"].startswith("OKX"), str(j)[:160])
+    except ImportError:
+        print("  SKIP  Flask is not installed")
+finally:
+    chains.transfers = real_transfers
 
 # ---------------------------------------------------------------- result
 print("\n" + "=" * 72)

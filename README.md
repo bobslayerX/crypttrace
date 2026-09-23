@@ -239,7 +239,9 @@ behaviour: an address forwarding most of its outgoing value to a labelled
 exchange is almost certainly a deposit address, i.e. the cash-out point where
 that exchange holds the depositor's KYC. `trace` applies the same heuristic
 automatically, turning an anonymous intermediary into "→ Binance deposit (KYC
-point)".
+point)". It works on every supported chain; on Tron and Solana, where deposits
+are usually swept as stablecoins, it checks USDT and USDC as well as the native
+coin.
 
 ### First-funder (deanonymization)
 
@@ -337,11 +339,12 @@ SDN sanctioned-address list — and merges them into the local DB in
 `~/.crypttrace/`. The curated seed wins on conflicts, so richer names survive.
 Add sources in `labels/labels.py` → `SOURCES`.
 
-Bitcoin, Tron and Solana coverage is currently Binance only: its reserve
-wallets, taken from the address list Binance publishes itself for
-proof-of-reserves. So `offramp` can flag Binance deposit addresses on those
-chains, but funds sent to other exchanges there will still show as `unknown`.
-Every label records where it came from — see `crypttrace labels audit`.
+On Bitcoin, Tron and Solana the labels cover the reserve wallets of Binance,
+OKX and HTX, plus Bybit's older 2022 list — each taken from the address list the
+exchange publishes itself for proof-of-reserves. That is what lets `offramp`
+flag deposit addresses on those chains. Funds sent to an exchange not on that
+list still show as `unknown`. Every label records where it came from — see
+`crypttrace labels audit`.
 
 ### Reports
 
@@ -444,8 +447,10 @@ cases/             # worked investigations with their data
 
 ## Roadmap
 
-- Exchange labels on Bitcoin, Tron and Solana beyond Binance (OKX, Bybit,
-  Coinbase, Kraken…), taken from lists the exchanges publish themselves
+- More exchanges on Bitcoin, Tron and Solana (now: Binance, OKX, HTX, Bybit),
+  and refreshing these lists as the exchanges republish them
+- OKX's full signed address set (~310k, mostly deposit addresses) as an
+  optional `update-labels` download, so deposits are labelled outright
 - Address-poisoning detection: flag look-alike addresses (same first and last
   characters) in a victim's history before they copy the wrong one
 - Stablecoin freeze check: whether USDT/USDC at an address is already frozen
