@@ -240,7 +240,7 @@ def assess(address: str, chain: str = "eth", asset: Optional[dict] = None,
         e = frozen[0]
         signals.append(Signal(
             name="frozen by issuer",
-            observed=f"{e['frozen_amount']:,.2f} {e['token']} at this address is frozen by {e['issuer']}",
+            observed=freeze.describe_frozen(e),
             implication="the issuer blocked it — usually at the request of law enforcement "
                         "or under sanctions",
             confidence="high", weight=40, evidence={"freezes": frozen}))

@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.7.0
+
+### Added
+- **HTML case file.** `report` and `investigate` now save one self-contained
+  HTML page to send to an exchange or attach to a police report: the conclusion,
+  what to do now (freeze, exchange, address poisoning), the fund-flow graph,
+  every transfer along the trace with its transaction hashes, where each label
+  comes from, and the method's limits. No scripts or external resources, so it
+  opens anywhere and prints to PDF; the raw JSON is embedded and its SHA-256
+  printed. Markdown and JSON are still written next to it.
+
+### Fixed
+- `report` failed with "unsupported chain" on Bitcoin, Tron and Solana, and so
+  `investigate` could not save a case file there — including for the Tron USDT
+  victims it is meant for. Reports now read through the shared chain layer.
+- Tron approvals already stored by versions before 0.5.0 (as ~10^59-token
+  transfers) are no longer served from the local store.
+- `investigate`'s case file now uses the depth you asked for, not always 3.
+- Freeze wording: an empty blacklisted address is described as blacklisted, not
+  "0.00 frozen", and dust left at an address no longer triggers a freeze request.
+
 ## 0.6.0
 
 ### Added

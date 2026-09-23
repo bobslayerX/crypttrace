@@ -464,6 +464,13 @@ try:
     got = tron_fetch.token_transfers(FRESH)
     check("Tron approvals are not read as 10^59 USDT transfers",
           len(got) == 1 and got[0]["value"] == 1.01, str(got)[:160])
+    # ...and ones already sitting in a store written by an older version are not served
+    store.save("tron", FRESH, [{"from": FRESH, "to": OPER, "value": (2 ** 256 - 1) / 1e6,
+                                "timestamp": 2, "hash": "old", "symbol": "USDT",
+                                "contract": "tr7nh"}], "tr7nh", True)
+    served = store.load(chain="tron", address=FRESH, contract="tr7nh")
+    check("an approval stored by an older version is not served as a transfer",
+          all(r["value"] < 1e30 for r in served), str(served)[:160])
 finally:
     tron_fetch._get = real_get
 
@@ -525,7 +532,15 @@ try:
           and "Tether" in steps[0]["body"], steps[0]["title"])
     steps = inv_mod.build_guidance({**base, "freeze": eth.values()})["steps"]
     check("and says so when it is already frozen",
-          "already frozen by Tether" in steps[0]["title"], steps[0]["title"])
+          steps[0]["title"] == "12,449.01 USDT here is frozen by Tether", steps[0]["title"])
+    empty = {**eth["USDT"], "frozen_amount": 0.0}
+    check("an empty blacklisted address is not described as '0.00 frozen'",
+          freeze.describe_frozen(empty).startswith("This address is blacklisted by Tether"),
+          freeze.describe_frozen(empty))
+    dust = [{**trx["USDT"], "balance": 0.004, "movable": 0.004, "actionable": False}]
+    check("dust left at an address does not trigger a freeze request",
+          not any("freeze" in s["title"].lower()
+                  for s in inv_mod.build_guidance({**base, "freeze": dust})["steps"]))
 
     def unreachable(*a):
         raise freeze.FreezeError("node down")
@@ -535,6 +550,47 @@ try:
           all(e["frozen"] is None and e["error"] for e in down), str(down)[:160])
 finally:
     freeze._eth_call, freeze._tron_call, freeze._sol_accounts = real_eth, real_tron, real_sol_accts
+
+# ---------------------------------------------------------------- reports
+section("13. The HTML case file")
+import hashlib, re as _re
+from crypttrace import report, prices
+SUBJ, HOP, BINANCE_COLD = "bc1qsubject" + "0" * 31, "bc1qhop" + "0" * 35, "34xp4vRoCGJym3xR7yCVPFHoCNxv4Twseo"
+REPORT_ROWS = [{"from": SUBJ, "to": HOP, "value": 1.5, "timestamp": T0, "hash": "aa" * 32, "symbol": "BTC"},
+               {"from": HOP, "to": BINANCE_COLD, "value": 1.4, "timestamp": T0 + 600,
+                "hash": "bb" * 32, "symbol": "BTC"}]
+def report_history(addr, chain="eth", limit=1000, asset=None, **kw):
+    return [] if asset else [r for r in REPORT_ROWS if addr in (r["from"], r["to"])]
+real_price = prices.native_price
+chains.transfers, prices.native_price = report_history, (lambda c="eth": None)
+try:
+    out_dir = os.path.join(os.environ["CRYPTTRACE_HOME"], "reports")
+    paths = report.generate(SUBJ, "btc", 3, 3, __import__("pathlib").Path(out_dir))
+    page = paths["html"].read_text(encoding="utf-8")
+    check("report writes an HTML case file on Bitcoin, plus Markdown and JSON",
+          all(p.exists() for p in paths.values()), str(paths))
+    check("the case file loads nothing from outside and runs no script",
+          not _re.search(r"<(script|link|img)[^>]+(src|href)=[\"']https?://", page)
+          and not _re.search(r"<script(?![^>]*application/json)", page))
+    check("the graph and the transaction links are in it",
+          page.count("<rect") == 3 and "mempool.space/tx/" + "bb" * 32 in page
+          and "Binance" in page, f"{page.count('<rect')} boxes")
+    digest = _re.search(r"SHA-256 <span class='mono'>([0-9a-f]{64})", page).group(1)
+    check("the SHA-256 printed in the page is the JSON file's",
+          hashlib.sha256(paths["json"].read_bytes()).hexdigest() == digest)
+
+    import json as _json
+    data = _json.loads(paths["json"].read_text(encoding="utf-8"))
+    data["summary"]["label"] = "<img src=x onerror=alert(1)>"
+    data["key_findings"][0]["label"] = "</script><script>alert(2)</script>"
+    raw = _json.dumps(data)
+    hostile = report.render_html(data, raw, "0" * 64, "x.json")
+    check("labels and token names cannot inject markup into the case file",
+          "<img src=x" not in hostile and "&lt;img src=x" in hostile)
+    check("data embedded for analysts cannot close its script element",
+          "</script><script>alert(2)" not in hostile)
+finally:
+    chains.transfers, prices.native_price = real_transfers, real_price
 
 # ---------------------------------------------------------------- result
 print("\n" + "=" * 72)

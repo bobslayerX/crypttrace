@@ -30,6 +30,14 @@ EXPLORER = {
     "sol": "https://solscan.io/account/{}",
 }
 
+TX_EXPLORER = {
+    "eth": "https://etherscan.io/tx/{}", "bsc": "https://bscscan.com/tx/{}",
+    "polygon": "https://polygonscan.com/tx/{}", "arbitrum": "https://arbiscan.io/tx/{}",
+    "optimism": "https://optimistic.etherscan.io/tx/{}", "base": "https://basescan.org/tx/{}",
+    "btc": "https://mempool.space/tx/{}", "tron": "https://tronscan.org/#/transaction/{}",
+    "sol": "https://solscan.io/tx/{}",
+}
+
 _UPSTREAM_ERRORS = (etherscan.EtherscanError, bitcoin.BitcoinError,
                     tron.TronError, solana.SolanaError)
 
@@ -57,6 +65,10 @@ def symbol(chain: str) -> str:
 
 def explorer_url(address: str, chain: str) -> str:
     return EXPLORER.get(chain, EXPLORER["eth"]).format(address)
+
+
+def tx_url(tx_hash: str, chain: str) -> str:
+    return TX_EXPLORER.get(chain, TX_EXPLORER["eth"]).format(tx_hash)
 
 
 def check(chain: str) -> None:

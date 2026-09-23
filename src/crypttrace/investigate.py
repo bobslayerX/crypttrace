@@ -32,7 +32,7 @@ def analyse(address: str, chain: str = "eth", asset: Optional[dict] = None,
     """Run every check and return a structured result (no printing)."""
     result = {
         "address": address, "chain": chain,
-        "asset": asset["symbol"] if asset else chains.symbol(chain),
+        "asset": asset["symbol"] if asset else chains.symbol(chain), "depth": depth,
         "generated": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         "errors": [],
     }
@@ -154,13 +154,13 @@ def build_guidance(r: dict) -> dict:
     for e in r.get("freeze") or []:
         if e.get("frozen"):
             steps.insert(0, {
-                "title": f"{e['frozen_amount']:,.2f} {e['token']} here is already frozen by {e['issuer']}",
+                "title": freeze_mod.describe_frozen(e),
                 "body": ("It cannot be moved. Frozen funds can be returned to victims, but only "
                          f"through a legal process: tell the police and {e['issuer']} that you "
                          "are a victim of this address, and include this report."),
                 "urgent": True,
             })
-        elif e.get("movable"):
+        elif e.get("actionable"):
             steps.insert(0, {
                 "title": f"Ask for a freeze: {e['movable']:,.2f} {e['token']} is still here",
                 "body": (f"{e['how']} It can be moved at any moment, so this is the most "
@@ -226,11 +226,13 @@ def guidance_markdown(r: dict) -> str:
 
 
 def save_case(r: dict, out_dir: Path, asset: Optional[dict] = None) -> Path:
-    """Write the full report plus the guidance the victim can act on."""
-    md_path = report_mod.generate(r["address"], r["chain"], 3, 3, out_dir, asset)
+    """Write the case file (HTML, plus Markdown and JSON) with the victim's next steps;
+    returns the HTML one — the file to send."""
+    paths = report_mod.generate(r["address"], r["chain"], r.get("depth", 3), 3, out_dir, asset,
+                                guidance=r.get("guidance"))
     try:
-        with open(md_path, "a", encoding="utf-8") as fh:
+        with open(paths["md"], "a", encoding="utf-8") as fh:
             fh.write(guidance_markdown(r))
     except OSError:
         pass
-    return md_path
+    return paths["html"]
