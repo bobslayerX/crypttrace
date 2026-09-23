@@ -377,7 +377,7 @@ check("labels why explains a downloaded label",
 
 # Paying *into* someone's deposit address makes this wallet a depositor, not a
 # deposit address; only exchange-owned wallets count as the off-ramp target.
-THIEF = "TQdrDrMKQbavukYJSUdrViUUwaqr88gQXf"
+THIEF = "TPayerPayerPayerPayerPayerPayer111"          # synthetic
 def thief_pays_in(addr, chain="eth", limit=1000, asset=None, **kw):
     if chain == "tron" and addr == THIEF and asset is None:
         return [{"from": THIEF, "to": DEPOSIT, "value": 9000.0, "timestamp": T0, "hash": "t1"}]
@@ -430,7 +430,7 @@ finally:
     chains.transfers = real_transfers
 
 # Tron: the cheap look-alike (first and last two characters) arrives as TRX dust
-TV = "TLZsJPRMVYzqHVUu2Vo6pfnD4hbFfoDYfu"
+TV = "TVictimVictimVictimVictimVictim111"          # synthetic
 TG, TL = "TM1zzNDZD2DPASbKcgdVoTYhfmYgtfwx9R", "TMyUjSnEgD6BuAbdyFT71uHgDqyrRgBx9R"
 TN = "TMabcdefghijkmnopqrstuvwxyzABCDx9R"           # matches as weakly, but no bait
 OPER, FRESH = "TWkvffFDMsqbmTLkMHMABmw452Hyq98cdn", "TDDDHi26zb2NhGRH6gwEa414RAvNrCr9Ps"
