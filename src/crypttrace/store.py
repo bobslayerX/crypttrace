@@ -114,18 +114,24 @@ def is_fresh(chain: str, address: str, asset_key: str = "",
 def load(chain: str, address: str, contract: str = "", native_symbol: str = "") -> List[dict]:
     """Every stored transfer touching this address, newest first."""
     c = _conn()
+    cols = "SELECT from_addr,to_addr,value,symbol,contract,ts,tx_hash,fee_share FROM transfers"
     try:
-        if contract:
-            q = ("SELECT from_addr,to_addr,value,symbol,contract,ts,tx_hash,fee_share"
-                 " FROM transfers WHERE chain=? AND (from_addr=? OR to_addr=?)"
+        if contract == "*":
+            # every token, whatever its contract (address-poisoning checks need fakes too)
+            q = (f"{cols} WHERE chain=? AND (from_addr=? OR to_addr=?)"
+                 " AND contract IS NOT NULL AND contract!='' ORDER BY ts DESC")
+            args = (chain, address, address)
+        elif contract:
+            q = (f"{cols} WHERE chain=? AND (from_addr=? OR to_addr=?)"
                  " AND lower(contract)=lower(?) ORDER BY ts DESC")
             args = (chain, address, address, contract)
         else:
-            # native asset: rows carry no contract
-            q = ("SELECT from_addr,to_addr,value,symbol,contract,ts,tx_hash,fee_share"
-                 " FROM transfers WHERE chain=? AND (from_addr=? OR to_addr=?)"
-                 " AND (contract IS NULL OR contract='') ORDER BY ts DESC")
-            args = (chain, address, address)
+            # native asset: rows carry no contract. Older stores filed Solana
+            # SPL rows without one too, so the symbol is checked as well.
+            q = (f"{cols} WHERE chain=? AND (from_addr=? OR to_addr=?)"
+                 " AND (contract IS NULL OR contract='')"
+                 + (" AND symbol=?" if native_symbol else "") + " ORDER BY ts DESC")
+            args = (chain, address, address) + ((native_symbol,) if native_symbol else ())
         rows = c.execute(q, args).fetchall()
     finally:
         c.close()

@@ -263,6 +263,64 @@ def crosschain(
 
 
 @app.command()
+def poisoning(
+    address: str = typer.Argument(..., help="Your wallet, or the address the money went to"),
+    chain: str = CHAIN_OPT,
+    limit: int = typer.Option(1000, "--limit", help="How much history to read"),
+):
+    """Address poisoning: look-alike addresses planted in a wallet's history."""
+    from crypttrace import poisoning as poison_mod
+    from datetime import timezone
+    when = lambda ts: datetime.fromtimestamp(ts, timezone.utc).strftime("%Y-%m-%d %H:%M UTC") \
+        if ts else "?"
+    try:
+        pairs = poison_mod.lookalikes(address, chain, limit)
+        lured = poison_mod.baited_payments(address, chain, limit)
+        spam = poison_mod.campaign(address, chain, limit)
+    except (chains_mod.ChainError, etherscan.EtherscanError) as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
+
+    paid = [p for p in pairs if p["sent_to_lookalike"] > 0]
+    for p in paid:
+        console.print(f"[bold red]✗ Money went to a look-alike:[/bold red] "
+                      f"{p['sent_to_lookalike']:.4f} {'/'.join(p['symbols'])} sent to it")
+        console.print(f"    real address   {p['genuine']}")
+        console.print(f"    look-alike     {p['lookalike']}")
+        console.print(f"    same first {p['matching']['prefix']} and last "
+                      f"{p['matching']['suffix']} characters; first seen {when(p['lookalike_first_seen'])}")
+    if paid:
+        console.print("  This is address poisoning. Run [bold]crypttrace investigate "
+                      f"{paid[0]['lookalike']} --chain {chain}[/bold] to follow the money.\n")
+
+    planted = [p for p in pairs if p["sent_to_lookalike"] <= 0]
+    if planted:
+        console.print(f"[yellow]![/yellow] {len(planted)} look-alike address(es) planted in this "
+                      "history — never copy an address from here:")
+        for p in planted[:10]:
+            console.print(f"    {poison_mod.short(p['lookalike'], chain)} imitates "
+                          f"{poison_mod.short(p['genuine'], chain)}  [dim]({p['resemblance']} "
+                          f"match, {p['bait_transfers']} bait transfer(s), "
+                          f"{when(p['lookalike_first_seen'])})[/dim]")
+        console.print()
+
+    for x in lured:
+        tag = f"imitating [bold]{x['imitates']}[/bold]" if x["imitates"] \
+            else "[dim](the imitated address was not found in the payer's recent history)[/dim]"
+        console.print(f"[bold red]✗ Lured payment:[/bold red] {x['payer']} paid "
+                      f"{x['paid']:.2f} {x['symbol']} on {when(x['paid_ts'])}, after this "
+                      f"address lured it ({x['lure']}) — {tag}")
+    if spam:
+        console.print(f"[bold red]✗ Poisoning campaign:[/bold red] this address sent "
+                      f"{spam['bait_transfers']} zero/dust/counterfeit transfers to "
+                      f"{spam['targets']} different wallets.")
+
+    if not (pairs or lured or spam):
+        console.print("[green]No look-alike addresses or poisoning pattern found[/green] "
+                      f"[dim]in the last {limit} transfers.[/dim]")
+
+
+@app.command()
 def offramp(
     address: str = typer.Argument(..., help="Address to check"),
     chain: str = CHAIN_OPT,

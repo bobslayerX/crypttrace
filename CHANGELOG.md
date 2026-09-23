@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.5.0
+
+### Added
+- **Address poisoning** — `crypttrace poisoning ADDRESS`. On a wallet: look-alike
+  addresses planted in its history and any money sent to one. On the address the
+  money went to: payments made right after it lured the payer, and the address it
+  imitates. Also part of `assess`, `investigate` and the web UI's assessment.
+  Checked against a documented $9.4M Tron campaign, where it finds the victims
+  and the imitated addresses.
+
+### Fixed
+- **Tron:** token history read `Approval` events as transfers, so an unlimited
+  USDT approval showed up as a transfer of about 10^59 USDT and wrecked totals,
+  traces and assessments for any address that had ever approved a contract.
+- **Solana:** after a token query, SOL history served from the local store
+  included SPL token rows, adding token amounts to SOL balances and flows. Stores
+  already affected are read correctly too. Solana token history is now cached
+  instead of re-fetched every time.
+
 ## 0.4.0
 
 ### Added

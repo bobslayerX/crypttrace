@@ -129,6 +129,10 @@ It is also honest with you: most stolen crypto is not recovered, and what
 matters is speed and whether the funds touch a regulated exchange. The tool
 gives you evidence and timing — it cannot move funds or name a person by itself.
 
+**Sent money to an address that looked right?** That is usually address
+poisoning — see below. Check your own wallet with
+`crypttrace poisoning YOUR_ADDRESS`.
+
 ## Commands
 
 ```bash
@@ -156,6 +160,9 @@ crypttrace tokens 0xADDRESS
 
 # Who bootstrapped this wallet's first gas? Follow it toward a KYC point
 crypttrace funder 0xADDRESS --hops 6
+
+# Address poisoning: look-alike addresses planted in a wallet's history
+crypttrace poisoning TADDRESS --chain tron
 
 # Is this an exchange deposit address (i.e. the cash-out point)?
 crypttrace offramp 0xADDRESS
@@ -233,6 +240,33 @@ crypttrace watch run --once             # single check, for scheduled tasks
 
 Optional Telegram alerts: set `CRYPTTRACE_TG_TOKEN` and `CRYPTTRACE_TG_CHAT`,
 then pass `--telegram`.
+
+### Address poisoning
+
+Wallets show addresses shortened — `TDDD34…rCr9Ps`. A poisoner generates an
+address with the same first and last characters and plants it in the victim's
+history with a zero-value transfer, a speck of dust or a counterfeit token. The
+next time the victim copies "the address I paid last time", they copy the
+attacker's. It is common on Tron and Ethereum, and it needs no hacking at all.
+
+`crypttrace poisoning` looks at it from both ends:
+
+- **Your wallet:** pairs of addresses in your history that share their visible
+  characters, which one arrived later with bait, and — the part that matters —
+  whether you then sent real money to it.
+- **The address your money went to:** who paid it real money right after it
+  lured them, and which address it was imitating, read from the payer's own
+  history. `investigate` and the assessment run this automatically.
+
+Tested on a documented Tron case from August 2026: from the victim's wallet it
+finds the 2,527,862 USDT sent to `TDDDHi…rCr9Ps`, a look-alike of
+`TDDD34…rCr9Ps`, an address the wallet had paid 8.4M USDT in all. From the
+attacker's side it finds the same payment and two more victims of $2.4M and
+$2.0M, each lured by a look-alike created three to twelve minutes earlier.
+
+Cheap look-alikes match only one or two characters at each end, which happens
+by chance; those are reported only when they arrived as bait after the real
+address was in use.
 
 ### Off-ramp detection
 
@@ -462,8 +496,6 @@ cases/             # worked investigations with their data
 
 - More exchanges on Bitcoin, Tron and Solana (now: Binance, OKX, HTX, Bybit),
   and refreshing these lists as the exchanges republish them
-- Address-poisoning detection: flag look-alike addresses (same first and last
-  characters) in a victim's history before they copy the wrong one
 - Stablecoin freeze check: whether USDT/USDC at an address is already frozen
   by the issuer, and who to ask for a freeze
 - `report --html`: one self-contained file with the interactive graph, to

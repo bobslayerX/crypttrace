@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from crypttrace import chains, prices, report as report_mod, trace as trace_mod
-from crypttrace import funder as funder_mod, offramp as offramp_mod
+from crypttrace import funder as funder_mod, offramp as offramp_mod, poisoning
 from crypttrace.labels import labels
 
 
@@ -78,6 +78,11 @@ def analyse(address: str, chain: str = "eth", asset: Optional[dict] = None,
     except Exception:
         result["offramp"] = None
 
+    try:
+        result["poisoning"] = poisoning.baited_payments(address, chain)
+    except chains.ChainError:
+        result["poisoning"] = []
+
     result["guidance"] = build_guidance(result)
     return result
 
@@ -124,6 +129,22 @@ def build_guidance(r: dict) -> dict:
         steps.append({
             "title": "Look deeper",
             "body": "Run the trace again with a larger --depth (4 or 5).",
+            "urgent": False,
+        })
+
+    lured = r.get("poisoning") or []
+    if lured:
+        x = lured[0]
+        like = (f", made to look like {x['imitates']}, an address the sender had really "
+                f"used before" if x["imitates"] else "")
+        steps.insert(0, {
+            "title": "How it happened: address poisoning",
+            "body": (f"{x['payer']} sent {x['paid']:.2f} {x['symbol']} to this address{like}. "
+                     "Before that, this address had planted itself in that wallet's "
+                     "history, so it was copied from there by mistake. Tell the exchange "
+                     "and the police it is an address-poisoning case. Never copy an "
+                     "address from your transaction history; check your own wallet for "
+                     "other look-alikes with: crypttrace poisoning YOUR_ADDRESS"),
             "urgent": False,
         })
 

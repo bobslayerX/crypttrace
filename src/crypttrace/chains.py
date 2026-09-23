@@ -151,11 +151,19 @@ def transfers(address: str, chain: str = "eth", limit: int = 1000,
     contract = asset.get("contract") if asset else None
 
     from crypttrace import store
-    asset_key = (contract or "").lower()
+    # What the stored rows are filed under: "" native, a contract, "*" every
+    # token, or "spl" on Solana, whose token rows carry no mint to tell apart.
+    if not asset:
+        asset_key = ""
+    elif chain == "sol":
+        asset_key = "spl"
+    else:
+        asset_key = (contract or "*").lower()
     skip_read = fresh or FORCE_FRESH
     if USE_STORE and not skip_read:
         if OFFLINE or store.is_fresh(chain, address, asset_key):
-            rows = store.load(address=address, chain=chain, contract=contract or "")
+            rows = store.load(address=address, chain=chain, contract=asset_key,
+                              native_symbol=symbol(chain))
             if rows or OFFLINE:
                 rows.sort(key=lambda r: r.get("timestamp", 0), reverse=not oldest_first)
                 return rows

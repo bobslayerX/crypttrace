@@ -109,6 +109,10 @@ def token_transfers(address: str, limit: int = 200) -> List[Dict]:
     d = _get(f"/v1/accounts/{address}/transactions/trc20", {"limit": min(limit, 200)})
     rows = []
     for t in d.get("data", []) or []:
+        # the endpoint also lists Approval events, whose "value" is an allowance
+        # (often 2**256-1), not money that moved
+        if t.get("type", "Transfer") != "Transfer":
+            continue
         info = t.get("token_info") or {}
         dec = int(info.get("decimals") or 6)
         try:

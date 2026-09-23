@@ -389,6 +389,102 @@ try:
 finally:
     chains.transfers = real_transfers
 
+# ---------------------------------------------------------------- poisoning
+section("11. Address poisoning")
+from crypttrace import poisoning
+from crypttrace.fetchers import tron as tron_fetch
+
+USDT_ETH = "0xdac17f958d2ee523a2206206994597c13d831ec7"
+VICTIM = "0x" + "9" * 40
+GENUINE = "0x1234" + "a" * 32 + "5678"
+LOOKALIKE = "0x1234" + "b" * 32 + "5678"          # same first 4 and last 4
+t_paid, t_bait, t_loss = T0, T0 + 600, T0 + 3600
+
+def usdt(frm, to, v, ts, contract=USDT_ETH):
+    return {"from": frm, "to": to, "value": v, "timestamp": ts, "hash": f"{frm[-4:]}{ts}",
+            "symbol": "USDT", "contract": contract}
+
+EVM_ROWS = [usdt(VICTIM, GENUINE, 1000.0, t_paid),
+            usdt(VICTIM, LOOKALIKE, 0.0, t_bait),        # transferFrom(victim, look-alike, 0)
+            usdt(VICTIM, LOOKALIKE, 5000.0, t_loss)]     # the copy-paste mistake
+
+def evm_history(addr, chain="eth", limit=1000, asset=None, **kw):
+    if not asset:
+        return []
+    return [r for r in EVM_ROWS if addr in (r["from"], r["to"])]
+
+chains.transfers = evm_history
+try:
+    pairs = poisoning.lookalikes(VICTIM, "eth")
+    check("victim side: the look-alike and the money sent to it are found",
+          len(pairs) == 1 and pairs[0]["lookalike"] == LOOKALIKE
+          and pairs[0]["genuine"] == GENUINE and pairs[0]["sent_to_lookalike"] == 5000.0,
+          str(pairs)[:200])
+    lured = poisoning.baited_payments(LOOKALIKE, "eth")
+    check("attacker side: the victim's payment is traced to the zero-value bait",
+          len(lured) == 1 and lured[0]["payer"] == VICTIM and lured[0]["imitates"] == GENUINE,
+          str(lured)[:200])
+    check("a counterfeit USDT is bait whatever its amount",
+          poisoning._is_bait(usdt(LOOKALIKE, VICTIM, 5000.0, T0, contract="0x" + "c" * 40), "eth"))
+finally:
+    chains.transfers = real_transfers
+
+# Tron: the cheap look-alike (first and last two characters) arrives as TRX dust
+TV = "TLZsJPRMVYzqHVUu2Vo6pfnD4hbFfoDYfu"
+TG, TL = "TM1zzNDZD2DPASbKcgdVoTYhfmYgtfwx9R", "TMyUjSnEgD6BuAbdyFT71uHgDqyrRgBx9R"
+TN = "TMabcdefghijkmnopqrstuvwxyzABCDx9R"           # matches as weakly, but no bait
+OPER, FRESH = "TWkvffFDMsqbmTLkMHMABmw452Hyq98cdn", "TDDDHi26zb2NhGRH6gwEa414RAvNrCr9Ps"
+def trx(frm, to, v, ts):
+    return {"from": frm, "to": to, "value": v, "timestamp": ts, "hash": f"{frm[-3:]}{ts}", "symbol": "TRX"}
+TRON_ROWS = [trx(TV, TG, 800.0, T0), trx(TL, TV, 0.000001, T0 + 60), trx(TV, TN, 300.0, T0 + 120),
+             trx(OPER, FRESH, 0.0, T0), {**usdt(OPER, FRESH, 1.01, T0 + 30,
+                                                "tr7nhqjekqxgtci8q8zy4pl8otszgjlj6t")}]
+def tron_history(addr, chain="eth", limit=1000, asset=None, **kw):
+    rows = [r for r in TRON_ROWS if addr in (r["from"], r["to"])]
+    return [r for r in rows if bool(r.get("contract")) == bool(asset)]
+chains.transfers = tron_history
+try:
+    pairs = poisoning.lookalikes(TV, "tron")
+    check("a two-character look-alike planted with dust is flagged",
+          [(p["genuine"], p["lookalike"], p["resemblance"]) for p in pairs] == [(TG, TL, "weak")],
+          str(pairs)[:200])
+    check("an operator topping up a fresh address is not a victim's payment",
+          poisoning.baited_payments(FRESH, "tron") == [])
+finally:
+    chains.transfers = real_transfers
+
+# TronGrid lists Approval events next to transfers; an allowance is not a payment
+real_get = tron_fetch._get
+tron_fetch._get = lambda path, params=None, timeout=30: {"data": [
+    {"type": "Transfer", "from": OPER, "to": FRESH, "value": "1010000", "block_timestamp": 1000,
+     "transaction_id": "a", "token_info": {"symbol": "USDT", "decimals": 6, "address": "TR7NH"}},
+    {"type": "Approval", "from": FRESH, "to": OPER, "value": str(2 ** 256 - 1), "block_timestamp": 2000,
+     "transaction_id": "b", "token_info": {"symbol": "USDT", "decimals": 6, "address": "TR7NH"}}]}
+try:
+    got = tron_fetch.token_transfers(FRESH)
+    check("Tron approvals are not read as 10^59 USDT transfers",
+          len(got) == 1 and got[0]["value"] == 1.01, str(got)[:160])
+finally:
+    tron_fetch._get = real_get
+
+# Solana: a token query must not leak SPL rows into the SOL history. The SPL row
+# carries no contract here — the shape stores written by 0.4.0 and earlier hold.
+from crypttrace.fetchers import solana as sol_fetch
+SA = "5tzFkiKscXHK5ZXCGbXZxdw7gTjjD1mBwuoFbhUvuAi9"
+real_sol = sol_fetch.transfers
+sol_fetch.transfers = lambda a, limit=1000: [
+    {"from": "X" * 43 + "1", "to": SA, "value": 2.0, "timestamp": 1, "hash": "s", "symbol": "SOL"},
+    {"from": "Y" * 43 + "1", "to": SA, "value": 5000.0, "timestamp": 2, "hash": "t", "symbol": "SPL"}]
+try:
+    from crypttrace import assets as assets_mod
+    chains.transfers(SA, "sol")                              # SOL history now stored
+    chains.transfers(SA, "sol", asset=assets_mod.resolve_asset("usdc", "sol"))
+    again = chains.transfers(SA, "sol")                      # served from the store
+    check("SOL history stays SOL after a token query", [r["symbol"] for r in again] == ["SOL"],
+          str(again))
+finally:
+    sol_fetch.transfers = real_sol
+
 # ---------------------------------------------------------------- result
 print("\n" + "=" * 72)
 print(f"RESULT: {len(PASSED)} passed, {len(FAILED)} failed")

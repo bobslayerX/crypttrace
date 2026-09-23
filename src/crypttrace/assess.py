@@ -14,7 +14,7 @@ from collections import Counter
 from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Optional
 
-from crypttrace import analysis, chains
+from crypttrace import analysis, chains, poisoning
 from crypttrace.labels import labels
 
 
@@ -197,6 +197,43 @@ def assess(address: str, chain: str = "eth", asset: Optional[dict] = None,
             confidence="medium", weight=15,
             evidence={"amount": exposure["bridge"], "bridge": named["bridge"]}))
 
+    # --- address poisoning ----------------------------------------------
+    try:
+        lured = poisoning.baited_payments(address, chain)
+        pairs = poisoning.lookalikes(address, chain)
+        spam = poisoning.campaign(address, chain)
+    except chains.ChainError:
+        lured, pairs, spam = [], [], None
+    if lured:
+        top = lured[0]
+        confirmed = [x for x in lured if x["imitates"]]
+        signals.append(Signal(
+            name="address poisoning",
+            observed=(f"{len(lured)} payer(s) sent real money right after this address lured "
+                      f"them ({top['lure']}); largest {top['paid']:.2f} {top['symbol']}"
+                      + (f", imitating {confirmed[0]['imitates']}" if confirmed else "")),
+            implication="payments made to a look-alike of an address the payer really meant — "
+                        "the victim copied this address from their own history",
+            confidence="high" if confirmed else "medium", weight=55,
+            evidence={"payments": lured[:5]}))
+    if spam:
+        signals.append(Signal(
+            name="poisoning campaign",
+            observed=(f"sent {spam['bait_transfers']} zero, dust or counterfeit transfers to "
+                      f"{spam['targets']} different wallets"),
+            implication="plants itself in strangers' histories — the address-poisoning pattern",
+            confidence="high", weight=40, evidence=spam))
+    sent_to_fake = [p for p in pairs if p["sent_to_lookalike"] > 0]
+    if sent_to_fake:
+        p = sent_to_fake[0]
+        signals.append(Signal(
+            name="paid a look-alike",
+            observed=(f"sent {p['sent_to_lookalike']:.2f} to {p['lookalike']}, which imitates "
+                      f"{p['genuine']} (same first {p['matching']['prefix']} and last "
+                      f"{p['matching']['suffix']} characters)"),
+            implication="this wallet was likely the victim of address poisoning",
+            confidence=p["confidence"], weight=0, evidence={"pairs": sent_to_fake[:5]}))
+
     # --- holding behaviour ---------------------------------------------
     if received > 0 and sent == 0 and len(inbound) >= 3:
         signals.append(Signal(
@@ -267,6 +304,16 @@ def _statement(signals: List[Signal], risk: int, confidence: str, hit) -> str:
     if "cross-chain movement" in names:
         parts.append("Some value left this chain through a bridge and would need to be "
                      "picked up on the destination network.")
+    if "address poisoning" in names:
+        parts.append("Money reached this address through address poisoning: it was made to "
+                     "look like an address the payer really meant, and planted in their "
+                     "history first.")
+    if "poisoning campaign" in names:
+        parts.append("It sends worthless transfers to many strangers, the way poisoners "
+                     "plant look-alike addresses.")
+    if "paid a look-alike" in names:
+        parts.append("This wallet sent money to a look-alike of an address it had used "
+                     "before — the signature of an address-poisoning theft.")
     if "funds held" in names:
         parts.append("The proceeds have not been spent, so intervention is still possible.")
     parts.append(f"Overall risk {risk}/100, confidence {confidence}.")
