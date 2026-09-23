@@ -174,20 +174,30 @@ def collect(address: str, chain: str, depth: int, branching: int, asset=None) ->
 def generate(address: str, chain: str, depth: int, branching: int,
              out_dir: Path, asset=None, guidance: Optional[dict] = None) -> Dict[str, Path]:
     """Write <case>.html, <case>.md and <case>.json; returns their paths."""
-    data = collect(address, chain, depth, branching, asset)
-    if guidance:
-        data["guidance"] = guidance
+    data, raw, digest = build(address, chain, depth, branching, asset, guidance)
     out_dir.mkdir(parents=True, exist_ok=True)
-    base = f"{chain}_{address[:10]}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    base = case_name(address, chain)
     paths = {k: out_dir / f"{base}.{k}" for k in ("html", "md", "json")}
-    raw = json.dumps(data, indent=2, ensure_ascii=False, default=str)
     # bytes, not text mode: on Windows text mode turns LF into CRLF, and the hash
     # printed in the HTML would no longer match the file next to it
     paths["json"].write_bytes(raw.encode("utf-8"))
-    digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()
     paths["md"].write_text(_render_md(data, paths["json"].name), encoding="utf-8")
     paths["html"].write_text(render_html(data, raw, digest, paths["json"].name), encoding="utf-8")
     return paths
+
+
+def case_name(address: str, chain: str) -> str:
+    return f"{chain}_{address[:10]}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+
+def build(address: str, chain: str, depth: int, branching: int, asset=None,
+          guidance: Optional[dict] = None):
+    """(data, raw JSON, its SHA-256) — the web UI renders the page from this in memory."""
+    data = collect(address, chain, depth, branching, asset)
+    if guidance:
+        data["guidance"] = guidance
+    raw = json.dumps(data, indent=2, ensure_ascii=False, default=str)
+    return data, raw, hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 # ------------------------------------------------------------------ markdown
@@ -460,8 +470,10 @@ def render_html(d: dict, raw_json: str, digest: str, json_name: str) -> str:
     P.append(f"<h2>Method and limits</h2><p>{_e(_METHOD)}</p>")
     if d.get("errors"):
         P.append("<p class='muted'>Parts that could not be read: " + _e("; ".join(d["errors"])) + "</p>")
-    P.append(f"<p class='muted'>The raw data is saved next to this file as <span class='mono'>{_e(json_name)}"
-             f"</span> (SHA-256 <span class='mono'>{digest}</span>) and embedded below for analysts.</p>")
+    where = (f"saved next to this file as <span class='mono'>{_e(json_name)}</span>"
+             if json_name else "embedded in this file")
+    P.append(f"<p class='muted'>The raw data is {where} (SHA-256 of the JSON: "
+             f"<span class='mono'>{digest}</span>) and embedded below for analysts.</p>")
     # JSON inside <script type=application/json> is data, never executed. Every "<" is
     # written as < (still valid JSON), so a crafted token or label name can neither
     # close the element nor push the parser into its "<!--<script" escaping states.

@@ -228,6 +228,7 @@
   <select id="depth" title="Depth"><option>2</option><option selected>3</option><option>4</option><option>5</option></select>
   <button id="go">Investigate</button>
   <button id="fit" class="ghost" title="Fit graph to view">Fit</button>
+  <button id="casefile" class="ghost" title="Download a one-page case file for an exchange or the police">Case file</button>
 </div>
 
 <div class="legend">
@@ -246,6 +247,7 @@
     <button class="tab" data-view="assess">Assessment</button>
     <button class="tab" data-view="timeline">Timeline</button>
     <button class="tab" data-view="victims">Who sent funds here</button>
+    <button class="tab" data-view="poison">Poisoning</button>
   </div>
   <div class="stage">
     <div class="loader" id="loader"></div>
@@ -255,6 +257,7 @@
     <div class="view" id="v-assess"></div>
     <div class="view" id="v-timeline"></div>
     <div class="view" id="v-victims"></div>
+    <div class="view" id="v-poison"></div>
     <div class="scaleview" id="scaleview" style="display:none">100%</div>
     <div class="zoomctl" id="zoomctl">
       <button id="zin"  title="Zoom in">+</button>
@@ -474,7 +477,7 @@ async function run(){
   setStatus('tracing the chain…',false,true); loader(35);
   $('#hint').classList.add('hide');
   loaded={};                       // new address -> other views must reload
-  $('#v-timeline').innerHTML=''; $('#v-victims').innerHTML=''; $('#v-assess').innerHTML='';
+  $('#v-timeline').innerHTML=''; $('#v-victims').innerHTML=''; $('#v-assess').innerHTML=''; $('#v-poison').innerHTML='';
   try{
     const dir=$('#direction').value;
     const g=await api(`/api/trace?address=${q(a)}&chain=${chain()}&depth=${$('#depth').value}&asset=${q($('#asset').value)}&direction=${dir}`);
@@ -524,12 +527,14 @@ function showView(v){
   $('#v-assess').classList.toggle('on',v==='assess');
   $('#v-timeline').classList.toggle('on',v==='timeline');
   $('#v-victims').classList.toggle('on',v==='victims');
+  $('#v-poison').classList.toggle('on',v==='poison');
   const a=$('#addr').value.trim();
   if(a && !loaded[v+a]) {
     loaded[v+a]=true;
     if(v==='timeline') loadTimeline(a);
     if(v==='victims') loadVictims(a);
     if(v==='assess') loadAssessment(a);
+    if(v==='poison') loadPoisoning(a);
   }
 }
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>showView(t.dataset.view));
@@ -646,6 +651,67 @@ async function verifyInto(container, addr){
       ${(v.notes||[]).slice(0,2).map(n=>`<div class="vfy-note">• ${esc(n)}</div>`).join('')}`;
   }catch(e){ slot.innerHTML=`<span class="vfy vfy-unavailable">verification unavailable</span>`; }
 }
+
+// Address poisoning: look-alikes planted in this wallet's history, and — seen from
+// the other side — payments this address received right after luring the payer.
+async function loadPoisoning(a){
+  const el=$('#v-poison');
+  el.innerHTML='<div class="muted"><span class="spin"></span>Comparing every address in this history…</div>';
+  try{
+    const r=await api(`/api/poisoning?address=${q(a)}&chain=${chain()}`);
+    const amt=v=>Number(v).toLocaleString(undefined,{maximumFractionDigits:2});
+    const addr=x=>`<a class="mono" href="${safeUrl(addrUrl(x))}" target="_blank" rel="noopener">${esc(x)}</a>`;
+    let h='';
+    for(const x of r.lured||[]){
+      h+=`<div class="verdict">Lured payment: ${addr(x.payer)} paid <b>${amt(x.paid)} ${esc(x.symbol)}</b>
+        on ${dstamp(x.paid_ts)} UTC, right after this address lured it (${esc(x.lure)}).
+        ${x.imitates?`It imitates ${addr(x.imitates)}, an address the payer had really used.`
+          :'<span class="muted">The imitated address was not found in the payer\'s recent history.</span>'}</div>`;
+    }
+    const paid=(r.lookalikes||[]).filter(p=>p.sent_to_lookalike>0);
+    for(const p of paid){
+      h+=`<div class="verdict">Money went to a look-alike: <b>${amt(p.sent_to_lookalike)} ${esc(p.symbols.join('/'))}</b>
+        <div class="kv"><span class="k">real address</span><span class="v">${addr(p.genuine)}</span></div>
+        <div class="kv"><span class="k">look-alike</span><span class="v">${addr(p.lookalike)}</span></div>
+        <div class="muted">Same first ${p.matching.prefix} and last ${p.matching.suffix} characters;
+        the look-alike first appeared ${dstamp(p.lookalike_first_seen)} UTC.</div></div>`;
+    }
+    if(r.campaign){
+      h+=`<div class="verdict">Poisoning campaign: this address sent ${r.campaign.bait_transfers} zero, dust or
+        counterfeit transfers to ${r.campaign.targets} different wallets.</div>`;
+    }
+    const planted=(r.lookalikes||[]).filter(p=>!(p.sent_to_lookalike>0));
+    if(planted.length){
+      h+=`<h3 style="font-size:11px;letter-spacing:.09em;color:var(--dim);margin:16px 0 8px">
+        ${planted.length} LOOK-ALIKE ADDRESS(ES) PLANTED IN THIS HISTORY — NEVER COPY AN ADDRESS FROM HERE</h3>
+        <table class="grid"><thead><tr><th>Look-alike</th><th>Imitates</th><th>Match</th>
+        <th style="text-align:right">Bait</th><th>First seen (UTC)</th></tr></thead><tbody>`+
+        planted.map(p=>`<tr><td>${addr(p.lookalike)}</td><td>${addr(p.genuine)}</td>
+          <td>${esc(p.resemblance)} (${p.matching.prefix}+${p.matching.suffix})</td>
+          <td class="num">${p.bait_transfers}</td><td>${dstamp(p.lookalike_first_seen)}</td></tr>`).join('')+
+        '</tbody></table>';
+    }
+    el.innerHTML=h||'<div class="muted">No look-alike addresses or poisoning pattern in this history.</div>';
+  }catch(e){ el.innerHTML=`<div class="err">${esc(e.message)}</div>`; }
+}
+
+// The case file: the same one-page HTML `crypttrace report` writes, built by the
+// backend and handed to the browser as a download.
+async function downloadCaseFile(){
+  const a=$('#addr').value.trim(), b=$('#casefile');
+  if(!a){ setStatus('enter an address',true); return; }
+  b.disabled=true; setStatus('building the case file…',false,true);
+  try{
+    const r=await fetch(`/api/report?address=${q(a)}&chain=${chain()}&asset=${q($('#asset').value)}&depth=${q($('#depth').value)}`);
+    if(!r.ok){ const j=await r.json().catch(()=>({})); throw new Error(j.error||`HTTP ${r.status}`); }
+    const name=((r.headers.get('Content-Disposition')||'').match(/filename="([^"]+)"/)||[])[1]||'case-file.html';
+    const u=URL.createObjectURL(await r.blob()), l=document.createElement('a');
+    l.href=u; l.download=name; l.click(); URL.revokeObjectURL(u);
+    setStatus(`case file saved: ${name}`);
+  }catch(e){ setStatus(e.message,true); }
+  finally{ b.disabled=false; }
+}
+$('#casefile').addEventListener('click',downloadCaseFile);
 
 function downloadCsv(){
   const head=['address','hop',`amount_sent_${victimSym}`,'transactions','first_seen_utc','last_seen_utc','label','explorer'];

@@ -424,6 +424,14 @@ try:
     check("attacker side: the victim's payment is traced to the zero-value bait",
           len(lured) == 1 and lured[0]["payer"] == VICTIM and lured[0]["imitates"] == GENUINE,
           str(lured)[:200])
+    try:
+        from crypttrace import webapp as _web
+        j = _web.create_app().test_client().get(
+            f"/api/poisoning?address={VICTIM}&chain=eth").get_json()
+        check("the web UI's Poisoning tab gets the same look-alike",
+              [p["lookalike"] for p in j.get("lookalikes", [])] == [LOOKALIKE], str(j)[:160])
+    except ImportError:
+        print("  SKIP  Flask is not installed")
     check("a counterfeit USDT is bait whatever its amount",
           poisoning._is_bait(usdt(LOOKALIKE, VICTIM, 5000.0, T0, contract="0x" + "c" * 40), "eth"))
 finally:
@@ -575,7 +583,7 @@ try:
     check("the graph and the transaction links are in it",
           page.count("<rect") == 3 and "mempool.space/tx/" + "bb" * 32 in page
           and "Binance" in page, f"{page.count('<rect')} boxes")
-    digest = _re.search(r"SHA-256 <span class='mono'>([0-9a-f]{64})", page).group(1)
+    digest = _re.search(r"SHA-256 of the JSON: <span class='mono'>([0-9a-f]{64})", page).group(1)
     check("the SHA-256 printed in the page is the JSON file's",
           hashlib.sha256(paths["json"].read_bytes()).hexdigest() == digest)
 
@@ -589,6 +597,16 @@ try:
           "<img src=x" not in hostile and "&lt;img src=x" in hostile)
     check("data embedded for analysts cannot close its script element",
           "</script><script>alert(2)" not in hostile)
+    try:
+        from crypttrace import webapp as _web
+        resp = _web.create_app().test_client().get(f"/api/report?address={SUBJ}&chain=btc&depth=3")
+        check("the web UI hands over the same case file as a download",
+              resp.status_code == 200 and resp.mimetype == "text/html"
+              and "attachment" in resp.headers.get("Content-Disposition", "")
+              and resp.get_data(as_text=True).count("<rect") == 3,
+              f"{resp.status_code} {resp.headers.get('Content-Disposition')}")
+    except ImportError:
+        print("  SKIP  Flask is not installed")
 finally:
     chains.transfers, prices.native_price = real_transfers, real_price
 
