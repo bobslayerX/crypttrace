@@ -310,8 +310,11 @@ SDN sanctioned-address list — and merges them into the local DB in
 `~/.crypttrace/`. The curated seed wins on conflicts, so richer names survive.
 Add sources in `labels/labels.py` → `SOURCES`.
 
-Labels are currently EVM-focused: on Bitcoin, Tron and Solana most nodes will
-show as `unknown`, and `offramp` won't fire there yet.
+Bitcoin, Tron and Solana coverage is currently Binance only: its reserve
+wallets, taken from the address list Binance publishes itself for
+proof-of-reserves. So `offramp` can flag Binance deposit addresses on those
+chains, but funds sent to other exchanges there will still show as `unknown`.
+Every label records where it came from — see `crypttrace labels audit`.
 
 ### Reports
 
