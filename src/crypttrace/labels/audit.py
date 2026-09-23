@@ -87,7 +87,9 @@ def audit() -> Dict:
 def evidence(address: str) -> Dict:
     """Why do we claim this address is what we say it is?"""
     raw = json.loads((_HERE / "known.json").read_text(encoding="utf-8"))
-    meta = raw.get(address.lower()) or raw.get(address)
+    # Tron/Solana keys keep their case (it carries the checksum), but callers
+    # often pass addresses already lower-cased by the label layer.
+    meta = raw.get(address) or {k.lower(): v for k, v in raw.items()}.get(address.lower())
     if not meta:
         return {"address": address, "known": False}
     return {
