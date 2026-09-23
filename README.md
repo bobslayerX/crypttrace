@@ -444,7 +444,14 @@ cases/             # worked investigations with their data
 
 ## Roadmap
 
-- Exchange/service labels for Bitcoin, Tron and Solana
+- Exchange labels on Bitcoin, Tron and Solana beyond Binance (OKX, Bybit,
+  Coinbase, Kraken…), taken from lists the exchanges publish themselves
+- Address-poisoning detection: flag look-alike addresses (same first and last
+  characters) in a victim's history before they copy the wrong one
+- Stablecoin freeze check: whether USDT/USDC at an address is already frozen
+  by the issuer, and who to ask for a freeze
+- `report --html`: one self-contained file with the interactive graph, to
+  send to an exchange or attach to a police report
 - `report --pdf` for exchange and law-enforcement filings
 - Internal transactions (completes `funder` and contract-mediated transfers)
 - Per-mint filtering for Solana SPL tokens
