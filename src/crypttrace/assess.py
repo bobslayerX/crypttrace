@@ -14,7 +14,7 @@ from collections import Counter
 from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Optional
 
-from crypttrace import chains
+from crypttrace import analysis, chains
 from crypttrace.labels import labels
 
 
@@ -67,17 +67,10 @@ def repeated_amounts(values: List[float], min_repeat: int = 3) -> List[tuple]:
 
 
 def burst(timestamps: List[int], fraction: float = 0.8) -> Optional[tuple]:
-    ts = sorted(t for t in timestamps if t)
-    n = len(ts)
-    if n < 5:
+    """(span_seconds, count, start_ts, end_ts) of the tightest burst; None under 5 events."""
+    if sum(1 for t in timestamps if t) < 5:
         return None
-    need = max(2, int(n * fraction))
-    best = None
-    for i in range(0, n - need + 1):
-        span = ts[i + need - 1] - ts[i]
-        if best is None or span < best[0]:
-            best = (span, need, ts[i], ts[i + need - 1])
-    return best
+    return analysis.tightest_window(timestamps, fraction)
 
 
 # ---------------------------------------------------------------- assessment

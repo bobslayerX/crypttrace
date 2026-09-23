@@ -4,6 +4,7 @@ Give it a suspicious address; it pulls the public on-chain history, labels
 known entities (exchanges, mixers, sanctioned wallets), and traces where the
 funds went.
 """
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -24,6 +25,16 @@ ASSET_OPT = typer.Option(
 )
 
 app = typer.Typer(add_completion=False, help=__doc__)
+
+# Output redirected to a file or run from Task Scheduler on Windows gets the ANSI
+# code page (e.g. cp1251), and the first arrow or emoji would crash the command.
+for _stream in (sys.stdout, sys.stderr):
+    if _stream and (getattr(_stream, "encoding", "") or "").lower().replace("-", "") != "utf8":
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
 console = Console()
 
 

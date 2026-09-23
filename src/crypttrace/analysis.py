@@ -10,6 +10,7 @@ Two things a fund-flow graph shows but can't hand you as evidence:
     transfers inside minutes, rather than spread over months.
 """
 import csv
+from bisect import bisect_left, bisect_right
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -134,6 +135,8 @@ def tightest_window(timestamps: List[int], fraction: float = 0.8) -> Optional[Tu
 
     Returns (span_seconds, count, start_ts, end_ts). This is what separates an
     automated sweep from normal wallet use: hundreds of transfers inside minutes.
+    `count` is every event inside the window, not just the `fraction` used to
+    find it: when many transfers share a timestamp, the window holds more.
     """
     ts = sorted(t for t in timestamps if t)
     n = len(ts)
@@ -145,8 +148,9 @@ def tightest_window(timestamps: List[int], fraction: float = 0.8) -> Optional[Tu
         j = i + need - 1
         span = ts[j] - ts[i]
         if best is None or span < best[0]:
-            best = (span, need, ts[i], ts[j])
-    return best
+            best = (span, ts[i], ts[j])
+    span, start, end = best
+    return span, bisect_right(ts, end) - bisect_left(ts, start), start, end
 
 
 def timeline(address: str, chain: str = "eth", asset: Optional[dict] = None,
@@ -199,7 +203,10 @@ def describe_burst(burst, total_events: int) -> Optional[str]:
         return None
     span, count, start, end = burst
     if span <= 0:
-        return f"All {count} transfers share one timestamp — a single batched operation."
+        if count >= total_events:
+            return f"All {count} transfers share one timestamp — a single batched operation."
+        return (f"{count} of {total_events} transfers share one timestamp "
+                f"({_ts(start)} UTC) — a single batched operation.")
     minutes = span / 60
     rate = count / max(minutes, 0.01)
     when = f"{_ts(start)} → {_ts(end)} UTC"
