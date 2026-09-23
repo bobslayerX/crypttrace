@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0
+
+### Added
+- **Stablecoin freezes** — `crypttrace freeze ADDRESS`: how much USDT/USDC is at
+  an address, whether Tether or Circle has already frozen it, and if not, what
+  each issuer needs to freeze it. Read from the issuers' own contracts on
+  Ethereum, Tron and Solana, with no API key. `investigate` makes it the first
+  step when stablecoins are still movable, the web UI shows it in the side
+  panel, and a freeze counts as a signal in the assessment.
+
 ## 0.5.0
 
 ### Added

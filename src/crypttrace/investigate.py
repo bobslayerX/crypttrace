@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from crypttrace import chains, prices, report as report_mod, trace as trace_mod
-from crypttrace import funder as funder_mod, offramp as offramp_mod, poisoning
+from crypttrace import freeze as freeze_mod, funder as funder_mod, offramp as offramp_mod, poisoning
 from crypttrace.labels import labels
 
 
@@ -83,6 +83,9 @@ def analyse(address: str, chain: str = "eth", asset: Optional[dict] = None,
     except chains.ChainError:
         result["poisoning"] = []
 
+    # an exchange's own wallet is the exchange's to freeze, not the issuer's
+    result["freeze"] = [] if result["type"] == "exchange" else freeze_mod.check(address, chain)
+
     result["guidance"] = build_guidance(result)
     return result
 
@@ -147,6 +150,23 @@ def build_guidance(r: dict) -> dict:
                      "other look-alikes with: crypttrace poisoning YOUR_ADDRESS"),
             "urgent": False,
         })
+
+    for e in r.get("freeze") or []:
+        if e.get("frozen"):
+            steps.insert(0, {
+                "title": f"{e['frozen_amount']:,.2f} {e['token']} here is already frozen by {e['issuer']}",
+                "body": ("It cannot be moved. Frozen funds can be returned to victims, but only "
+                         f"through a legal process: tell the police and {e['issuer']} that you "
+                         "are a victim of this address, and include this report."),
+                "urgent": True,
+            })
+        elif e.get("movable"):
+            steps.insert(0, {
+                "title": f"Ask for a freeze: {e['movable']:,.2f} {e['token']} is still here",
+                "body": (f"{e['how']} It can be moved at any moment, so this is the most "
+                         f"time-critical step. {e['issuer']}'s policy: {e['url']}"),
+                "urgent": True,
+            })
 
     # always-applicable steps
     steps.append({
