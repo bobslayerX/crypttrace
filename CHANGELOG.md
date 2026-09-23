@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.0
+
+### Added
+- `crypttrace update-labels --okx` downloads OKX's proof-of-reserves address
+  list — over 300,000 addresses OKX signed, nearly all of them customer deposit
+  addresses — and labels them directly. A deposit is recognised as soon as funds
+  arrive, not only after OKX sweeps it. The set lives in SQLite under
+  `~/.crypttrace/` (about 18 MB), is looked up per address, and never overrides
+  a curated label. `--okx-file` imports a copy you downloaded yourself.
+  `offramp` treats these as deposits, not exchange wallets, so a wallet that
+  merely paid *into* one is not mistaken for a deposit address itself.
+- `labels audit` lists downloaded sets; `labels why` explains their labels.
+
 ## 0.3.0
 
 ### Added

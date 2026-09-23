@@ -17,6 +17,7 @@ from typing import Optional, Dict, List
 import requests
 
 from crypttrace import addresses, config
+from crypttrace.labels import bulk
 
 _HERE = Path(__file__).parent
 _IMPORTED = config.DATA_DIR / "imported_labels.json"
@@ -179,7 +180,13 @@ def lookup(address: str) -> Optional[dict]:
     hit = _KNOWN.get(address.lower())
     if hit:
         return hit
-    return _match_partial(address)
+    return _match_partial(address) or bulk.lookup(address)
+
+
+def is_deposit(address: str) -> bool:
+    """A per-customer deposit address rather than one of the service's own wallets."""
+    hit = lookup(address)
+    return bool(hit and hit.get("role") == "deposit")
 
 
 def company(label: str) -> str:

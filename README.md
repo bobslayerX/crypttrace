@@ -182,6 +182,9 @@ crypttrace report 0xADDRESS --depth 3
 # Refresh label lists (OFAC sanctions, …)
 crypttrace update-labels
 
+# …and add OKX's ~300k signed deposit addresses (downloads ~80 MB once)
+crypttrace update-labels --okx
+
 # Launch the web UI / list chains
 crypttrace serve
 crypttrace chains
@@ -346,6 +349,16 @@ flag deposit addresses on those chains. Funds sent to an exchange not on that
 list still show as `unknown`. Every label records where it came from — see
 `crypttrace labels audit`.
 
+**Deposit addresses, labelled outright.** OKX signs every address that holds
+customer funds — over 300,000, nearly all of them per-customer deposit addresses
+— and publishes the list with its proof of reserves. `crypttrace update-labels
+--okx` downloads the latest one into `~/.crypttrace/` (about 18 MB once
+imported). With it, funds landing on an OKX deposit address are identified the
+moment they arrive, before OKX sweeps them onward — which is when a freeze
+request still has something to freeze. Without it, `offramp` only recognises a
+deposit address after it has forwarded the money. Rows without OKX's signature
+are ignored, and every address is checked before it is stored.
+
 ### Reports
 
 `report` runs the full analysis and writes to `~/crypttrace-reports/` (override
@@ -449,8 +462,6 @@ cases/             # worked investigations with their data
 
 - More exchanges on Bitcoin, Tron and Solana (now: Binance, OKX, HTX, Bybit),
   and refreshing these lists as the exchanges republish them
-- OKX's full signed address set (~310k, mostly deposit addresses) as an
-  optional `update-labels` download, so deposits are labelled outright
 - Address-poisoning detection: flag look-alike addresses (same first and last
   characters) in a victim's history before they copy the wrong one
 - Stablecoin freeze check: whether USDT/USDC at an address is already frozen
