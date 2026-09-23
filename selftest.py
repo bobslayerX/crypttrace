@@ -183,6 +183,18 @@ normal = [0.37182, 1.90211, 0.04417, 12.5502, 3.11119, 0.88321, 5.4409, 0.20177]
 check("ordinary amounts do not trigger it",
       assess.constant_fee_signature(normal) is None)
 
+# 78 sweeps in one batch plus one later transfer — shaped like collector C2.
+# The window used to report 80% of the total (63) instead of what it held.
+from crypttrace import analysis
+batch = [T0] * 78 + [T0 + 1860]
+w = analysis.tightest_window(batch)
+check("burst window counts every transfer inside it", w and w[1] == 78, str(w))
+verdict = analysis.describe_burst(w, len(batch))
+check("a batch that is not everything is not called 'all'",
+      verdict.startswith("78 of 79"), verdict)
+check("the assessment's burst agrees with the timeline's",
+      assess.burst(batch) == w, f"{assess.burst(batch)} vs {w}")
+
 a = assess.assess(COLLECTOR, "btc")
 print("\n        ASSESSMENT:")
 for line in a["assessment"].split(". "):
@@ -237,6 +249,20 @@ except ImportError:
     print("  SKIP  Flask is not installed — run: pip install -e \".[web]\"")
 
 store.clear()
+
+# ---------------------------------------------------------------- cli output
+section("8. CLI output when stdout is not a UTF-8 console")
+# Redirected output on Windows uses the ANSI code page (cp1251 on a Russian
+# system); an arrow or emoji used to crash the command outright.
+import subprocess
+env = dict(os.environ, PYTHONIOENCODING="cp1251")
+run = subprocess.run(
+    [sys.executable, "-c", "from crypttrace.cli import app; app()",
+     "label", "0x28c6c06298d514db089934071355e5743bf21d60"],
+    capture_output=True, env=env, timeout=120)
+out = run.stdout.decode("utf-8", "replace")
+check("labelled output survives a cp1251 stdout", run.returncode == 0 and "Binance" in out,
+      (run.stderr.decode("utf-8", "replace") or out)[-200:])
 
 # ---------------------------------------------------------------- result
 print("\n" + "=" * 72)

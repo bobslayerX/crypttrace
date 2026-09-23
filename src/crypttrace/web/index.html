@@ -320,7 +320,7 @@ const edgeUrl=(f,t)=>NON_EVM[chain()]?NON_EVM[chain()](t):`${explorer()}/advance
 
 function setStatus(t,err,busy){
   const s=$('#status');
-  s.innerHTML=(busy?'<span class="spin"></span>':'')+t;
+  s.innerHTML=(busy?'<span class="spin"></span>':'')+esc(t);
   s.style.color=err?'var(--red)':'var(--dim)';
 }
 function loader(p){ $('#loader').style.width=p+'%'; if(p>=100) setTimeout(()=>$('#loader').style.width='0',500); }
@@ -337,6 +337,11 @@ async function api(path){
 const fmtUsd=v=>v==null?'—':(Math.abs(v)>=1e6?'$'+(v/1e6).toFixed(2)+'M':Math.abs(v)>=1e3?'$'+(v/1e3).toFixed(1)+'K':'$'+v.toFixed(2));
 const fmtTs=t=>t?new Date(t*1000).toISOString().slice(0,16).replace('T',' '):'—';
 const short=a=>a.slice(0,10)+'…'+a.slice(-6);
+// Everything from the backend is data: token symbols and names come straight
+// from the chain, where anyone can deploy a token called whatever they like.
+const esc=s=>String(s??'').replace(/[<>&"']/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
+const safeUrl=u=>/^https?:\/\//i.test(String(u??''))?esc(u):'#';
+const q=encodeURIComponent;
 
 function renderGraph(g){
   lastGraph=g;
@@ -401,20 +406,20 @@ function renderGraph(g){
 
 const card=(t,r,cls='')=>`<div class="card ${cls}"><h3>${t}</h3>${r}</div>`;
 const kv=(k,v)=>`<div class="kv"><span class="k">${k}</span><span class="v">${v}</span></div>`;
-const pill=(t,l)=>`<span class="pill t-${t}">${l||t}</span>`;
+const pill=(t,l)=>`<span class="pill t-${esc(t)}">${esc(l||t)}</span>`;
 
 async function inspect(addr){
   const c=chain();
-  $('#side').innerHTML=`<div class="card"><div class="muted"><span class="spin"></span>Loading ${short(addr)}…</div></div>`;
+  $('#side').innerHTML=`<div class="card"><div class="muted"><span class="spin"></span>Loading ${esc(short(addr))}…</div></div>`;
   try{
     const [p,f,o]=await Promise.all([
-      api(`/api/profile?address=${addr}&chain=${c}`),
-      api(`/api/funder?address=${addr}&chain=${c}`).catch(()=>({hops:[]})),
-      api(`/api/offramp?address=${addr}&chain=${c}`).catch(()=>({offramp:null}))
+      api(`/api/profile?address=${q(addr)}&chain=${c}`),
+      api(`/api/funder?address=${q(addr)}&chain=${c}`).catch(()=>({hops:[]})),
+      api(`/api/offramp?address=${q(addr)}&chain=${c}`).catch(()=>({offramp:null}))
     ]);
     // A label is a claim about who controls an address — show what backs it.
     let ev={known:false};
-    try{ ev=await api(`/api/evidence?address=${addr}`); }catch{}
+    try{ ev=await api(`/api/evidence?address=${q(addr)}`); }catch{}
     const basis = ev.known
       ? (ev.source
           ? `<div class="vfy-note"><b>basis:</b> ${esc(ev.source)}</div>`
@@ -424,29 +429,29 @@ async function inspect(addr){
 
     let h='';
     h+=card('Address',
-      kv('address',`<span class="mono">${short(addr)}</span>`)+
+      kv('address',`<span class="mono">${esc(short(addr))}</span>`)+
       (p.label?kv('label',pill(p.type,p.label)):kv('type',pill(p.type)))+
       kv('risk',`${p.risk||0}/100`)+
       basis+
-      `<a class="btnlink" href="${addrUrl(addr)}" target="_blank" rel="noopener">Open on explorer ↗</a>`);
+      `<a class="btnlink" href="${safeUrl(addrUrl(addr))}" target="_blank" rel="noopener">Open on explorer ↗</a>`);
     h+=card('Profile',
-      kv('balance',`${p.balance} ${p.symbol||''} ≈ ${fmtUsd(p.balance_usd)}`)+
+      kv('balance',`${esc(p.balance)} ${esc(p.symbol||'')} ≈ ${fmtUsd(p.balance_usd)}`)+
       kv('transfers',p.txs)+
       kv('first seen',fmtTs(p.first_seen))+
       kv('last seen',fmtTs(p.last_seen)));
     if(o.offramp){
       h+=card('⚠ Off-ramp detected',
         `<div class="muted">~${Math.round(o.offramp.fraction*100)}% of outgoing funds forwarded to
-        <b style="color:var(--green)">${o.offramp.exchange}</b> — likely a deposit address, i.e. a
+        <b style="color:var(--green)">${esc(o.offramp.exchange)}</b> — likely a deposit address, i.e. a
         <b>KYC identification point</b>.</div>`,'alert');
     }
     if(f.hops&&f.hops.length){
       h+=card('First-funder chain',
         f.hops.map(x=>kv('◀ funded by',
-          `<span class="mono">${short(x.funder)}</span> · ${x.value.toFixed(3)} ${x.terminal?pill(x.funder_type,x.funder_label||x.funder_type):''}`)).join(''));
+          `<span class="mono">${esc(short(x.funder))}</span> · ${x.value.toFixed(3)} ${x.terminal?pill(x.funder_type,x.funder_label||x.funder_type):''}`)).join(''));
     }
     $('#side').innerHTML=h;
-  }catch(e){ $('#side').innerHTML=card('Error',`<div class="err">${e.message}</div>`); }
+  }catch(e){ $('#side').innerHTML=card('Error',`<div class="err">${esc(e.message)}</div>`); }
 }
 
 async function run(){
@@ -458,7 +463,7 @@ async function run(){
   $('#v-timeline').innerHTML=''; $('#v-victims').innerHTML=''; $('#v-assess').innerHTML='';
   try{
     const dir=$('#direction').value;
-    const g=await api(`/api/trace?address=${a}&chain=${chain()}&depth=${$('#depth').value}&asset=${$('#asset').value}&direction=${dir}`);
+    const g=await api(`/api/trace?address=${q(a)}&chain=${chain()}&depth=${$('#depth').value}&asset=${q($('#asset').value)}&direction=${dir}`);
     loader(80); renderGraph(g);
     setStatus(`${g.nodes.length} addresses · ${g.edges.length} transfers`);
     // BTC/Tron/Solana addresses are case-sensitive — never lowercase them
@@ -485,7 +490,7 @@ async function syncAssets(){
     : '0x…  paste an address to investigate';
   try{
     const r=await api(`/api/assets?chain=${c}`);
-    sel.innerHTML=r.assets.map(o=>`<option value="${o.value}">${o.label}</option>`).join('');
+    sel.innerHTML=r.assets.map(o=>`<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');
     sel.disabled=r.assets.length<2;
     sel.style.opacity=sel.disabled?.55:1;
     sel.title=sel.disabled?'No tokens on this chain':'Asset to trace';
@@ -516,13 +521,11 @@ function showView(v){
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>showView(t.dataset.view));
 
 const dstamp=t=>t?new Date(t*1000).toISOString().slice(0,16).replace('T',' '):'—';
-const esc=s=>String(s??'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
-
 async function loadTimeline(a){
   const el=$('#v-timeline');
   el.innerHTML='<div class="muted"><span class="spin"></span>Reading transfer history…</div>';
   try{
-    const t=await api(`/api/timeline?address=${a}&chain=${chain()}&asset=${$('#asset').value}&buckets=24`);
+    const t=await api(`/api/timeline?address=${q(a)}&chain=${chain()}&asset=${q($('#asset').value)}&buckets=24`);
     if(!t.events){ el.innerHTML='<div class="muted">No dated transfers found.</div>'; return; }
     const peak=Math.max(...t.buckets.map(b=>b.count),1);
     const bars=t.buckets.filter(b=>b.count).map(b=>`
@@ -532,8 +535,8 @@ async function loadTimeline(a){
     el.innerHTML=`
       <div class="stat">
         <div>transfers<b>${t.events}</b></div>
-        <div>received<b>${t.in_total.toFixed(6)} ${t.symbol}</b></div>
-        <div>sent<b>${t.out_total.toFixed(6)} ${t.symbol}</b></div>
+        <div>received<b>${t.in_total.toFixed(6)} ${esc(t.symbol)}</b></div>
+        <div>sent<b>${t.out_total.toFixed(6)} ${esc(t.symbol)}</b></div>
         <div>first<b>${dstamp(t.first_ts)}</b></div>
         <div>last<b>${dstamp(t.last_ts)}</b></div>
       </div>
@@ -550,13 +553,13 @@ async function loadAssessment(a){
   const el=$('#v-assess');
   el.innerHTML='<div class="muted"><span class="spin"></span>Weighing the evidence…</div>';
   try{
-    const r=await api(`/api/assess?address=${a}&chain=${chain()}&asset=${$('#asset').value}`);
+    const r=await api(`/api/assess?address=${q(a)}&chain=${chain()}&asset=${q($('#asset').value)}`);
     const band = r.risk>=60?'high' : r.risk>=25?'med' : 'low';
     const sigs=(r.signals||[]).map(s=>`
       <div class="sig">
         <div class="sig-head">
           <span class="sig-name">${esc(s.name)}</span>
-          <span class="sig-conf conf-${s.confidence}">${s.confidence} confidence</span>
+          <span class="sig-conf conf-${esc(s.confidence)}">${esc(s.confidence)} confidence</span>
         </div>
         <div class="sig-line"><b>observed</b> — ${esc(s.observed)}</div>
         <div class="sig-line"><b>means</b> — ${esc(s.implication)}</div>
@@ -584,25 +587,25 @@ async function loadVictims(a){
   const el=$('#v-victims');
   el.innerHTML='<div class="muted"><span class="spin"></span>Walking the money backwards…</div>';
   try{
-    const v=await api(`/api/victims?address=${a}&chain=${chain()}&asset=${$('#asset').value}&depth=1`);
+    const v=await api(`/api/victims?address=${q(a)}&chain=${chain()}&asset=${q($('#asset').value)}&depth=1`);
     victimRows=v.rows; victimSym=v.symbol;
     if(!v.count){ el.innerHTML='<div class="muted">Nothing fed this address.</div>'; return; }
     verifyInto(el, a);                       // is this list trustworthy?
     const rows=v.rows.slice(0,300).map(r=>`
       <tr><td class="mono">${esc(r.address.slice(0,18))}…${esc(r.address.slice(-6))}
-            ${r.label?`<span class="pill t-${r.type}" style="margin-left:6px">${esc(r.label)}</span>`:''}</td>
+            ${r.label?`<span class="pill t-${esc(r.type)}" style="margin-left:6px">${esc(r.label)}</span>`:''}</td>
           <td class="num">${r.hop}</td><td class="num">${r.value}</td><td class="num">${r.txs}</td>
           <td>${dstamp(r.first_seen)}</td>
-          <td><a class="btnlink" style="padding:3px 9px;margin:0" href="${r.explorer}" target="_blank" rel="noopener">open ↗</a></td></tr>`).join('');
+          <td><a class="btnlink" style="padding:3px 9px;margin:0" href="${safeUrl(r.explorer)}" target="_blank" rel="noopener">open ↗</a></td></tr>`).join('');
     el.innerHTML=`
       <div class="stat">
         <div>addresses<b>${v.count}</b></div>
-        <div>total sent in<b>${v.total} ${v.symbol}</b></div>
+        <div>total sent in<b>${esc(v.total)} ${esc(v.symbol)}</b></div>
         <div>&nbsp;<button class="ghost" id="csv" style="padding:7px 13px">Download CSV</button></div>
       </div>
       <table class="grid"><thead><tr>
         <th>Address</th><th style="text-align:right">Hop</th>
-        <th style="text-align:right">Sent (${v.symbol})</th><th style="text-align:right">Txs</th>
+        <th style="text-align:right">Sent (${esc(v.symbol)})</th><th style="text-align:right">Txs</th>
         <th>First seen (UTC)</th><th></th></tr></thead><tbody>${rows}</tbody></table>
       ${v.count>300?`<div class="muted" style="margin-top:12px">Showing the first 300 of ${v.count}; the CSV contains all.</div>`:''}`;
     $('#csv').onclick=downloadCsv;
@@ -619,11 +622,11 @@ async function verifyInto(container, addr){
   slot.innerHTML='<span class="vfy vfy-unchecked">checking…</span>';
   container.prepend(slot);
   try{
-    const v=await api(`/api/verify?address=${addr}&chain=${chain()}&asset=${$('#asset').value}`);
-    const rows=(v.checks||[]).map(c=>`<div><span>${c.name}</span>
-        <span class="mono">${c.computed.toFixed(8)} vs ${c.chain.toFixed(8)} ${v.symbol} ${c.ok?'✓':'✗'}</span></div>`).join('');
+    const v=await api(`/api/verify?address=${q(addr)}&chain=${chain()}&asset=${q($('#asset').value)}`);
+    const rows=(v.checks||[]).map(c=>`<div><span>${esc(c.name)}</span>
+        <span class="mono">${c.computed.toFixed(8)} vs ${c.chain.toFixed(8)} ${esc(v.symbol)} ${c.ok?'✓':'✗'}</span></div>`).join('');
     slot.innerHTML=`
-      <span class="vfy vfy-${v.status}">${VFY_ICON[v.status]||''} ${v.status}</span>
+      <span class="vfy vfy-${esc(v.status)}">${VFY_ICON[v.status]||''} ${esc(v.status)}</span>
       <div class="vfy-note">${esc(v.headline)}</div>
       ${rows?`<div class="vfy-rows">${rows}</div>`:''}
       ${(v.notes||[]).slice(0,2).map(n=>`<div class="vfy-note">• ${esc(n)}</div>`).join('')}`;
