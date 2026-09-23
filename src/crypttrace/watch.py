@@ -17,7 +17,7 @@ import requests
 
 from crypttrace.fetchers import etherscan
 from crypttrace.labels import labels
-from crypttrace import config, offramp
+from crypttrace import chains, config, offramp
 
 WATCHLIST = config.DATA_DIR / "watchlist.json"
 
@@ -108,7 +108,7 @@ def poll_once() -> List[dict]:
     for addr, meta in d.items():
         try:
             events = check(addr, meta.get("chain", "eth"), meta.get("last_ts", 0))
-        except etherscan.EtherscanError:
+        except (etherscan.EtherscanError, chains.ChainError):
             continue
         if events:
             meta["last_ts"] = max(e["timestamp"] for e in events)

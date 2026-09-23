@@ -259,8 +259,7 @@ def create_app() -> Flask:
     def api_offramp():
         addr = request.args.get("address", "")
         chain = request.args.get("chain", "eth")
-        # off-ramp heuristic relies on exchange labels, which are EVM-only today
-        if not chains.is_evm(chain) or validate(addr, chain):
+        if validate(addr, chain):
             return jsonify({"offramp": None})
         try:
             hit = offramp_mod.detect(addr, chain)

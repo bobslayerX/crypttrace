@@ -11,31 +11,26 @@ Detecting them turns a plain "⚪ unknown wallet" into "→ Binance deposit addr
 i.e. the cash-out point — the exact place an investigation hands off to a legal
 request (the exchange holds the depositor's KYC).
 """
-from typing import Optional
+from typing import List, Optional
 
-from crypttrace.fetchers import etherscan
+from crypttrace import assets, chains
 from crypttrace.labels import labels
-from crypttrace import config
+
+# Where thefts mostly move as stablecoins, a deposit address sweeps those rather
+# than the native coin (on Tron it may never send TRX at all).
+STABLECOIN_CHAINS = {"tron": ("usdt", "usdc"), "sol": ("usdc", "usdt")}
 
 
-def detect(address: str, chain: str = "eth", threshold: float = 0.6) -> Optional[dict]:
-    """Is `address` acting as a deposit/forwarding address for a known exchange?
-
-    Returns {exchange, exchange_address, forwarded, out_total, fraction} when at
-    least `threshold` of outgoing value goes to labelled exchange wallets,
-    otherwise None.
-    """
-    me = address.lower()
-    txs = etherscan.get_txs(address, chain, limit=1000)  # cached; shared with trace
+def _one(address: str, chain: str, threshold: float, asset: Optional[dict]) -> Optional[dict]:
+    me = chains.norm_addr(address, chain)
+    rows = chains.transfers(address, chain, 1000, asset=asset)   # stored; shared with trace
     out_total = 0.0
     to_exchange = {}  # exchange_addr -> value
-    for tx in txs:
-        if tx.get("from", "").lower() != me:
+    for r in rows:
+        to = r.get("to") or ""
+        if r.get("from") != me or not to:
             continue
-        to = tx.get("to", "").lower()
-        if not to:
-            continue
-        val = int(tx.get("value", 0)) / config.WEI
+        val = r.get("value", 0) or 0
         out_total += val
         if labels.type_of(to) == "exchange":
             to_exchange[to] = to_exchange.get(to, 0.0) + val
@@ -51,8 +46,29 @@ def detect(address: str, chain: str = "eth", threshold: float = 0.6) -> Optional
     best = max(to_exchange, key=to_exchange.get)
     return {
         "exchange": labels.label_of(best),
+        "company": labels.company(labels.label_of(best)),
         "exchange_address": best,
         "forwarded": forwarded,
         "out_total": out_total,
         "fraction": fraction,
+        "symbol": asset["symbol"] if asset else chains.symbol(chain),
     }
+
+
+def detect(address: str, chain: str = "eth", threshold: float = 0.6,
+           asset: Optional[dict] = None, stablecoins: bool = True) -> Optional[dict]:
+    """Is `address` acting as a deposit/forwarding address for a known exchange?
+
+    Returns {exchange, exchange_address, forwarded, out_total, fraction, symbol}
+    when at least `threshold` of outgoing value (in one asset) goes to labelled
+    exchange wallets, otherwise None. Checks `asset` if given; otherwise the
+    native coin and, on Tron and Solana, their stablecoins.
+    """
+    tries: List[Optional[dict]] = [asset]
+    if asset is None and stablecoins:
+        tries += [assets.resolve_asset(s, chain) for s in STABLECOIN_CHAINS.get(chain, ())]
+    for a in tries:
+        hit = _one(address, chain, threshold, a)
+        if hit:
+            return hit
+    return None
