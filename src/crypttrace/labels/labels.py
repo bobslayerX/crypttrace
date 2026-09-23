@@ -10,6 +10,7 @@ Two layers are merged:
 The seed set takes priority on conflicts, so its richer names win.
 """
 import json
+import re
 from pathlib import Path
 from typing import Optional, Dict, List
 
@@ -179,6 +180,15 @@ def lookup(address: str) -> Optional[dict]:
     if hit:
         return hit
     return _match_partial(address)
+
+
+def company(label: str) -> str:
+    """'Binance 14 (hot wallet)' -> 'Binance' — victims need the company, not our label."""
+    name = re.sub(r"\(.*?\)", "", label)          # drop parentheticals
+    name = name.split(" deposit")[0].split(":")[0]
+    name = re.split(r"\s+(?:reserve|hot|cold)\s+wallet\b", name)[0]   # 'OKX reserve wallet'
+    name = re.sub(r"\s+\d+\s*$", "", name.strip())  # drop trailing wallet numbers
+    return name.strip() or label
 
 
 def label_of(address: str) -> str:

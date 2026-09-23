@@ -262,21 +262,21 @@ def crosschain(
 
 @app.command()
 def offramp(
-    address: str = typer.Argument(..., help="Address to check (0x…)"),
+    address: str = typer.Argument(..., help="Address to check"),
     chain: str = CHAIN_OPT,
 ):
     """Check whether an address is an exchange deposit address (cash-out / off-ramp)."""
     try:
         hit = offramp_mod.detect(address, chain)
-    except etherscan.EtherscanError as e:
+    except (chains_mod.ChainError, etherscan.EtherscanError) as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1)
     if hit:
         pct = int(hit["fraction"] * 100)
         console.print(
             f"[green]➜ Likely off-ramp:[/green] this address forwarded ~{pct}% of outgoing "
-            f"funds ({hit['forwarded']:.4f}) to [bold]{hit['exchange']}[/bold].\n"
-            f"  It is probably a {hit['exchange']} deposit address — a KYC identification point."
+            f"funds ({hit['forwarded']:.4f} {hit['symbol']}) to [bold]{hit['exchange']}[/bold].\n"
+            f"  It is probably a deposit address at {hit['company']} — a KYC identification point."
         )
     else:
         console.print("[dim]No exchange-forwarding pattern detected. "

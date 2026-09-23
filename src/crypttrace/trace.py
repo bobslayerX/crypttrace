@@ -59,16 +59,17 @@ def _expand(node, address, ctx, depth, seen, findings=None, is_root=False):
                       "on the sender to find the destination chain", style="cyan"))
         return
     # Off-ramp heuristic: an unknown wallet that forwards most funds to an
-    # exchange is a deposit address — the cash-out / KYC point. Native only.
-    if not is_root and ctx.asset is None and labels.type_of(address) == "unknown":
-        off = offramp.detect(address, ctx.chain)
+    # exchange is a deposit address — the cash-out / KYC point. Checked in the
+    # asset being traced, so the amount below is in the same units.
+    if not is_root and labels.type_of(address) == "unknown":
+        off = offramp.detect(address, ctx.chain, asset=ctx.asset, stablecoins=False)
         if off:
             pct = int(off["fraction"] * 100)
             node.add(Text(f"↳ off-ramp: ~{pct}% forwarded to {off['exchange']} "
                           f"— likely a deposit address (KYC point)", style="green"))
             if findings is not None:
                 findings.append({"address": address, "type": "offramp",
-                                 "label": f"{off['exchange']} deposit (off-ramp)",
+                                 "label": f"{off['company']} deposit (off-ramp)",
                                  "risk": 30, "value_reached": round(off["forwarded"], 6),
                                  "symbol": ctx.symbol,
                                  "usd_reached": prices.usd(off["forwarded"], ctx.price),

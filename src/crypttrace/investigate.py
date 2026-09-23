@@ -74,7 +74,7 @@ def analyse(address: str, chain: str = "eth", asset: Optional[dict] = None,
         result["funding"] = []
 
     try:
-        result["offramp"] = offramp_mod.detect(address, chain) if chains.is_evm(chain) else None
+        result["offramp"] = offramp_mod.detect(address, chain)
     except Exception:
         result["offramp"] = None
 
@@ -82,20 +82,11 @@ def analyse(address: str, chain: str = "eth", asset: Optional[dict] = None,
     return result
 
 
-def _service_name(label: str) -> str:
-    """'Binance 14 (hot wallet)' -> 'Binance' — victims need the company, not our label."""
-    import re
-    name = re.sub(r"\(.*?\)", "", label)          # drop parentheticals
-    name = name.split(" deposit")[0].split(":")[0]
-    name = re.sub(r"\s+\d+\s*$", "", name.strip())  # drop trailing wallet numbers
-    return name.strip() or label
-
-
 def build_guidance(r: dict) -> dict:
     """Turn findings into plain-language next steps."""
     steps: List[dict] = []
     exchanges = r["exchanges"]
-    ex_names = sorted({_service_name(f["label"]) for f in exchanges}) if exchanges else []
+    ex_names = sorted({labels.company(f["label"]) for f in exchanges}) if exchanges else []
 
     if exchanges:
         headline = ("Good news, relatively speaking: the trail reaches a "

@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.3.0
+
+### Added
+- **Exchange labels on Bitcoin, Tron and Solana beyond Binance:** 133 reserve
+  wallets of OKX, HTX and Bybit, each from the address list the exchange
+  publishes itself. OKX's are its largest wallets (each holding at least 0.5% of
+  a coin's reserve on that chain) out of a signed list of ~310k addresses.
+- `offramp` on Tron and Solana also checks USDT and USDC, which is how deposits
+  there are usually swept; `trace` checks the asset being traced.
+
+### Fixed
+- `crypttrace trace` stopped with "unsupported chain" on Bitcoin, Tron and
+  Solana as soon as it reached an unlabelled wallet: the off-ramp check read
+  Etherscan directly. It now goes through the shared chain layer, so `offramp`,
+  `investigate` and the web UI work on every chain.
+- `investigate` told victims to contact "Binance reserve wallet" instead of
+  "Binance".
+
 ## 0.2.0 — first release on PyPI
 
 Everything built since the project started in July 2026, now installable with
