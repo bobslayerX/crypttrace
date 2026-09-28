@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.9.0
+
+### Added
+- **`watch` on every chain, stablecoins included.** It used to read Etherscan
+  only, and only the native coin — so it could not watch Tron at all, and missed
+  USDT theft even on Ethereum. It now watches Bitcoin, Tron, Solana and the EVM
+  chains, native coin plus USDT/USDC, reading fresh data on every check. A
+  transfer into an exchange wallet or a detected deposit address raises HIGH.
+- Counterfeit "USDT" and zero/dust transfers no longer alert; they are summed up
+  per address as likely address poisoning. Telegram alerts carry the chain,
+  asset and a transaction link.
+
+### Fixed
+- `watch add` lower-cased addresses, which broke Tron, Bitcoin and Solana ones;
+  it now keeps their case and refuses an address that fails its checksum.
+- A transfer in the same second as the last one seen was missed.
+
 ## 0.8.0
 
 ### Added

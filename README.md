@@ -192,7 +192,7 @@ crypttrace timeline bc1qADDRESS --chain btc
 crypttrace crosschain 0xADDRESS --window 48
 
 # Watch addresses; alert loudly the moment funds head for an exchange
-crypttrace watch add 0xADDRESS --note "my stolen ETH"
+crypttrace watch add TADDRESS --chain tron --note "my stolen USDT"
 crypttrace watch run --interval 300     # or --once for cron / Task Scheduler
 
 # Full investigation as a case file to send: one HTML page (plus Markdown + JSON)
@@ -243,15 +243,22 @@ toward an exchange (directly, or to a detected deposit address); quieter notices
 for other movement. It only alerts on activity *after* an address is added, and
 never double-alerts.
 
+It works on every supported chain and watches the native coin **and the
+stablecoins** (USDT, USDC) — on Tron, stolen money is almost always USDT.
+Counterfeit "USDT" and zero/dust transfers from address poisoners do not
+alert; they are summed up in one line per address with a warning never to copy
+those senders. Each check reads fresh data.
+
 ```bash
-crypttrace watch add 0xADDRESS --note "victim funds"
+crypttrace watch add TADDRESS --chain tron --note "victim funds"
 crypttrace watch list
 crypttrace watch run --interval 300     # continuous
 crypttrace watch run --once             # single check, for scheduled tasks
 ```
 
 Optional Telegram alerts: set `CRYPTTRACE_TG_TOKEN` and `CRYPTTRACE_TG_CHAT`,
-then pass `--telegram`.
+then pass `--telegram`. Each alert carries the chain, amount, asset and a link
+to the transaction.
 
 ### Stablecoin freezes
 

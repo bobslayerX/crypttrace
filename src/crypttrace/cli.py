@@ -836,12 +836,16 @@ app.add_typer(watch_app, name="watch")
 
 @watch_app.command("add")
 def watch_add(
-    address: str = typer.Argument(..., help="Address to watch (0x…)"),
+    address: str = typer.Argument(..., help="Address to watch"),
     chain: str = CHAIN_OPT,
-    note: str = typer.Option("", "--note", "-n", help="A label for this case, e.g. 'my stolen ETH'"),
+    note: str = typer.Option("", "--note", "-n", help="A label for this case, e.g. 'my stolen USDT'"),
 ):
     """Add an address to the watchlist (alerts only on activity from now on)."""
-    watch_mod.add(address, chain, note)
+    try:
+        watch_mod.add(address, chain, note)
+    except (watch_mod.WatchError, chains_mod.ChainError) as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
     console.print(f"[green]✓ Watching[/green] {address} ({chain})"
                   + (f" — {note}" if note else ""))
 
@@ -851,7 +855,8 @@ def watch_list():
     """Show the watchlist."""
     d = watch_mod.all_watched()
     if not d:
-        console.print("[dim]Watchlist is empty. Add one with `crypttrace watch add 0x…`[/dim]")
+        console.print("[dim]Watchlist is empty. Add one with "
+                      "`crypttrace watch add ADDRESS --chain tron`[/dim]")
         return
     for addr, m in d.items():
         console.print(f"  {addr}  ({m.get('chain','eth')})"
@@ -873,7 +878,7 @@ def _render_alert(e: dict) -> None:
     when = render._ts(str(e["timestamp"]))
     line = (f"{icon} [{style}]{e['sev'].upper()}[/{style}]  {e['address'][:12]}…"
             + (f" ({e['note']})" if e.get("note") else "")
-            + f"  {e['value']:.4f}  {e['reason']}  [dim]{when}[/dim]")
+            + f"  {e['value']:,.4f} {e.get('symbol', '')}  {e['reason']}  [dim]{when}[/dim]")
     if e["sev"] == "high":
         console.bell()  # audible bell for cash-out events
     console.print(line)
@@ -888,7 +893,8 @@ def watch_run(
 ):
     """Poll the watchlist and alert on new activity. Loud alert on likely cash-out."""
     if not watch_mod.all_watched():
-        console.print("[dim]Watchlist is empty. Add one with `crypttrace watch add 0x…`[/dim]")
+        console.print("[dim]Watchlist is empty. Add one with "
+                      "`crypttrace watch add ADDRESS --chain tron`[/dim]")
         raise typer.Exit(1)
 
     def _pass():
@@ -896,11 +902,20 @@ def watch_run(
         if not alerts:
             console.print(f"[dim]{render._ts(str(int(time.time())))} — no new activity[/dim]")
             return
+        dust = {}
         for e in alerts:
+            if e["sev"] == "dust":           # one line per address, not one per speck
+                dust[e["address"]] = dust.get(e["address"], 0) + 1
+                continue
             _render_alert(e)
             if telegram and e["sev"] in ("high", "move"):
-                msg = f"crypttrace {e['sev'].upper()}: {e['address']} {e['value']:.4f} {e['reason']}"
+                msg = (f"crypttrace {e['sev'].upper()} ({e.get('chain', '')}): {e['address']} "
+                       f"{e['value']:,.4f} {e.get('symbol', '')} {e['reason']}"
+                       + (f"\n{e['explorer']}" if e.get("explorer") else ""))
                 watch_mod.telegram_notify(msg)
+        for addr, n in dust.items():
+            console.print(f"[dim]  {addr[:12]}… {n} zero/dust transfer(s) — likely address "
+                          "poisoning; never copy an address from this wallet's history[/dim]")
 
     if once:
         _pass()
