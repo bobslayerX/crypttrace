@@ -610,6 +610,50 @@ try:
 finally:
     chains.transfers, prices.native_price = real_transfers, real_price
 
+# ---------------------------------------------------------------- watch
+section("14. watch on Tron: stablecoins, exchanges, dust")
+from crypttrace import watch
+USDT_TRON = "tr7nhqjekqxgtci8q8zy4pl8otszgjlj6t"
+W = "TWatchedWatchedWatchedWatched1111"                 # synthetic
+def trc(frm, to, v, ts, contract=USDT_TRON, sym="USDT"):
+    return {"from": frm, "to": to, "value": v, "timestamp": ts, "hash": f"{frm[-3:]}{to[-3:]}{ts}{v}",
+            "symbol": sym, "contract": contract}
+def native_trx(frm, to, v, ts):
+    return {"from": frm, "to": to, "value": v, "timestamp": ts, "hash": f"n{frm[-3:]}{ts}", "symbol": "TRX"}
+WATCH_ROWS = {"native": [native_trx("TFunderFunderFunderFunderFunder111", W, 50.0, T0)], "tokens": []}
+def watch_history(addr, chain="eth", limit=1000, asset=None, **kw):
+    return list(WATCH_ROWS["tokens" if asset else "native"]) if addr == W else []
+chains.transfers = watch_history
+try:
+    try:
+        watch.add("t" + W[1:].lower(), "tron")
+        check("a mistyped address is refused before it is watched", False)
+    except watch.WatchError:
+        check("a mistyped address is refused before it is watched", True)
+    real_validate = watch.addresses.validate
+    watch.addresses.validate = lambda a, c: (True, "")   # W is synthetic
+    watch.add(W, "tron", "case")
+    check("a Tron address is stored with its case intact", W in watch.all_watched())
+    WATCH_ROWS["tokens"] = [
+        trc(W, OKX_HOT, 900.0, T0 + 100),                                # into an OKX wallet
+        trc(W, OKX_HOT, 50.0, T0 + 100),                                 # same second, not lost
+        trc(TL, W, 2500.0, T0 + 90, contract="tfakeusdtcontract"),       # counterfeit USDT
+        trc("TSomeoneSomeoneSomeoneSomeone1111", W, 120.0, T0 + 80),     # real incoming
+    ]
+    WATCH_ROWS["native"].append(native_trx(TL, W, 0.000001, T0 + 70))          # poisoning dust
+    got = watch.poll_once()
+    sev = sorted((e["sev"], e["symbol"], e["value"]) for e in got)
+    check("money leaving for an exchange raises HIGH, in USDT",
+          ("high", "USDT", 900.0) in sev and ("high", "USDT", 50.0) in sev, str(sev))
+    check("counterfeit USDT does not raise an alert",
+          not any(e["value"] == 2500.0 for e in got), str(sev))
+    check("dust is marked as poisoning, not as funds",
+          ("dust", "TRX", 0.000001) in sev and ("info", "USDT", 120.0) in sev, str(sev))
+    check("the same events are not reported twice", watch.poll_once() == [])
+    watch.addresses.validate = real_validate
+finally:
+    chains.transfers = real_transfers
+
 # ---------------------------------------------------------------- result
 print("\n" + "=" * 72)
 print(f"RESULT: {len(PASSED)} passed, {len(FAILED)} failed")
