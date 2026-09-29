@@ -118,8 +118,10 @@ def load(chain: str, address: str, contract: str = "", native_symbol: str = "") 
     try:
         if contract == "*":
             # every token, whatever its contract (address-poisoning checks need fakes too)
+            # (Solana rows filed as "spl" by 0.5-0.10 name token accounts, not wallets)
             q = (f"{cols} WHERE chain=? AND (from_addr=? OR to_addr=?)"
-                 " AND contract IS NOT NULL AND contract!='' ORDER BY ts DESC")
+                 " AND contract IS NOT NULL AND contract!='' AND contract!='spl'"
+                 " ORDER BY ts DESC")
             args = (chain, address, address)
         elif contract:
             q = (f"{cols} WHERE chain=? AND (from_addr=? OR to_addr=?)"

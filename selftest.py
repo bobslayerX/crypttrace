@@ -642,6 +642,36 @@ check("a look-alike copying only the last six characters is strong",
 check("five shared final characters alone are not",
       poisoning.resemblance(REAL, "TQ" + "z" * 26 + "Z1doqb", "tron") is None)   # shares "1doqb"
 
+# Solana: an SPL transfer names token accounts; the wallets behind them and the
+# mint come from the transaction's token balances
+USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+OWNER_A, OWNER_B = "WalletAWalletAWalletAWalletAWalletA11111111", "WalletBWalletBWalletBWalletBWalletB11111111"
+ACC_A, ACC_B = "TokenAccAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "TokenAccBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+fake_tx = {"blockTime": 1700000000, "meta": {
+    "innerInstructions": [],
+    "postTokenBalances": [
+        {"accountIndex": 1, "owner": OWNER_A, "mint": USDC_MINT, "uiTokenAmount": {"decimals": 6}},
+        {"accountIndex": 2, "owner": OWNER_B, "mint": USDC_MINT, "uiTokenAmount": {"decimals": 6}}]},
+    "transaction": {"message": {"accountKeys": [{"pubkey": OWNER_A}, {"pubkey": ACC_A}, {"pubkey": ACC_B}],
+        "instructions": [
+            {"program": "spl-token", "parsed": {"type": "transfer", "info": {
+                "source": ACC_A, "destination": ACC_B, "authority": OWNER_A, "amount": "25000000"}}},
+            {"program": "spl-token", "parsed": {"type": "transferChecked", "info": {
+                "source": ACC_A, "destination": ACC_B, "authority": OWNER_A, "mint": USDC_MINT,
+                "tokenAmount": {"uiAmountString": "1.5", "decimals": 6}}}}]}}}
+real_rpc = sol_fetch._rpc
+sol_fetch._rpc = lambda method, params, timeout=30: fake_tx
+try:
+    parsed = sol_fetch._parse_tx("sig1")
+    check("SPL transfers are between wallets, not token accounts",
+          all(r["from"] == OWNER_A and r["to"] == OWNER_B for r in parsed), str(parsed)[:200])
+    check("each SPL transfer carries its mint and symbol",
+          all(r["contract"] == USDC_MINT and r["symbol"] == "USDC" for r in parsed))
+    check("a plain SPL 'transfer' is scaled by the mint's decimals",
+          [r["value"] for r in parsed] == [25.0, 1.5], str([r["value"] for r in parsed]))
+finally:
+    sol_fetch._rpc = real_rpc
+
 # ---------------------------------------------------------------- watch
 section("14. watch on Tron: stablecoins, exchanges, dust")
 from crypttrace import watch

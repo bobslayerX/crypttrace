@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.11.0
+
+### Fixed
+- **Solana token transfers named token accounts instead of wallets.** An SPL
+  transfer's source and destination are token accounts; they were stored as the
+  sender and recipient, so a wallet never appeared in its own USDC/USDT history
+  and token traces from a Solana wallet came back empty (0 of 20 transfers on a
+  live Binance wallet; now 20 of 20). The wallets behind the accounts are read
+  from the transaction's token balances.
+- **Solana tokens are told apart by mint.** USDC, USDT and other SPL tokens were
+  all "SPL"; each transfer now carries its mint, so `--asset usdc` traces USDC
+  only, and USDC/USDT show by name.
+- **Plain SPL `transfer` amounts** were stored in base units (25 USDC as
+  25,000,000); they are now scaled by the mint's decimals, and skipped rather
+  than guessed when the decimals are unknown.
+
 ## 0.10.0
 
 ### Added

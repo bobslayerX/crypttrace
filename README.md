@@ -558,7 +558,6 @@ cases/             # worked investigations with their data
 - More exchanges on Bitcoin, Tron and Solana (now: Binance, OKX, HTX, Bybit),
   and refreshing these lists as the exchanges republish them
 - Internal transactions (completes `funder` and contract-mediated transfers)
-- Per-mint filtering for Solana SPL tokens
 - More label sources: Chainabuse, CryptoScamDB, exchange deposit-address sets
 - Spam/dust token filtering in `tokens`
 - Entity clustering on EVM via the gas-funding heuristic
