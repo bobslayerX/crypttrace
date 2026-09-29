@@ -19,6 +19,7 @@ Three views of the same attack:
   * campaign(address)   — an address sending zero/dust transfers to many
     unrelated wallets (the dust-sending style, common on Tron).
 """
+import math
 from collections import defaultdict
 from typing import Dict, List, Optional, Tuple
 
@@ -30,6 +31,20 @@ from crypttrace import analysis, assets, chains
 # the look-alike arrived with bait after the genuine address was in use.
 STRONG = (3, 3, 7)          # min prefix, min suffix, min total
 WEAK = (1, 2, 3)
+# Many people check only the ending, and poisoners know it: a look-alike can match
+# the last characters alone. That is strong evidence once the shared ending carries
+# 32 bits — 6 base58 characters, 7 bech32, 8 hex — about 1 in 4 billion by chance.
+SUFFIX_BITS = 32
+
+
+def _suffix_chars(address: str, chain: str) -> int:
+    if chains.is_evm(chain):
+        bits = 4.0                                  # hex
+    elif address.lower().startswith(("bc1", "tb1")):
+        bits = 5.0                                  # bech32
+    else:
+        bits = 5.86                                 # base58: Tron, Solana, legacy Bitcoin
+    return math.ceil(SUFFIX_BITS / bits)
 # A campaign: this many distinct recipients of zero/dust transfers.
 CAMPAIGN_MIN_TARGETS = 10
 
@@ -62,9 +77,12 @@ def resemblance(a: str, b: str, chain: str) -> Optional[str]:
     if chains.norm_addr(a, chain) == chains.norm_addr(b, chain):
         return None
     pre, suf = match_lengths(a, b, chain)
-    for name, (p, s, t) in (("strong", STRONG), ("weak", WEAK)):
-        if pre >= p and suf >= s and pre + suf >= t:
-            return name
+    p, s, t = STRONG
+    if (pre >= p and suf >= s and pre + suf >= t) or suf >= _suffix_chars(a, chain):
+        return "strong"
+    p, s, t = WEAK
+    if pre >= p and suf >= s and pre + suf >= t:
+        return "weak"
     return None
 
 
@@ -128,13 +146,17 @@ def lookalikes(address: str, chain: str, limit: int = 1000) -> List[dict]:
             c["sent_first_ts"] = ts if c["sent_first_ts"] is None else min(c["sent_first_ts"], ts)
 
     # only compare addresses that could match: bucket by visible ends
+    # (and by the ending alone, for look-alikes that only imitate the last characters)
     buckets = defaultdict(list)
     for a in seen:
         b = _body(a, chain)
         if len(b) >= WEAK[0] + WEAK[1]:
-            buckets[(b[:WEAK[0]], b[-WEAK[1]:])].append(a)
+            buckets[("ends", b[:WEAK[0]], b[-WEAK[1]:])].append(a)
+        n = _suffix_chars(a, chain)
+        if len(b) > n:
+            buckets[("tail", b[-n:])].append(a)
 
-    findings = []
+    findings, compared = [], set()
     for group in buckets.values():
         if len(group) < 2:
             continue
@@ -144,7 +166,10 @@ def lookalikes(address: str, chain: str, limit: int = 1000) -> List[dict]:
             return (c["sent_first_ts"] is None, c["sent_first_ts"] or c["first_ts"], c["first_ts"])
         genuine = min(group, key=rank)
         for fake in group:
-            level = resemblance(genuine, fake, chain) if fake != genuine else None
+            if fake == genuine or (genuine, fake) in compared:
+                continue            # a pair can sit in both kinds of bucket
+            compared.add((genuine, fake))
+            level = resemblance(genuine, fake, chain)
             if not level:
                 continue
             g, f = seen[genuine], seen[fake]

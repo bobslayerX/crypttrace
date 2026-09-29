@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.10.0
+
+### Added
+- **Tron history beyond 200 transfers.** TronGrid was read one page deep, so a
+  busy wallet's history stopped a few days back (and far fewer TRX transfers
+  showed, since that endpoint mixes in every transaction type). It is now read
+  page by page up to the limit asked for — 1,000 by default — for traces,
+  poisoning checks, assessments and reports alike.
+- **Look-alikes that copy only the ending.** A shared ending carrying 32 bits
+  (6 base58, 7 bech32 or 8 hex characters) now counts as a strong look-alike
+  even when the start differs. In the documented Tron campaign this names the
+  imitated address for the third victim, who lost 2.43M USDT to `…E1doqb`.
+
 ## 0.9.0
 
 ### Added

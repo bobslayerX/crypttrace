@@ -304,11 +304,16 @@ Tested on a documented Tron case from August 2026: from the victim's wallet it
 finds the 2,527,862 USDT sent to `TDDDHi…rCr9Ps`, a look-alike of
 `TDDD34…rCr9Ps`, an address the wallet had paid 8.4M USDT in all. From the
 attacker's side it finds the same payment and two more victims of $2.4M and
-$2.0M, each lured by a look-alike created three to twelve minutes earlier.
+$2.0M, each lured by a look-alike created three to twelve minutes earlier, and
+for all three it names the address that was imitated.
 
-Cheap look-alikes match only one or two characters at each end, which happens
-by chance; those are reported only when they arrived as bait after the real
-address was in use.
+Look-alikes come in three strengths. Matching several characters at both ends is
+reported on sight. So is one that copies only the ending, as long as the shared
+ending is long enough to be no accident (6 characters on Tron and Solana, 7 on
+bech32 Bitcoin, 8 on hex) — one of the three victims above was caught that way,
+by `…E1doqb`. Cheap look-alikes that match one or two characters at each end
+happen by chance, so they are reported only when they arrived as bait after the
+real address was in use.
 
 ### Off-ramp detection
 
