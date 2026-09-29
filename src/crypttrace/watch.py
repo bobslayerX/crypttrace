@@ -43,7 +43,6 @@ def _save(d: Dict[str, dict]) -> None:
 
 
 _ALL_TOKENS = {"contract": None, "symbol": "*"}
-_SPL = {"contract": "spl", "symbol": "SPL"}
 
 
 def _key(row: dict) -> str:
@@ -62,8 +61,6 @@ def _rows(address: str, chain: str, limit: int) -> List[dict]:
         tokens = chains.transfers(address, chain, limit, asset=_ALL_TOKENS, fresh=True)
     except chains.ChainError:
         return rows              # the native history alone still gets watched
-    if chain == "sol":           # Solana token rows carry no mint to tell tokens apart
-        return rows + [{**r, "_asset": _SPL} for r in tokens]
     stables = {t["contract"].lower(): dict(t) for t in assets.tokens_for(chain).values()
                if t.get("stable")}
     return rows + [{**r, "_asset": stables[(r.get("contract") or "").lower()]}

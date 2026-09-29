@@ -138,9 +138,8 @@ def _sol_rows(address: str, limit: int, token: bool, contract: Optional[str]) ->
     rows = solana.transfers(address, limit)
     if token:
         rows = [r for r in rows if r.get("symbol") != "SOL"]
-        if contract:
-            rows = [r for r in rows if r.get("mint") in (None, contract)
-                    or (r.get("contract") or "") == contract]
+        if contract:                      # SPL rows carry their mint as the contract
+            rows = [r for r in rows if (r.get("contract") or "") == contract]
     else:
         rows = [r for r in rows if r.get("symbol") == "SOL"]
     return rows
@@ -164,11 +163,9 @@ def transfers(address: str, chain: str = "eth", limit: int = 1000,
 
     from crypttrace import store
     # What the stored rows are filed under: "" native, a contract, "*" every
-    # token, or "spl" on Solana, whose token rows carry no mint to tell apart.
+    # token (Solana token rows carry their mint as the contract).
     if not asset:
         asset_key = ""
-    elif chain == "sol":
-        asset_key = "spl"
     else:
         asset_key = (contract or "*").lower()
     skip_read = fresh or FORCE_FRESH
