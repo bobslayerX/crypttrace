@@ -216,7 +216,7 @@
     <option value="eth">eth</option><option value="bsc">bsc</option>
     <option value="polygon">polygon</option><option value="arbitrum">arbitrum</option>
     <option value="optimism">optimism</option><option value="base">base</option>
-    <option value="btc">btc</option><option value="tron">tron</option><option value="sol">sol</option>
+    <option value="btc">btc</option><option value="tron">tron</option><option value="sol">sol</option><option value="ton">ton</option>
   </select>
   <select id="asset" title="Asset to trace">
     <option value="native">ETH (native)</option>
@@ -281,7 +281,8 @@ const EXPLORER={eth:'https://etherscan.io',bsc:'https://bscscan.com',polygon:'ht
   arbitrum:'https://arbiscan.io',optimism:'https://optimistic.etherscan.io',base:'https://basescan.org'};
 const NON_EVM={btc:a=>`https://mempool.space/address/${a}`,
                tron:a=>`https://tronscan.org/#/address/${a}`,
-               sol:a=>`https://solscan.io/account/${a}`};
+               sol:a=>`https://solscan.io/account/${a}`,
+               ton:a=>`https://tonviewer.com/${a}`};
 const $=s=>document.querySelector(s);
 let network=null, lastGraph=null, rootId=null;
 const MIN_SCALE=0.42;   // below this, nodes/labels become unreadable dots
@@ -483,7 +484,7 @@ async function run(){
     const g=await api(`/api/trace?address=${q(a)}&chain=${chain()}&depth=${$('#depth').value}&asset=${q($('#asset').value)}&direction=${dir}`);
     loader(80); renderGraph(g);
     setStatus(`${g.nodes.length} addresses · ${g.edges.length} transfers`);
-    // BTC/Tron/Solana addresses are case-sensitive — never lowercase them
+    // BTC/Tron/Solana/TON addresses are case-sensitive — never lowercase them
     inspect(NON_EVM[chain()] ? a : a.toLowerCase()); loader(100);
     if(!g.edges.length){                     // explain an empty graph instead of showing nothing
       const other=dir==='out'?'← where funds came from':'→ where funds went';
@@ -504,6 +505,7 @@ async function syncAssets(){
   $('#addr').placeholder = c==='btc' ? 'bc1… / 1… / 3…  Bitcoin address'
     : c==='tron' ? 'T…  Tron address'
     : c==='sol'  ? 'Solana account address'
+    : c==='ton'  ? 'UQ… / EQ…  TON address'
     : '0x…  paste an address to investigate';
   try{
     const r=await api(`/api/assets?chain=${c}`);

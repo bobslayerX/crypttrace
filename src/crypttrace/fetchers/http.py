@@ -31,6 +31,10 @@ DEFAULT_INTERVAL = 0.25
 _last_call = {}
 _lock = threading.Lock()
 
+# Set while a caller needs what the chain says *now* (watch, --fresh): cached
+# responses are skipped, though fresh ones are still stored.
+FRESH = False
+
 
 class RateLimited(RuntimeError):
     pass
@@ -86,7 +90,7 @@ def request_json(url: str, params: dict = None, *, body: dict = None,
                  timeout: int = 30, headers: dict = None):
     """GET (or POST when `body` is given) returning JSON, cached and rate-limited."""
     key = cache_key or (url + ("?" + urlencode(sorted(params.items())) if params else ""))
-    hit = cache_get(key, ttl)
+    hit = None if FRESH else cache_get(key, ttl)
     if hit is not None:
         return hit
 

@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.12.0
+
+### Added
+- **TON.** `--chain ton` everywhere — `profile`, `trace`, `funder`,
+  `poisoning`, `watch`, `report` and the web UI — for TON and jettons, with
+  USDT known as `--asset usdt`. Data comes from toncenter's v3 indexer with no
+  key (about one request per second; `TONCENTER_API_KEY` raises it). Addresses
+  are accepted as `UQ…`, `EQ…` or raw `0:…`, checked against their CRC, and
+  shown in the `UQ…` form wallets use; jetton transfers are reported between
+  owner wallets. Labels include Binance's published TON reserve wallets. On
+  live data the poisoning check finds a look-alike of Binance's hot wallet
+  planted with 15 dust transfers.
+
+### Fixed
+- **`watch` and `--fresh` could read hour-old data.** Fresh reads skipped the
+  transfer store but not the HTTP response cache, so a check within the hour
+  saw nothing new. They now go to the network.
+- **`funder` found nothing on Bitcoin, Tron and Solana.** It lower-cased
+  addresses, which breaks case-sensitive ones; it also took dust for funding
+  and labelled amounts ETH on every chain.
+- **An exchange's own wallets were flagged** as a deposit address (off-ramp)
+  and as a poisoner "luring" payments when they moved funds between each other.
+
 ## 0.11.0
 
 ### Fixed

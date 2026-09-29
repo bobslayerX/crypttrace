@@ -24,6 +24,7 @@ from collections import defaultdict
 from typing import Dict, List, Optional, Tuple
 
 from crypttrace import analysis, assets, chains
+from crypttrace.labels import labels
 
 # How closely two addresses must match at the ends (after "0x", "T", "bc1q"…).
 # Strong: rare by chance, flagged on resemblance alone. Weak: the cheap
@@ -40,6 +41,8 @@ SUFFIX_BITS = 32
 def _suffix_chars(address: str, chain: str) -> int:
     if chains.is_evm(chain):
         bits = 4.0                                  # hex
+    elif chain == "ton":
+        bits = 6.0                                  # base64
     elif address.lower().startswith(("bc1", "tb1")):
         bits = 5.0                                  # bech32
     else:
@@ -53,6 +56,8 @@ _ALL_TOKENS = {"contract": None, "symbol": "*"}
 
 def _body(address: str, chain: str) -> str:
     """The part of an address that varies — what a shortened display shows."""
+    if chain == "ton":
+        return chains.norm_addr(address, chain)[2:]     # drop the "UQ" flag bytes
     a = address if chains.case_sensitive(chain) else address.lower()
     for p in ("0x", "bc1q", "bc1p", "bc1", "tb1q", "T"):
         if a.startswith(p) and (p != "T" or chain == "tron"):
@@ -216,6 +221,8 @@ def baited_payments(address: str, chain: str, limit: int = 1000,
     pattern into a specific claim.
     """
     me = chains.norm_addr(address, chain)
+    if labels.type_of(me) == "exchange" and not labels.is_deposit(me):
+        return []                         # an exchange paying its own wallets lures no one
     rows = _history(address, chain, limit)
     first_active = min((int(r.get("timestamp") or 0) for r in rows if r.get("timestamp")), default=0)
     lure: Dict[str, dict] = {}           # counterparty -> earliest lure

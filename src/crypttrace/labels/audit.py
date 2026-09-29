@@ -39,6 +39,8 @@ def _chain_of(address: str) -> str:
         return "btc"
     if a.startswith("T") and len(a) == 34:
         return "tron"
+    if len(a) == 48 or ":" in a:
+        return "ton"
     return "sol"
 
 

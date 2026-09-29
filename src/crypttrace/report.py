@@ -29,7 +29,8 @@ from crypttrace import freeze as freeze_mod
 from crypttrace import trace as trace_mod
 from crypttrace.labels import labels
 
-SOURCES = {"btc": "mempool.space", "tron": "TronGrid", "sol": "Solana JSON-RPC"}
+SOURCES = {"btc": "mempool.space", "tron": "TronGrid", "sol": "Solana JSON-RPC",
+           "ton": "toncenter"}
 
 
 def _now() -> str:

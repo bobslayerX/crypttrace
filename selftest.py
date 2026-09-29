@@ -318,6 +318,12 @@ try:
         hit = {"exchange": "", "symbol": "", "error": repr(e)}
     check("a Tron address sweeping USDT into OKX is an off-ramp",
           bool(hit) and hit.get("company") == "OKX" and hit["symbol"] == "USDT", str(hit))
+    chains.transfers = lambda addr, chain="eth", limit=1000, asset=None, **kw: [
+        {"from": OKX_HOT, "to": "TCw6YaWm3y6DvxY7M8hrCDnrJGeGMumzGJ", "value": 1.0, "timestamp": T0, "hash": "i"}] \
+        if addr == OKX_HOT else []
+    check("an exchange's own wallet is never called a deposit address",
+          offramp.detect(OKX_HOT, "tron") is None)
+    chains.transfers = tron_sweeps
     try:
         offramp.detect("bc1qh0l7q0mca3ln7wsl9luwns0jc9jhgrtft025l4", "btc")
         check("off-ramp check runs on Bitcoin instead of raising", True)
@@ -458,6 +464,12 @@ try:
           str(pairs)[:200])
     check("an operator topping up a fresh address is not a victim's payment",
           poisoning.baited_payments(FRESH, "tron") == [])
+    # two OKX wallets: a small top-up, then a large payment back
+    OKX_A, OKX_B = "TXkCx2gaEWrtU3g88aYxrqHxeWYXX5UUtL", "TCw6YaWm3y6DvxY7M8hrCDnrJGeGMumzGJ"
+    chains.transfers = lambda addr, chain="eth", limit=1000, asset=None, **kw: [
+        trx(OKX_A, OKX_B, 5.0, T0), trx(OKX_B, OKX_A, 900000.0, T0 + 60)] if asset is None else []
+    check("an exchange paying its own wallets is not a lured payment",
+          poisoning.baited_payments(OKX_A, "tron") == [])
 finally:
     chains.transfers = real_transfers
 
@@ -671,6 +683,96 @@ try:
           [r["value"] for r in parsed] == [25.0, 1.5], str([r["value"] for r in parsed]))
 finally:
     sol_fetch._rpc = real_rpc
+
+# ---------------------------------------------------------------- TON
+section("16. TON: addresses, toncenter, labels, poisoning; fresh reads")
+from crypttrace.fetchers import ton as ton_fetch, http as http_mod
+BN_UQ = "UQD4uGNdB4a3f52mYOZf0x1nCmdd1DAvrLppL0a1cetTYCQx"      # Binance, self-published
+BN_RAW = "0:F8B8635D0786B77F9DA660E65FD31D670A675DD4302FACBA692F46B571EB5360"
+BN_EQ = addresses.ton_friendly(BN_RAW, bounceable=True)
+check("the three spellings of a TON account are one address",
+      addresses.ton_friendly(BN_RAW) == addresses.ton_friendly(BN_EQ) == BN_UQ
+      and chains.norm_addr(BN_EQ, "ton") == BN_UQ)
+check("a TON address with one character changed fails its checksum",
+      not addresses.validate(BN_UQ[:-1] + ("A" if BN_UQ[-1] != "A" else "B"), "ton")[0])
+check("TON labels are found whichever spelling is typed",
+      all(labels.type_of(a) == "exchange" for a in (BN_UQ, BN_EQ, BN_RAW)))
+from crypttrace import assets
+USDT_TON = assets.resolve_asset("usdt", "ton")
+check("USDT on TON resolves to Tether's jetton master",
+      USDT_TON["contract"] == "0:b113a994b5024a16719f69139328eb759596c38a25f59028b146fecdc3621dfe")
+
+OTHER_RAW = "0:" + "ab" * 32
+def toncenter(path, params=None, timeout=30):
+    if path == "/transactions":
+        return {"transactions": [
+            {"now": 1700000000, "hash": "AAECAw==",
+             "in_msg": {"source": OTHER_RAW, "destination": BN_RAW, "value": "2500000000"},
+             "out_msgs": [{"source": BN_RAW, "destination": OTHER_RAW, "value": "1"}]},
+            {"now": 1700000100, "hash": "BAUGBw==",
+             "in_msg": {"source": None, "destination": BN_RAW, "value": "0"}, "out_msgs": []}]}
+    if path == "/jetton/transfers":
+        return {"jetton_transfers": [
+            {"source": OTHER_RAW, "destination": BN_RAW, "amount": "297500000",
+             "jetton_master": USDT_TON["contract"].upper(), "transaction_hash": "CAkKCw==",
+             "transaction_now": 1700000200, "aborted": False},
+            {"source": OTHER_RAW, "destination": BN_RAW, "amount": "5", "aborted": True,
+             "jetton_master": USDT_TON["contract"], "transaction_hash": "x", "transaction_now": 1}]}
+    return {}
+real_ton_get = ton_fetch._get
+ton_fetch._get = toncenter
+try:
+    nat = ton_fetch.transfers(BN_UQ, 10)
+    check("TON transfers come in TON, between canonical addresses; external messages dropped",
+          [(r["from"] == addresses.ton_friendly(OTHER_RAW), r["to"] == BN_UQ, r["value"]) for r in nat][:1]
+          == [(True, True, 2.5)] and len(nat) == 2 and nat[1]["value"] == 1e-9, str(nat)[:200])
+    check("TON transaction hashes are hex, for explorer links", nat[0]["hash"] == "00010203")
+    jt = ton_fetch.jetton_transfers(BN_UQ, 10)
+    check("USDT on TON: 6 decimals, owner wallets, aborted transfers dropped",
+          [(r["symbol"], r["value"], r["to"]) for r in jt] == [("USDT", 297.5, BN_UQ)], str(jt)[:200])
+    calls = []
+    def ton_paged(path, params=None, timeout=30):
+        calls.append(params["offset"])
+        left = max(0, 700 - params["offset"])
+        return {"transactions": [{"now": 1, "hash": "", "in_msg": {}, "out_msgs": []}] * min(params["limit"], left)}
+    ton_fetch._get = ton_paged
+    got = ton_fetch._pages("/transactions", "transactions", {}, 1000, ton_fetch.TX_PAGE)
+    check("toncenter history is read page after page", len(got) == 700 and calls == [0, 500], str(calls))
+finally:
+    ton_fetch._get = real_ton_get
+
+check("TON look-alikes are compared as wallets show them (after 'UQ')",
+      poisoning._body(BN_RAW, "ton") == BN_UQ[2:] and poisoning._suffix_chars(BN_UQ, "ton") == 6)
+
+# fresh reads (watch, --fresh) must not be answered from the HTTP cache
+real_cache_get, real_requests_get = http_mod.cache_get, http_mod.requests.get
+class _Resp:
+    status_code, headers = 200, {}
+    def raise_for_status(self): pass
+    def json(self): return {"answer": "fresh"}
+http_mod.cache_get = lambda key, max_age: {"answer": "stale"}
+http_mod.requests.get = lambda *a, **k: _Resp()
+try:
+    stale = http_mod.request_json("https://example.invalid/x", {"q": 1})
+    http_mod.FRESH = True
+    fresh = http_mod.request_json("https://example.invalid/x", {"q": 1})
+    check("a fresh read skips the HTTP cache", stale["answer"] == "stale" and fresh["answer"] == "fresh")
+finally:
+    http_mod.FRESH = False
+    http_mod.cache_get, http_mod.requests.get = real_cache_get, real_requests_get
+
+# funder: dust is not funding
+from crypttrace import funder as funder_mod
+FUNDED = "TFundedFundedFundedFundedFunded11"
+chains.transfers = lambda addr, chain="eth", limit=1000, oldest_first=False, **kw: [
+    {"from": TL, "to": FUNDED, "value": 0.000001, "timestamp": 1, "hash": "d"},
+    {"from": OPER, "to": FUNDED, "value": 50.0, "timestamp": 2, "hash": "f"}] if addr == FUNDED else []
+try:
+    ff = funder_mod.first_funder(FUNDED, "tron")
+    check("the first funder is the first real payment, not a speck of dust",
+          ff and ff["funder"] == OPER, str(ff))
+finally:
+    chains.transfers = real_transfers
 
 # ---------------------------------------------------------------- watch
 section("14. watch on Tron: stablecoins, exchanges, dust")

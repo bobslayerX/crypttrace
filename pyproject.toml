@@ -1,13 +1,13 @@
 [project]
 name = "crypttrace"
 dynamic = ["version"]
-description = "OSINT toolkit for crypto investigations: trace stolen funds across Ethereum, Bitcoin, Tron and Solana"
+description = "OSINT toolkit for crypto investigations: trace stolen funds across Ethereum, Bitcoin, Tron, Solana and TON"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "bobslayerX" }]
 requires-python = ">=3.9"
-keywords = ["osint", "blockchain", "forensics", "cryptocurrency", "bitcoin", "ethereum", "tron", "solana", "investigation"]
+keywords = ["osint", "blockchain", "forensics", "cryptocurrency", "bitcoin", "ethereum", "tron", "solana", "ton", "investigation"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
