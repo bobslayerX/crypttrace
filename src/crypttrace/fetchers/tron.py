@@ -82,10 +82,31 @@ def balance(address: str) -> float:
     return (data[0].get("balance") or 0) / SUN
 
 
+PAGE = 200    # TronGrid's page size
+
+
+def _pages(path: str, limit: int) -> List[Dict]:
+    """Up to `limit` items, following TronGrid's fingerprint cursor page by page.
+
+    One page (200 items) used to be all we read, so a busy wallet's history
+    ended a few days back and older transfers were simply invisible."""
+    items: List[Dict] = []
+    params = {"limit": min(limit, PAGE)}
+    while len(items) < limit:
+        d = _get(path, dict(params))
+        page = d.get("data", []) or []
+        items += page
+        cursor = (d.get("meta") or {}).get("fingerprint")
+        if len(page) < params["limit"] or not cursor:
+            break
+        params["fingerprint"] = cursor
+    return items[:limit]
+
+
 def _native(address: str, limit: int) -> List[Dict]:
-    d = _get(f"/v1/accounts/{address}/transactions", {"limit": min(limit, 200)})
+    # the endpoint lists every transaction type; TRX transfers are a subset of it
     rows = []
-    for tx in d.get("data", []) or []:
+    for tx in _pages(f"/v1/accounts/{address}/transactions", limit):
         try:
             c = (tx.get("raw_data", {}).get("contract") or [])[0]
             if c.get("type") != "TransferContract":
@@ -106,9 +127,8 @@ def _native(address: str, limit: int) -> List[Dict]:
 
 def token_transfers(address: str, limit: int = 200) -> List[Dict]:
     """TRC20 transfers (USDT and friends) — already base58 in the API."""
-    d = _get(f"/v1/accounts/{address}/transactions/trc20", {"limit": min(limit, 200)})
     rows = []
-    for t in d.get("data", []) or []:
+    for t in _pages(f"/v1/accounts/{address}/transactions/trc20", limit):
         # the endpoint also lists Approval events, whose "value" is an allowance
         # (often 2**256-1), not money that moved
         if t.get("type", "Transfer") != "Transfer":
