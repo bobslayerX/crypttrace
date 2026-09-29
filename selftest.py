@@ -610,6 +610,38 @@ try:
 finally:
     chains.transfers, prices.native_price = real_transfers, real_price
 
+# ---------------------------------------------------------------- Tron paging
+section("15. Tron history beyond one page; look-alikes that copy only the ending")
+pages = {"n": 0}
+def paged(path, params=None, timeout=30):
+    pages["n"] += 1
+    start = int((params or {}).get("fingerprint") or 0)
+    size = 200 if start < 400 else 70                 # the third page is the last, short one
+    data = [{"type": "Transfer", "from": OPER, "to": FRESH, "value": "1000000",
+             "block_timestamp": (10_000 - start - i) * 1000, "transaction_id": f"p{start + i}",
+             "token_info": {"symbol": "USDT", "decimals": 6, "address": "TR7NH"}}
+            for i in range(size)]
+    return {"data": data, "meta": {"fingerprint": str(start + size)}}
+real_get = tron_fetch._get
+tron_fetch._get = paged
+try:
+    got = tron_fetch.token_transfers(FRESH, 1000)
+    check("Tron history is read page by page, not just the newest 200",
+          len(got) == 470 and pages["n"] == 3 and len({r["hash"] for r in got}) == 470,
+          f"{len(got)} rows in {pages['n']} requests")
+    pages["n"] = 0
+    check("paging stops at the limit asked for",
+          len(tron_fetch.token_transfers(FRESH, 300)) == 300 and pages["n"] == 2)
+finally:
+    tron_fetch._get = real_get
+
+# the third victim of the documented campaign: only the last six characters matched
+REAL, TAIL_FAKE = "TFnRntZX6WYTrcWhatJJ7EgMXoNcE1doqb", "TAuaRAcfefpiwgrFAYNy7otjZytVE1doqb"
+check("a look-alike copying only the last six characters is strong",
+      poisoning.resemblance(REAL, TAIL_FAKE, "tron") == "strong")
+check("five shared final characters alone are not",
+      poisoning.resemblance(REAL, "TQ" + "z" * 26 + "Z1doqb", "tron") is None)   # shares "1doqb"
+
 # ---------------------------------------------------------------- watch
 section("14. watch on Tron: stablecoins, exchanges, dust")
 from crypttrace import watch
