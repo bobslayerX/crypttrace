@@ -8,7 +8,7 @@
 Open-source OSINT toolkit for crypto investigations. Give it a suspicious
 address; it pulls the public on-chain history, labels known entities (exchanges,
 mixers, sanctioned wallets), scores risk, and maps where the funds moved —
-across Ethereum, Bitcoin, Tron, Solana and more.
+across Ethereum, Bitcoin, Tron, Solana, TON and more.
 
 Built for the investigation that actually happens: *someone's crypto was stolen,
 here's the wallet — where did the money go, and where can it still be stopped?*
@@ -46,7 +46,7 @@ python selftest.py                 # offline checks, no API keys needed
 | | Needed? | How to get it |
 |---|---|---|
 | **EVM chains** (Ethereum, BSC, Polygon, Arbitrum, Optimism, Base) | **Required** | Free key at [etherscan.io/myapikey](https://etherscan.io/myapikey). One v2 key covers all EVM chains. |
-| **Bitcoin, Tron, Solana** | **Not required** | Work out of the box via public endpoints. |
+| **Bitcoin, Tron, Solana, TON** | **Not required** | Work out of the box via public endpoints. |
 
 ```bash
 export ETHERSCAN_API_KEY=xxxx           # required for EVM chains only
@@ -59,7 +59,7 @@ $env:ETHERSCAN_API_KEY = "xxxx"                            # this window only
 [Environment]::SetEnvironmentVariable("ETHERSCAN_API_KEY", "xxxx", "User")   # permanently
 ```
 
-**About the keyless chains:** Bitcoin, Tron and Solana work with no signup at
+**About the keyless chains:** Bitcoin, Tron, Solana and TON work with no signup at
 all, but their free public endpoints are **rate-limited**. crypttrace handles
 this for you — it caches every response, spaces requests out, and retries with
 backoff when a limit is hit. For deep traces you can raise the ceiling with your
@@ -68,6 +68,7 @@ own credentials (all optional):
 ```bash
 export TRONGRID_API_KEY=xxxx            # optional: higher TronGrid quota
 export CRYPTTRACE_SOLANA_RPC=https://…  # optional: your own (faster) Solana RPC
+export TONCENTER_API_KEY=xxxx          # optional: toncenter allows ~1 request/s without it
 ```
 
 (In PowerShell: `$env:TRONGRID_API_KEY = "xxxx"` and so on.)
@@ -80,11 +81,16 @@ export CRYPTTRACE_SOLANA_RPC=https://…  # optional: your own (faster) Solana R
 | Bitcoin | `btc` | mempool.space | UTXO |
 | Tron (TRX + USDT-TRC20) | `tron` | TronGrid | account |
 | Solana (SOL + SPL) | `sol` | public JSON-RPC | account |
+| TON (TON + jettons, e.g. USDT) | `ton` | toncenter v3 | account |
 
 Every network is normalized to the same transfer shape, so `profile`, `trace`,
 `funder`, `report` and the web graph behave identically everywhere. Bitcoin
 additionally unlocks `cluster`. Tron matters for everyday victim cases — most
 romance / "pig butchering" scams move USDT-TRC20 because fees are near zero.
+TON matters for the same reason: USDT on TON is built into Telegram's wallet,
+so scams that start in a Telegram chat often end there. TON addresses are
+accepted in any form (`UQ…`, `EQ…` or raw `0:…`) and shown as wallets show
+them (`UQ…`); jetton transfers are reported between the owners' wallets.
 
 ---
 
@@ -399,13 +405,14 @@ want:
 ```bash
 crypttrace trace 0xADDRESS --asset usdt                   # USDT on Ethereum
 crypttrace trace TADDRESS  --chain tron --asset usdt      # USDT-TRC20 on Tron
+crypttrace trace UQADDRESS --chain ton  --asset usdt      # USDT on TON
 crypttrace tokens TADDRESS --chain tron
 ```
 
 Token contracts differ per chain, so the registry is chain-aware: `usdt` on Tron
 resolves to `TR7NHqje…jLj6t`, on Ethereum to `0xdac17f95…31ec7`. Known symbols
-are `usdt`, `usdc`, `dai`, `weth`, `wbtc` on EVM and `usdt`, `usdc` on
-Tron/Solana; you can also pass any contract address directly.
+are `usdt`, `usdc`, `dai`, `weth`, `wbtc` on EVM, `usdt`, `usdc` on
+Tron/Solana and `usdt` on TON; you can also pass any contract address directly.
 
 Matching is by **exact contract**, which matters: attackers routinely airdrop
 fake tokens named "USDT" to poison wallets, and those are ignored rather than
@@ -425,8 +432,8 @@ Add sources in `labels/labels.py` → `SOURCES`.
 
 On Bitcoin, Tron and Solana the labels cover the reserve wallets of Binance,
 OKX and HTX, plus Bybit's older 2022 list — each taken from the address list the
-exchange publishes itself for proof-of-reserves. That is what lets `offramp`
-flag deposit addresses on those chains. Funds sent to an exchange not on that
+exchange publishes itself for proof-of-reserves; on TON, Binance's reserve
+wallets. That is what lets `offramp` flag deposit addresses on those chains. Funds sent to an exchange not on that
 list still show as `unknown`. Every label records where it came from — see
 `crypttrace labels audit`.
 
@@ -527,6 +534,7 @@ src/crypttrace/
     bitcoin.py     # Bitcoin UTXO (mempool.space) + clustering
     tron.py        # Tron / TRC20 (TronGrid) + base58 conversion
     solana.py      # Solana JSON-RPC
+    ton.py         # TON + jettons (toncenter v3)
     http.py        # shared cache, throttling, 429 backoff
   labels/
     known.json     # curated label DB, one source per claim
@@ -555,7 +563,8 @@ cases/             # worked investigations with their data
 
 ## Roadmap
 
-- More exchanges on Bitcoin, Tron and Solana (now: Binance, OKX, HTX, Bybit),
+- More exchanges on Bitcoin, Tron, Solana (now: Binance, OKX, HTX, Bybit) and
+  TON (now: Binance),
   and refreshing these lists as the exchanges republish them
 - Internal transactions (completes `funder` and contract-mediated transfers)
 - More label sources: Chainabuse, CryptoScamDB, exchange deposit-address sets

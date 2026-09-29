@@ -24,10 +24,13 @@ def first_funder(address: str, chain: str = "eth") -> Optional[dict]:
     Works on every supported chain. {funder, value, timestamp, hash} or None.
     """
     from crypttrace import chains
-    me = address if chain in ("btc", "tron", "sol") else address.lower()
+    me = chains.norm_addr(address, chain)
     rows = chains.transfers(address, chain, limit=200, oldest_first=True)
+    from crypttrace import analysis
+    dust = analysis.dust_threshold(chain)
     for r in rows:  # ascending => first match is the earliest funding
-        if r.get("to") != me or r.get("value", 0) <= 0:
+        # dust is not funding: it is what poisoners and spammers send everyone
+        if r.get("to") != me or r.get("value", 0) < max(dust, 1e-18):
             continue
         return {
             "funder": r.get("from", ""),
@@ -49,9 +52,11 @@ def funding_chain(address: str, chain: str = "eth", max_hops: int = 6) -> List[D
     Returns a list of hops, each {address, funder, value, timestamp, funder_type,
     funder_label, terminal}. Stops at a labelled entity, a dead end, or a cycle.
     """
+    from crypttrace import chains
     chain_hops: List[Dict] = []
-    seen = {address.lower()}
-    current = address.lower()
+    # lower-casing here broke every Bitcoin, Tron and Solana address
+    current = chains.norm_addr(address, chain)
+    seen = {current}
 
     for _ in range(max_hops):
         info = first_funder(current, chain)

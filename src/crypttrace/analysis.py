@@ -24,7 +24,7 @@ from crypttrace.labels import labels
 # drowns out the transfers an investigation is actually about.
 DUST = {"btc": 0.0005, "eth": 0.002, "bsc": 0.005, "polygon": 5.0,
         "arbitrum": 0.002, "optimism": 0.002, "base": 0.002,
-        "tron": 5.0, "sol": 0.01}
+        "tron": 5.0, "sol": 0.01, "ton": 0.01}
 
 
 def dust_threshold(chain: str, asset: Optional[dict] = None) -> float:

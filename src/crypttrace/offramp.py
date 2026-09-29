@@ -18,7 +18,7 @@ from crypttrace.labels import labels
 
 # Where thefts mostly move as stablecoins, a deposit address sweeps those rather
 # than the native coin (on Tron it may never send TRX at all).
-STABLECOIN_CHAINS = {"tron": ("usdt", "usdc"), "sol": ("usdc", "usdt")}
+STABLECOIN_CHAINS = {"tron": ("usdt", "usdc"), "sol": ("usdc", "usdt"), "ton": ("usdt",)}
 
 
 def _one(address: str, chain: str, threshold: float, asset: Optional[dict]) -> Optional[dict]:
@@ -66,6 +66,10 @@ def detect(address: str, chain: str = "eth", threshold: float = 0.6,
     exchange wallets, otherwise None. Checks `asset` if given; otherwise the
     native coin and, on Tron and Solana, their stablecoins.
     """
+    # an exchange's own labelled wallet moving funds between its wallets is not
+    # a customer's deposit address
+    if labels.type_of(address) == "exchange" and not labels.is_deposit(address):
+        return None
     tries: List[Optional[dict]] = [asset]
     if asset is None and stablecoins:
         tries += [assets.resolve_asset(s, chain) for s in STABLECOIN_CHAINS.get(chain, ())]

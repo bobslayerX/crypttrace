@@ -177,6 +177,8 @@ TYPE_ICON = {
 
 def lookup(address: str) -> Optional[dict]:
     _load()
+    if len(address) == 48 or ":" in address:          # TON, in whatever spelling
+        address = addresses.ton_friendly(address) or address
     hit = _KNOWN.get(address.lower())
     if hit:
         return hit

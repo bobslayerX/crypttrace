@@ -40,6 +40,10 @@ def validate(address: str, chain: str):
     elif chain == "tron":
         if not (a.startswith("T") and len(a) == 34):
             return f"'{a[:14]}…' is not a Tron address (expected T…, 34 chars)."
+    elif chain == "ton":
+        from crypttrace import addresses as _a
+        if not _a.validate(a, "ton")[0]:
+            return f"'{a[:14]}…' is not a TON address (expected UQ…/EQ…, 48 chars)."
     return None
 
 

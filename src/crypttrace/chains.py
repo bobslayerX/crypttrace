@@ -13,21 +13,22 @@ would be meaningless, so a caller always asks for one asset at a time.
 from typing import List, Dict, Optional
 
 from crypttrace import config
-from crypttrace.fetchers import etherscan, bitcoin, tron, solana
+from crypttrace import addresses as _addresses
+from crypttrace.fetchers import etherscan, bitcoin, http as _http, tron, solana, ton
 
 EVM_CHAINS = set(config.CHAINS)
-NON_EVM = {"btc", "tron", "sol"}
+NON_EVM = {"btc", "tron", "sol", "ton"}
 ALL_CHAINS = sorted(EVM_CHAINS | NON_EVM)
 
 SYMBOL = {"eth": "ETH", "bsc": "BNB", "polygon": "MATIC", "arbitrum": "ETH",
-          "optimism": "ETH", "base": "ETH", "btc": "BTC", "tron": "TRX", "sol": "SOL"}
+          "optimism": "ETH", "base": "ETH", "btc": "BTC", "tron": "TRX", "sol": "SOL", "ton": "TON"}
 
 EXPLORER = {
     "eth": "https://etherscan.io/address/{}", "bsc": "https://bscscan.com/address/{}",
     "polygon": "https://polygonscan.com/address/{}", "arbitrum": "https://arbiscan.io/address/{}",
     "optimism": "https://optimistic.etherscan.io/address/{}", "base": "https://basescan.org/address/{}",
     "btc": "https://mempool.space/address/{}", "tron": "https://tronscan.org/#/address/{}",
-    "sol": "https://solscan.io/account/{}",
+    "sol": "https://solscan.io/account/{}", "ton": "https://tonviewer.com/{}",
 }
 
 TX_EXPLORER = {
@@ -35,11 +36,11 @@ TX_EXPLORER = {
     "polygon": "https://polygonscan.com/tx/{}", "arbitrum": "https://arbiscan.io/tx/{}",
     "optimism": "https://optimistic.etherscan.io/tx/{}", "base": "https://basescan.org/tx/{}",
     "btc": "https://mempool.space/tx/{}", "tron": "https://tronscan.org/#/transaction/{}",
-    "sol": "https://solscan.io/tx/{}",
+    "sol": "https://solscan.io/tx/{}", "ton": "https://tonviewer.com/transaction/{}",
 }
 
 _UPSTREAM_ERRORS = (etherscan.EtherscanError, bitcoin.BitcoinError,
-                    tron.TronError, solana.SolanaError)
+                    tron.TronError, solana.SolanaError, ton.TonError)
 
 
 class ChainError(RuntimeError):
@@ -56,6 +57,8 @@ def case_sensitive(chain: str) -> bool:
 
 
 def norm_addr(address: str, chain: str) -> str:
+    if chain == "ton":        # one account, several spellings: compare the one wallets show
+        return _addresses.ton_friendly(address) or address
     return address if case_sensitive(chain) else address.lower()
 
 
@@ -87,6 +90,8 @@ def balance(address: str, chain: str = "eth") -> float:
             return tron.balance(address)
         if chain == "sol":
             return solana.balance(address)
+        if chain == "ton":
+            return ton.balance(address)
     except _UPSTREAM_ERRORS as e:
         raise ChainError(str(e))
     return 0.0
@@ -159,6 +164,8 @@ def transfers(address: str, chain: str = "eth", limit: int = 1000,
     repeat analysis costs nothing and works offline.
     """
     check(chain)
+    if chain == "ton":
+        address = norm_addr(address, chain)   # one spelling for store keys and matching
     contract = asset.get("contract") if asset else None
 
     from crypttrace import store
@@ -181,6 +188,9 @@ def transfers(address: str, chain: str = "eth", limit: int = 1000,
         # nothing stored for this address and we're not allowed to fetch
         return []
 
+    # asked for fresh data: skip the HTTP-level caches too, not just the store
+    was_fresh = _http.FRESH
+    _http.FRESH = was_fresh or fresh or FORCE_FRESH
     try:
         if is_evm(chain):
             rows = _evm_token(address, chain, contract, limit) if asset \
@@ -195,10 +205,16 @@ def transfers(address: str, chain: str = "eth", limit: int = 1000,
                 else tron.transfers(address, limit)
         elif chain == "sol":
             rows = _sol_rows(address, limit, bool(asset), contract)
+        elif chain == "ton":
+            rows = ton.transfers(address, limit) if not asset else [
+                r for r in ton.jetton_transfers(address, limit)
+                if not contract or r["contract"] == contract.lower()]
         else:
             rows = []
     except _UPSTREAM_ERRORS as e:
         raise ChainError(str(e))
+    finally:
+        _http.FRESH = was_fresh
 
     if USE_STORE:
         try:
@@ -252,6 +268,8 @@ def token_holdings(address: str, chain: str = "eth", limit: int = 1000) -> List[
             rows = _evm_token(address, chain, None, limit)
         elif chain == "tron":
             rows = _tron_token(address, None, limit)
+        elif chain == "ton":
+            rows = ton.jetton_transfers(address, limit)
         else:
             rows = _sol_rows(address, limit, True, None)
     except _UPSTREAM_ERRORS as e:

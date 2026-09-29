@@ -23,6 +23,10 @@ TOKENS: Dict[str, Dict[str, dict]] = {
         "usdt": {"contract": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t", "symbol": "USDT", "stable": True},
         "usdc": {"contract": "TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8", "symbol": "USDC", "stable": True},
     },
+    "ton": {
+        "usdt": {"contract": "0:b113a994b5024a16719f69139328eb759596c38a25f59028b146fecdc3621dfe",
+                 "symbol": "USDT", "stable": True, "decimals": 6},
+    },
     "sol": {
         "usdc": {"contract": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "symbol": "USDC", "stable": True},
         "usdt": {"contract": "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", "symbol": "USDT", "stable": True},
@@ -45,7 +49,7 @@ def resolve_asset(asset: Optional[str], chain: str = "eth") -> Optional[dict]:
     Accepts 'eth'/'native'/None, a known symbol on that chain, or a raw contract
     address (0x… on EVM, base58 on Tron/Solana).
     """
-    if asset is None or asset.lower() in ("eth", "native", "btc", "trx", "sol", "bnb", "matic"):
+    if asset is None or asset.lower() in ("eth", "native", "btc", "trx", "sol", "bnb", "matic", "ton"):
         return None
 
     a = asset.lower()
@@ -54,7 +58,12 @@ def resolve_asset(asset: Optional[str], chain: str = "eth") -> Optional[dict]:
         return dict(known[a])
 
     # raw contract address
-    if chain in ("tron", "sol"):
+    if chain == "ton":                      # a jetton master, in any spelling -> raw
+        from crypttrace import addresses
+        p = addresses.ton_parse(asset)
+        if p:
+            return {"contract": f"{p[0]}:{p[1].hex()}", "symbol": "JETTON", "stable": False}
+    elif chain in ("tron", "sol"):
         if len(asset) >= 32 and not asset.startswith("0x"):
             return {"contract": asset, "symbol": asset[:6].upper(), "stable": False}
     elif a.startswith("0x") and len(a) == 42:

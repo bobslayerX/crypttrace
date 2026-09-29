@@ -123,7 +123,65 @@ def validate(address: str, chain: str) -> Tuple[bool, str]:
             return False, "does not decode to a 32-byte public key"
         return True, "valid 32-byte key (Solana addresses carry no checksum)"
 
+    if chain == "ton":
+        if ":" in a:
+            return (True, "valid raw TON address (the raw form carries no checksum)") \
+                if ton_parse(a) else (False, "raw TON addresses are workchain:64 hex characters")
+        if len(a) != 48:
+            return False, "TON addresses are 48 characters (EQ…/UQ…) or workchain:hex"
+        return (True, "TON checksum valid") if ton_parse(a) else \
+            (False, "checksum does not match — the address is mistyped or invented")
+
     return False, f"unknown chain '{chain}'"
+
+
+# ---------------------------------------------------------------- TON
+# One account, several spellings: raw "0:<64 hex>", and 48-character base64 forms
+# that are bounceable ("EQ…") or not ("UQ…"), each ending in a CRC16 of the rest.
+# Everything is compared in one canonical spelling: non-bounceable, url-safe —
+# the form wallets show, and so the one a poisoner imitates.
+
+def _crc16_xmodem(data: bytes) -> int:
+    crc = 0
+    for byte in data:
+        crc ^= byte << 8
+        for _ in range(8):
+            crc = ((crc << 1) ^ 0x1021) if crc & 0x8000 else crc << 1
+            crc &= 0xFFFF
+    return crc
+
+
+def ton_parse(address: str) -> Optional[Tuple[int, bytes]]:
+    """(workchain, 32-byte account id) from any TON spelling, or None."""
+    import base64
+    import re
+    a = (address or "").strip()
+    m = re.fullmatch(r"(-?\d+):([0-9a-fA-F]{64})", a)
+    if m:
+        return int(m.group(1)), bytes.fromhex(m.group(2))
+    if len(a) != 48:
+        return None
+    try:
+        raw = base64.b64decode(a.replace("-", "+").replace("_", "/"), validate=True)
+    except (ValueError, TypeError):
+        return None
+    if len(raw) != 36 or (raw[0] & 0x7F) not in (0x11, 0x51):
+        return None
+    if _crc16_xmodem(raw[:34]) != int.from_bytes(raw[34:], "big"):
+        return None
+    wc = raw[1] - 256 if raw[1] > 127 else raw[1]
+    return wc, raw[2:34]
+
+
+def ton_friendly(address: str, bounceable: bool = False) -> Optional[str]:
+    """The canonical 48-character spelling (non-bounceable "UQ…" by default)."""
+    import base64
+    p = ton_parse(address)
+    if not p:
+        return None
+    wc, account = p
+    body = bytes([0x11 if bounceable else 0x51, wc & 0xFF]) + account
+    return base64.urlsafe_b64encode(body + _crc16_xmodem(body).to_bytes(2, "big")).decode()
 
 
 def looks_like_txid(value: str) -> bool:

@@ -390,7 +390,7 @@ def funder(
     except etherscan.EtherscanError as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1)
-    console.print(render.funding_tree(address, chain_hops))
+    console.print(render.funding_tree(address, chain_hops, chains_mod.symbol(chain)))
     if chain_hops and chain_hops[-1]["terminal"] and chain_hops[-1]["funder_type"] == "exchange":
         console.print("\n[green]➜ Funding chain reaches an exchange — a KYC identification "
                       "point. A legal request to that exchange can reveal the owner.[/green]")
@@ -804,6 +804,7 @@ def chains():
     console.print("  btc        Bitcoin — mempool.space (UTXO)")
     console.print("  tron       Tron — TronGrid (TRX + USDT-TRC20)")
     console.print("  sol        Solana — public JSON-RPC")
+    console.print("  ton        TON — toncenter (TON + jettons such as USDT)")
 
 
 @app.command()

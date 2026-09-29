@@ -64,7 +64,8 @@ def _call(chain: str, params: Dict[str, str], cache_age: int = 3600) -> dict:
         **params,
     }
     key = f"{chain}:" + "&".join(f"{k}={v}" for k, v in sorted(q.items()) if k != "apikey")
-    cached = _cache_get(key, cache_age)
+    from crypttrace.fetchers import http
+    cached = None if http.FRESH else _cache_get(key, cache_age)
     if cached is not None:
         return cached
 

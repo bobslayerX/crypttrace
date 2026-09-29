@@ -105,7 +105,8 @@ def profile_rows_table(address: str, chain: str, balance: float, rows: list,
 
 def counterparties_rows_table(address: str, chain: str, rows: list, top: int = 10) -> Table:
     """Counterparties from normalized rows (works on every chain)."""
-    me = address if chain in ("btc", "tron", "sol") else address.lower()
+    from crypttrace import chains
+    me = chains.norm_addr(address, chain)
     agg = {}
     for r in rows:
         frm, to = r.get("from", ""), r.get("to", "")
@@ -200,7 +201,7 @@ def crosschain_tree(address: str, chain: str, results: list) -> Tree:
     return root
 
 
-def funding_tree(address: str, hops: list) -> Tree:
+def funding_tree(address: str, hops: list, symbol: str = "ETH") -> Tree:
     """Render a backward funding chain: target ← funder ← funder …"""
     root = Tree(addr_label(address))
     if not hops:
@@ -210,7 +211,7 @@ def funding_tree(address: str, hops: list) -> Tree:
     node = root
     for h in hops:
         when = _ts(h["timestamp"])
-        edge = Text(f"◀── funded by {h['value']:.4f} ETH  ({when})  ")
+        edge = Text(f"◀── funded by {h['value']:.4f} {symbol}  ({when})  ")
         node = node.add(Text.assemble(edge, addr_label(h["funder"])))
         if h["terminal"]:
             kind = h["funder_type"]

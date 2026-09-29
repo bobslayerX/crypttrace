@@ -32,7 +32,7 @@ _OKX_FILE = re.compile(r"https://static\.okx\.com/cdn/okx/por/chain/por_csv_(\d{
 # OKX network name -> crypttrace chain (only the chains crypttrace can trace)
 OKX_NETWORKS = {"BTC": "btc", "TRON": "tron", "SOL": "sol", "ETH": "eth", "BSC": "bsc",
                 "POLYGON": "polygon", "ARBITRUM": "arbitrum", "OPTIMISM": "optimism",
-                "BASE": "base"}
+                "BASE": "base", "TON": "ton"}
 
 _conn: Optional[sqlite3.Connection] = None
 
@@ -148,6 +148,8 @@ def import_okx(source: Optional[str] = None,
             chain = OKX_NETWORKS.get(network)
             if not chain:
                 continue
+            if chain == "ton":          # one spelling per account, the one wallets show
+                addr = addresses.ton_friendly(addr) or addr
             key = addr.lower()
             if key in rows:
                 continue

@@ -119,7 +119,7 @@ def build_graph(address, chain, depth, branching, asset=None, direction="out"):
     # Bitcoin / Tron / Solana addresses are case-sensitive (base58); only EVM
     # addresses may be normalized to lowercase.
     from crypttrace import chains as _c
-    _norm = (lambda a: a.lower()) if _c.is_evm(chain) else (lambda a: a)
+    _norm = lambda a: _c.norm_addr(a, chain)
 
     nodes = {}
     edges = []
