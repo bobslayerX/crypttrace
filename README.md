@@ -366,7 +366,9 @@ crypttrace timeline bc1qADDRESS --chain btc --buckets 24
 ![The victim list for one branch of the Coldcard sweep in the web UI](https://raw.githubusercontent.com/bobslayerX/crypttrace/main/assets/web-victims.jpg)
 
 A worked example — 1,169 swept addresses, 1,082.58 BTC, with the commands to
-reproduce it — is in [`cases/coldcard-2026`](cases/coldcard-2026).
+reproduce it — is in [`cases/coldcard-2026`](cases/coldcard-2026). A TON one — 200
+wallets emptied after a seed leak, followed to a KuCoin deposit memo — is in
+[`cases/fragment-api-ton-2026`](cases/fragment-api-ton-2026).
 
 **Dust is filtered by default.** Addresses that become publicly known get spammed
 with tiny transfers, which otherwise bury the transactions that matter and can

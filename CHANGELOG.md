@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.12.1
+
+### Fixed
+- **TON transfers were counted twice** once a history had been read from both
+  ends. The sender and the receiver each have their own transaction for one
+  transfer, with different hashes, so the local store kept both; `victims` on
+  a drainer's collector doubled the wallets that had also been looked up
+  (13,470 TON reported for 9,759 taken). Transfers are now keyed by the message
+  hash, which both sides share, and TON data stored by 0.12.0 is dropped once
+  and read again.
+
+### Added
+- **Case: fragment-api seed leak on TON** (`cases/fragment-api-ton-2026`): 200
+  wallets, 10,080 TON and 29,494 USDT, traced to three exchange deposits and a
+  direct KuCoin deposit with its memo.
+
 ## 0.12.0
 
 ### Added
