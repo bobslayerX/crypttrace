@@ -423,6 +423,14 @@ with USDT would be meaningless.
 
 Amounts carry approximate USD values (stablecoins pinned to $1, others priced
 via CoinGecko). If pricing is unavailable, USD shows as `—` rather than a guess.
+Only the real stablecoin contract gets the $1 — a token anyone minted and called
+"USDT" is worth nothing.
+
+`tokens` hides spam and counterfeit tokens and leaves them out of the total: a
+"USDT" or "TON" that is not the real contract, a name that is a phishing link
+("GRAM AT GRAMEVENT.ORG", "USDT - usdtunloсk.соm" with Cyrillic letters in the
+domain), and on TON anything the indexer flags as a scam. `--all` lists them
+with the reason.
 
 ### Labels
 
@@ -570,7 +578,6 @@ cases/             # worked investigations with their data
   and refreshing these lists as the exchanges republish them
 - Internal transactions (completes `funder` and contract-mediated transfers)
 - More label sources: Chainabuse, CryptoScamDB, exchange deposit-address sets
-- Spam/dust token filtering in `tokens`
 - Entity clustering on EVM via the gas-funding heuristic
 
 ## Contributing

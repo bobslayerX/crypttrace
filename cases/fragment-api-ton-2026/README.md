@@ -33,9 +33,9 @@ so are the Telegram usernames among the stolen NFTs.
 Each wallet was emptied with 2–6 signed transactions a few seconds apart —
 jettons first, then NFTs, then all the TON. Nobody approves six transactions a
 minute by hand across a hundred wallets at once, so the keys themselves had
-leaked. At least 152 of the 200 had paid the Fragment wallet before (tonapi
-names it "Fragment") — buyers of Stars and Premium, as the service's users
-would be.
+leaked. 166 of the other 199 victims had paid the Fragment wallet before
+(tonapi names it "Fragment") — buyers of Stars and Premium, as the service's
+users would be.
 
 The collector was never funded on its own: its first transaction is the first
 victim's money arriving. There is no earlier wallet of the attacker's to follow

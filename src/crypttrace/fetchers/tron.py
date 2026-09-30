@@ -142,7 +142,7 @@ def token_transfers(address: str, limit: int = 200) -> List[Dict]:
         rows.append({"from": t.get("from", ""), "to": t.get("to", ""), "value": val,
                      "timestamp": int((t.get("block_timestamp") or 0) / 1000),
                      "hash": t.get("transaction_id", ""),
-                     "symbol": info.get("symbol", "TRC20"),
+                     "symbol": info.get("symbol", "TRC20"), "name": info.get("name", ""),
                      "contract": (info.get("address") or "").lower()})
     return rows
 

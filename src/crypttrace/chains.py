@@ -14,6 +14,7 @@ from typing import List, Dict, Optional
 
 from crypttrace import config
 from crypttrace import addresses as _addresses
+from crypttrace import spam as _spam
 from crypttrace.fetchers import etherscan, bitcoin, http as _http, tron, solana, ton
 
 EVM_CHAINS = set(config.CHAINS)
@@ -127,7 +128,7 @@ def _evm_token(address: str, chain: str, contract: Optional[str], limit: int) ->
         rows.append({"from": t.get("from", "").lower(), "to": t.get("to", "").lower(),
                      "value": val, "timestamp": int(t.get("timeStamp", "0") or 0),
                      "hash": t.get("hash", ""), "symbol": t.get("tokenSymbol", "?"),
-                     "contract": c})
+                     "name": t.get("tokenName", ""), "contract": c})
     return rows
 
 
@@ -278,8 +279,11 @@ def token_holdings(address: str, chain: str = "eth", limit: int = 1000) -> List[
     agg: Dict[str, dict] = {}
     for r in rows:
         key = r.get("contract") or r.get("symbol", "?")
-        rec = agg.setdefault(key, {"symbol": r.get("symbol", "?"), "contract": key,
-                                   "net": 0.0, "txs": 0})
+        rec = agg.setdefault(key, {"symbol": r.get("symbol", "?"), "name": r.get("name", ""),
+                                   "contract": key, "net": 0.0, "txs": 0,
+                                   "spam": _spam.verdict(chain, r.get("contract") or "",
+                                                         r.get("symbol", ""), r.get("name", ""),
+                                                         bool(r.get("flagged")))})
         if r.get("to") == me:
             rec["net"] += r.get("value", 0.0)
         if r.get("from") == me:

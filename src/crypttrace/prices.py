@@ -8,6 +8,8 @@ from typing import Optional, Dict
 
 import requests
 
+from crypttrace import assets
+
 # symbols treated as ~$1
 _STABLE = {"usdt", "usdc", "dai", "busd", "tusd", "usdp", "gusd", "frax", "lusd"}
 
@@ -54,9 +56,17 @@ def native_price(chain: str = "eth") -> Optional[float]:
 
 
 def token_price(contract: str, chain: str = "eth", symbol: str = "") -> Optional[float]:
-    """USD price of an ERC-20 token by contract. Stablecoins short-circuit to $1."""
+    """USD price of a token by contract. Stablecoins short-circuit to $1 — but only
+    the real contract where the registry knows it: a "USDT" anyone can mint is not
+    worth a dollar."""
     if symbol.lower() in _STABLE:
-        return 1.0
+        real = {t["symbol"].lower(): t["contract"].lower()
+                for t in assets.tokens_for(chain).values() if t.get("stable")}
+        if not assets.tokens_for(chain):
+            return 1.0                      # no registry for this chain: trust the symbol
+        if (contract or "").lower() == real.get(symbol.lower()):
+            return 1.0
+        return None
     key = f"{chain}:{contract.lower()}"
     if key in _cache:
         return _cache[key]

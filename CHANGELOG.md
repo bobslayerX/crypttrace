@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.13.0
+
+### Added
+- **`tokens` hides spam and counterfeit tokens.** A token that calls itself
+  USDT, USDC or the chain's own coin but is not the registered contract, a
+  name that is a link or a Telegram handle ("GRAM AT GRAMEVENT.ORG",
+  "@BTC25"), a bait word ("claim", "unlock", "airdrop"), and on TON anything
+  toncenter flags as a scam. Look-alike Cyrillic and Greek letters are undone
+  first, so "usdtunloсk.соm" is caught. Hidden tokens never count towards the
+  total; `--all` lists them with the reason. On the fragment-api attacker's
+  wallet this hides 20 of 58 tokens.
+- **TON jettons show their own names** instead of "JETTON".
+
+### Fixed
+- **A fake "USDT" was priced at $1.** Stablecoins were priced by symbol alone,
+  so a counterfeit could put a made-up million dollars into `tokens` or a
+  trace of that contract. On chains with a token registry only the real
+  contract gets $1 now.
+
 ## 0.12.1
 
 ### Fixed
