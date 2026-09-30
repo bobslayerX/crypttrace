@@ -738,6 +738,15 @@ try:
     ton_fetch._get = ton_paged
     got = ton_fetch._pages("/transactions", "transactions", {}, 1000, ton_fetch.TX_PAGE)
     check("toncenter history is read page after page", len(got) == 700 and calls == [0, 500], str(calls))
+    # one transfer, two transactions: the sender's and the receiver's
+    msg = {"source": OTHER_RAW, "destination": BN_RAW, "value": "7000000000", "hash": "DQ4PEA=="}
+    both_sides = [{"transactions": [{"now": 1700000500, "hash": "ERITFA==", "in_msg": {}, "out_msgs": [msg]}]},
+                  {"transactions": [{"now": 1700000500, "hash": "FRYXGA==", "in_msg": msg, "out_msgs": []}]}]
+    ton_fetch._get = lambda path, params=None, timeout=30: both_sides.pop(0) if both_sides else {}
+    store.save("ton", addresses.ton_friendly(OTHER_RAW), ton_fetch.transfers(OTHER_RAW, 10))
+    store.save("ton", BN_UQ, ton_fetch.transfers(BN_UQ, 10))
+    seen = [r for r in store.load("ton", BN_UQ) if r["value"] == 7.0]
+    check("a TON transfer read from both ends is stored once", len(seen) == 1, str(seen))
 finally:
     ton_fetch._get = real_ton_get
 

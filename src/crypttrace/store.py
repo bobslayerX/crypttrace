@@ -60,11 +60,22 @@ def _conn() -> sqlite3.Connection:
             PRIMARY KEY (chain, address, asset)
         );
     """)
+    if c.execute("PRAGMA user_version").fetchone()[0] < 1:
+        # 0.12.0 stored a TON transfer once per side (two transaction hashes),
+        # so a history fetched from both ends counted it twice. Refetch TON.
+        c.execute("DELETE FROM transfers WHERE chain='ton'")
+        c.execute("DELETE FROM fetched WHERE chain='ton'")
+        c.execute("PRAGMA user_version=1")
+        c.commit()
     return c
 
 
 def _row_id(chain: str, r: dict) -> str:
     """Content hash — the same transfer seen from either side stores once."""
+    if r.get("msg_hash"):
+        # TON: sender and receiver each have their own transaction for one transfer
+        key = "|".join([chain, "msg", str(r["msg_hash"]), str(r.get("symbol", ""))])
+        return hashlib.sha1(key.encode()).hexdigest()
     key = "|".join([
         chain, str(r.get("hash", "")), str(r.get("from", "")), str(r.get("to", "")),
         str(r.get("symbol", "")), f"{float(r.get('value', 0)):.12f}",

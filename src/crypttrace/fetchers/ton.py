@@ -98,8 +98,10 @@ def transfers(address: str, limit: int = 1000) -> List[Dict]:
             src, dst = _addr(src), _addr(dst)
             if me not in (src, dst):
                 continue
+            # the sender's and the receiver's transactions have different hashes;
+            # the message hash is the same on both sides (the store keys on it)
             rows.append({"from": src, "to": dst, "value": value, "timestamp": ts,
-                         "hash": h, "symbol": "TON"})
+                         "hash": h, "symbol": "TON", "msg_hash": _hex(m.get("hash") or "")})
     return rows
 
 
