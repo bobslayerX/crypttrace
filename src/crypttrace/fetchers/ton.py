@@ -28,10 +28,10 @@ TX_PAGE, JETTON_PAGE = 500, 1000
 _KEY = os.environ.get("TONCENTER_API_KEY")
 http.MIN_INTERVAL["toncenter.com"] = 0.12 if _KEY else 1.1
 
-# jetton master (raw, lower-case) -> decimals, starting with the ones we know
-_DECIMALS: Dict[str, int] = {t["contract"]: t.get("decimals", 9)
-                             for t in assets.tokens_for("ton").values()}
-_SYMBOLS: Dict[str, str] = {t["contract"]: t["symbol"] for t in assets.tokens_for("ton").values()}
+# jetton master (raw, lower-case) -> what the token calls itself, starting with the ones we know
+_META: Dict[str, dict] = {t["contract"]: {"decimals": t.get("decimals", 9), "symbol": t["symbol"],
+                                          "name": "", "scam": False}
+                          for t in assets.tokens_for("ton").values()}
 
 
 class TonError(RuntimeError):
@@ -105,16 +105,25 @@ def transfers(address: str, limit: int = 1000) -> List[Dict]:
     return rows
 
 
-def _decimals(master: str) -> Optional[int]:
-    if master not in _DECIMALS:
+def _meta(master: str) -> Optional[dict]:
+    """Decimals, symbol, name and the indexer's scam flag for a jetton master."""
+    if master not in _META:
         try:
-            m = (_get("/jetton/masters", {"address": master, "limit": 1}).get("jetton_masters")
-                 or [{}])[0]
-            content = m.get("jetton_content") or {}
-            _DECIMALS[master] = int(content.get("decimals") or 9)   # TEP-64 default is 9
+            d = _get("/jetton/masters", {"address": master, "limit": 1})
+            content = ((d.get("jetton_masters") or [{}])[0].get("jetton_content")) or {}
+            # off-chain metadata (a URI) is resolved by the indexer into "metadata"
+            info = next((i for m in (d.get("metadata") or {}).values()
+                         for i in (m.get("token_info") or []) if i.get("type") == "jetton_masters"), {})
+            _META[master] = {
+                "decimals": int(content.get("decimals") or (info.get("extra") or {}).get("decimals")
+                                or 9),                      # TEP-64 default is 9
+                "symbol": info.get("symbol") or content.get("symbol") or "JETTON",
+                "name": info.get("name") or content.get("name") or "",
+                "scam": bool(info.get("is_scam")),
+            }
         except (TonError, ValueError, TypeError):
             return None
-    return _DECIMALS[master]
+    return _META[master]
 
 
 def jetton_transfers(address: str, limit: int = 1000) -> List[Dict]:
@@ -124,15 +133,16 @@ def jetton_transfers(address: str, limit: int = 1000) -> List[Dict]:
         if t.get("aborted"):
             continue
         master = (t.get("jetton_master") or "").lower()
-        dec = _decimals(master)
-        if dec is None:
+        meta = _meta(master)
+        if meta is None:
             continue                                # unknown unit: don't guess
         try:
-            value = int(t.get("amount") or 0) / (10 ** dec)
+            value = int(t.get("amount") or 0) / (10 ** meta["decimals"])
         except (ValueError, TypeError):
             continue
         rows.append({"from": _addr(t.get("source")), "to": _addr(t.get("destination")),
                      "value": value, "timestamp": int(t.get("transaction_now") or 0),
                      "hash": _hex(t.get("transaction_hash", "")),
-                     "symbol": _SYMBOLS.get(master, "JETTON"), "contract": master})
+                     "symbol": meta["symbol"], "name": meta["name"], "contract": master,
+                     "flagged": meta["scam"]})
     return rows

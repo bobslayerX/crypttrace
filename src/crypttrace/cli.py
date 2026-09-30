@@ -199,8 +199,12 @@ def trace(
 def tokens(
     address: str = typer.Argument(..., help="Address to inspect (0x…)"),
     chain: str = CHAIN_OPT,
+    show_all: bool = typer.Option(False, "--all", help="Also list spam and counterfeit tokens"),
 ):
-    """Show an address's token holdings (approx from transfer history) with USD."""
+    """Show an address's token holdings (approx from transfer history) with USD.
+
+    Spam and counterfeit tokens — a fake "USDT", a name that is a phishing link —
+    are hidden and never priced; --all lists them with the reason."""
     try:
         holdings = chains_mod.token_holdings(address, chain)
     except (chains_mod.ChainError, etherscan.EtherscanError) as e:
@@ -209,7 +213,7 @@ def tokens(
     if not holdings:
         console.print("[dim]No token transfers found for this address on this chain.[/dim]")
         return
-    console.print(render.holdings_table(address, chain, holdings))
+    console.print(render.holdings_table(address, chain, holdings, show_all))
 
 
 @app.command()

@@ -827,6 +827,40 @@ try:
 finally:
     chains.transfers = real_transfers
 
+# ---------------------------------------------------------------- spam tokens
+section("17. Spam and counterfeit tokens")
+from crypttrace import spam, prices, render
+USDT_TON_RAW = assets.resolve_asset("usdt", "ton")["contract"]
+FAKE = "0:" + "fa" * 32
+check("the real USDT on TON is never spam, whatever it calls itself",
+      spam.verdict("ton", USDT_TON_RAW, "USD₮", "Tether USD") is None)
+check("a jetton named USDT that is not Tether's is a counterfeit",
+      "counterfeit USDT" in (spam.verdict("ton", FAKE, "$USD₮") or ""))
+check("a name that is a link is spam",
+      "gramevent.org" in (spam.verdict("ton", FAKE, "GRAM AT GRAMEVENT.ORG", "GRAM AIRDROP") or "").lower())
+check("look-alike Cyrillic letters do not hide the link",
+      "usdtunlock.com" in (spam.verdict("ton", FAKE, "USDT - usdtunloсk.соm") or ""))   # с, о, м are Cyrillic
+check("a Telegram handle as the name is spam", spam.verdict("ton", FAKE, "@BTC25") is not None)
+check("the indexer's scam flag is honoured", spam.verdict("ton", FAKE, "CAT", flagged=True) is not None)
+check("a jetton named after the chain's own coin is a counterfeit",
+      "counterfeit TON" in (spam.verdict("ton", FAKE, "TON") or ""))
+check("ordinary tokens are left alone",
+      spam.verdict("ton", FAKE, "NOT", "Notcoin") is None and spam.verdict("tron", "tabc", "SUNDOG") is None)
+check("USDT on a chain without a registry entry is not called a counterfeit",
+      spam.verdict("bsc", "0x" + "12" * 20, "USDT", "Tether USD") is None)
+check("a fake USDT is not priced at $1; the real one is",
+      prices.token_price("0x" + "ab" * 20, "eth", "USDT") is None
+      and prices.token_price(assets.resolve_asset("usdt", "eth")["contract"], "eth", "USDT") == 1.0)
+held = [{"symbol": "USDT", "name": "", "contract": USDT_TON_RAW, "net": 10.0, "txs": 1, "spam": None},
+        {"symbol": "$USD₮", "name": "", "contract": FAKE, "net": 1e6, "txs": 1,
+         "spam": spam.verdict("ton", FAKE, "$USD₮")}]
+from rich.console import Console as _Console
+_c = _Console(record=True, width=160)
+_c.print(render.holdings_table(BN_UQ, "ton", held))
+text = " ".join(_c.export_text().split())
+check("tokens hides counterfeits and keeps them out of the total",
+      "$USD₮" not in text and "1 spam or counterfeit token(s) hidden" in text and "$10.00" in text, text[-300:])
+
 # ---------------------------------------------------------------- result
 print("\n" + "=" * 72)
 print(f"RESULT: {len(PASSED)} passed, {len(FAILED)} failed")

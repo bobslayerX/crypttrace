@@ -1,5 +1,6 @@
 """Terminal rendering helpers (rich)."""
 from datetime import datetime, timezone
+from rich.markup import escape
 from rich.table import Table
 from rich.tree import Tree
 from rich.text import Text
@@ -223,20 +224,36 @@ def funding_tree(address: str, hops: list, symbol: str = "ETH") -> Tree:
     return root
 
 
-def holdings_table(address: str, chain: str, holdings: list) -> Table:
-    """Token holdings with per-token and total USD value."""
-    t = Table(title=f"Token holdings — {address}  ({chain})", header_style="bold")
+def holdings_table(address: str, chain: str, holdings: list, show_all: bool = False) -> Table:
+    """Token holdings with per-token and total USD value.
+
+    Spam and counterfeit tokens (see spam.py) are left out unless `show_all`;
+    they never count towards the total either way.
+    """
+    hidden = [h for h in holdings if h.get("spam")]
+    shown = holdings if show_all else [h for h in holdings if not h.get("spam")]
+    t = Table(title=f"Token holdings — {address}  ({chain})", header_style="bold",
+              caption=(f"{len(hidden)} spam or counterfeit token(s) hidden — --all shows them"
+                       if hidden and not show_all else None))
     t.add_column("Token")
     t.add_column("Amount", justify="right")
     t.add_column("USD", justify="right")
     t.add_column("Txs", justify="right")
+    if show_all:
+        t.add_column("Note")
     total = 0.0
-    for h in holdings:
-        price = prices.token_price(h["contract"], chain, h["symbol"])
-        usd = prices.usd(h["net"], price)
+    for h in shown:
+        if h.get("spam"):
+            usd = None
+        else:
+            usd = prices.usd(h["net"], prices.token_price(h["contract"], chain, h["symbol"]))
         if usd is not None:
             total += usd
-        t.add_row(h["symbol"], f"{h['net']:.4f}", prices.fmt_usd(usd), str(h["txs"]))
+        cells = [escape(h["symbol"]), f"{h['net']:.4f}", prices.fmt_usd(usd), str(h["txs"])]
+        if show_all:
+            cells.append(f"[red]{escape(h['spam'])}[/red]" if h.get("spam") else "")
+        t.add_row(*cells)
     t.add_section()
-    t.add_row("[bold]Total[/bold]", "", f"[bold]{prices.fmt_usd(total)}[/bold]", "")
+    t.add_row("[bold]Total[/bold]", "", f"[bold]{prices.fmt_usd(total)}[/bold]", "",
+              *([""] if show_all else []))
     return t
