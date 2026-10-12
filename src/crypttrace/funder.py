@@ -30,7 +30,7 @@ def first_funder(address: str, chain: str = "eth") -> Optional[dict]:
     dust = analysis.dust_threshold(chain)
     for r in rows:  # ascending => first match is the earliest funding
         # dust is not funding: it is what poisoners and spammers send everyone
-        if r.get("to") != me or r.get("value", 0) < max(dust, 1e-18):
+        if r.get("to") != me or r.get("value", 0) < max(dust, 1e-18) or r.get("kind"):
             continue
         return {
             "funder": r.get("from", ""),

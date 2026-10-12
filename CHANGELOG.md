@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.15.0
+
+### Added
+- **`victims` on TON lists victims only.** Notes sent to the address (a small
+  transfer with a comment), gas refunds and arrival notices from jetton
+  wallets and NFT items, and bounces are marked on TON rows and no longer
+  count as sources — nor as counterparties in a trace or as a first funder.
+  On the fragment-api collector this gives the 200 victims and 10,080.38 TON
+  that took a separate script before.
+- **NFTs taken, per victim (TON).** `victims` counts the NFTs each sender lost
+  (Telegram usernames, numbers, domains), lists NFT-only victims, and adds an
+  `nfts` column to the CSV and the web table data. Aborted NFT transfers are
+  not counted.
+
+### Fixed
+- **TON balances reported MISMATCH over gas.** The net-vs-balance check
+  allowed 0.01 TON in total; it now allows each outgoing transaction its fee.
+- **Case fragment-api: 15 NFTs, not 19.** Four NFT transfers to the collector
+  failed and the owners kept those NFTs; `build_victims.py` counted them.
+
 ## 0.14.0
 
 ### Added

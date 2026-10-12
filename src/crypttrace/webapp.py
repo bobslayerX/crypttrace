@@ -212,6 +212,7 @@ def create_app() -> Flask:
                 "address": r["address"], "hop": r.get("hop", 1),
                 "value": round(r["value"], 8), "txs": r["txs"],
                 "first_seen": r.get("first_ts"), "last_seen": r.get("last_ts"),
+                "nfts": r.get("nfts", 0),
                 "label": r.get("label", ""), "type": r.get("type", "unknown"),
                 "into": r.get("into", ""),
                 "explorer": chains.explorer_url(r["address"], chain),

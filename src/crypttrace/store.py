@@ -77,6 +77,15 @@ def _conn() -> sqlite3.Connection:
         c.execute("DELETE FROM fetched WHERE chain='ton'")
         c.execute("PRAGMA user_version=2")
         c.commit()
+    if c.execute("PRAGMA user_version").fetchone()[0] < 3:
+        # 0.15: TON rows say whether they are contract plumbing or a note
+        cols = [r[1] for r in c.execute("PRAGMA table_info(transfers)")]
+        if "kind" not in cols:
+            c.execute("ALTER TABLE transfers ADD COLUMN kind TEXT")
+        c.execute("DELETE FROM transfers WHERE chain='ton'")
+        c.execute("DELETE FROM fetched WHERE chain='ton'")
+        c.execute("PRAGMA user_version=3")
+        c.commit()
     return c
 
 
@@ -100,12 +109,13 @@ def save(chain: str, address: str, rows: List[dict], asset_key: str = "",
     try:
         c.executemany(
             "INSERT OR REPLACE INTO transfers"
-            "(id,chain,tx_hash,from_addr,to_addr,value,symbol,contract,ts,fee_share,memo)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            "(id,chain,tx_hash,from_addr,to_addr,value,symbol,contract,ts,fee_share,memo,kind)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             [(_row_id(chain, r), chain, r.get("hash", ""), r.get("from", ""),
               r.get("to", ""), float(r.get("value", 0) or 0), r.get("symbol", ""),
               r.get("contract", ""), int(r.get("timestamp", 0) or 0),
-              float(r.get("fee_share", 0) or 0), r.get("memo") or None) for r in rows])
+              float(r.get("fee_share", 0) or 0), r.get("memo") or None,
+              r.get("kind") or None) for r in rows])
         c.execute("INSERT OR REPLACE INTO fetched(chain,address,asset,fetched_at,rows,complete)"
                   " VALUES (?,?,?,?,?,?)",
                   (chain, address, asset_key, int(time.time()), len(rows), int(complete)))
@@ -135,7 +145,7 @@ def is_fresh(chain: str, address: str, asset_key: str = "",
 def load(chain: str, address: str, contract: str = "", native_symbol: str = "") -> List[dict]:
     """Every stored transfer touching this address, newest first."""
     c = _conn()
-    cols = "SELECT from_addr,to_addr,value,symbol,contract,ts,tx_hash,fee_share,memo FROM transfers"
+    cols = "SELECT from_addr,to_addr,value,symbol,contract,ts,tx_hash,fee_share,memo,kind FROM transfers"
     try:
         if contract == "*":
             # every token, whatever its contract (address-poisoning checks need fakes too)
@@ -161,7 +171,7 @@ def load(chain: str, address: str, contract: str = "", native_symbol: str = "") 
     finally:
         c.close()
     out = []
-    for f, t, v, sym, con, ts, h, fee, memo in rows:
+    for f, t, v, sym, con, ts, h, fee, memo, kind in rows:
         r = {"from": f, "to": t, "value": v, "symbol": sym,
              "timestamp": ts, "hash": h}
         if con:
@@ -170,6 +180,8 @@ def load(chain: str, address: str, contract: str = "", native_symbol: str = "") 
             r["fee_share"] = fee
         if memo:
             r["memo"] = memo
+        if kind:
+            r["kind"] = kind
         out.append(r)
     return out
 
