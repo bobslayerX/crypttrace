@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.14.0
+
+### Added
+- **Exchange deposits with a memo.** On TON, an exchange hot wallet tells its
+  customers apart by the transfer comment, so a deposit's memo names one
+  account at the exchange — the KYC lead. Transfer comments are now read (TON
+  and jettons) and stored, and `trace`, `profile`, the web UI (sidebar card,
+  graph edges) and the HTML/Markdown report show each deposit to an exchange
+  with its memo. On the fragment-api case: the attacker's KuCoin memo
+  2093842166, and memo 1922967762 for the exchange service he used.
+- **TON labels from tonapi.** Exchange hot wallets (Bybit, KuCoin, …), DEX
+  contracts (STON.fi, DeDust), services (Fragment) and scam flags, as
+  `explorer-tag` labels cached for a week (`TONAPI_KEY` optional). Self-chosen
+  `.ton` names are not trusted. New label types `dex` and `service`; a trace
+  stops at a DEX.
+
+### Fixed
+- **A customer's deposit with a memo was called a deposit address.** The
+  off-ramp check counted a wallet paying into its own exchange account as an
+  exchange deposit address; such deposits are now reported by their memo.
+
 ## 0.13.0
 
 ### Added

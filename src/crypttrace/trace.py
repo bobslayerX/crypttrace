@@ -33,16 +33,27 @@ def _edge_text(ctx, to, val, cnt):
     return Text.assemble(Text(f"──{money} ({cnt} tx){tail}{arrow}"), render.addr_label(to))
 
 
-def _record_finding(findings, ctx, to, val, cnt):
+def _record_finding(findings, ctx, to, val, cnt, memos=()):
     if findings is None:
         return
     hit = labels.lookup(to)
-    if not hit:
+    if not hit or hit["type"] in ("dex", "service"):
         return
-    findings.append({"address": to, "type": hit["type"], "label": hit["name"],
-                     "risk": labels.risk_score(to), "value_reached": round(val, 6),
-                     "symbol": ctx.symbol, "usd_reached": prices.usd(val, ctx.price),
-                     "tx_count": cnt})
+    f = {"address": to, "type": hit["type"], "label": hit["name"],
+         "risk": labels.risk_score(to), "value_reached": round(val, 6),
+         "symbol": ctx.symbol, "usd_reached": prices.usd(val, ctx.price),
+         "tx_count": cnt}
+    if memos:
+        f["memo"] = ", ".join(memos)
+    findings.append(f)
+
+
+def _deposit_memos(sender, to, ctx):
+    """Memos of `sender`'s deposits into exchange wallet `to` (TON) — each names an account."""
+    if ctx.direction != "out" or labels.type_of(to) != "exchange":
+        return []
+    from crypttrace import chains
+    return [d["memo"] for d in chains.exchange_deposits(sender, ctx.chain, asset=ctx.asset, only_to=to)]
 
 
 def _expand(node, address, ctx, depth, seen, findings=None, is_root=False):
@@ -53,6 +64,10 @@ def _expand(node, address, ctx, depth, seen, findings=None, is_root=False):
     seen.add(address.lower())
     if not is_root and labels.type_of(address) in ("exchange", "mixer", "sanctioned"):
         node.add(Text("↳ trail ends here (identifiable entity — subpoena / off-chain)", style="dim"))
+        return
+    if not is_root and labels.type_of(address) == "dex":
+        node.add(Text("↳ DEX swap — the funds come back to the sender in another token; "
+                      "trace the sender with --asset to follow them", style="cyan"))
         return
     if not is_root and labels.type_of(address) == "bridge":
         node.add(Text("↳ bridge — funds leave this chain; run `crypttrace crosschain` "
@@ -75,9 +90,15 @@ def _expand(node, address, ctx, depth, seen, findings=None, is_root=False):
                                  "usd_reached": prices.usd(off["forwarded"], ctx.price),
                                  "tx_count": 0})
             return
-    for to, val, cnt in _outflows(address, ctx.chain, ctx.branching, ctx.asset, ctx.direction):
-        _record_finding(findings, ctx, to, val, cnt)
+    outs = _outflows(address, ctx.chain, ctx.branching, ctx.asset, ctx.direction)
+    labels.enrich([to for to, _, _ in outs], ctx.chain)
+    for to, val, cnt in outs:
+        memos = _deposit_memos(address, to, ctx)
+        _record_finding(findings, ctx, to, val, cnt, memos)
         child = node.add(_edge_text(ctx, to, val, cnt))
+        for memo in memos:
+            child.add(Text(f"↳ deposit memo {memo} — names one account at "
+                           f"{labels.company(labels.label_of(to))}, which holds its KYC", style="bold green"))
         _expand(child, to, ctx, depth - 1, seen, findings)
 
 
@@ -149,18 +170,27 @@ def build_graph(address, chain, depth, branching, asset=None, direction="out"):
         if d <= 0 or key in seen:
             return
         seen.add(key)
-        if not is_root and labels.type_of(addr) in ("exchange", "mixer", "sanctioned", "bridge"):
+        if not is_root and labels.type_of(addr) in ("exchange", "mixer", "sanctioned", "bridge", "dex"):
             nodes[key]["terminal"] = True
             return
-        for to, val, cnt in _outflows(addr, chain, branching, asset, direction):
+        outs = _outflows(addr, chain, branching, asset, direction)
+        labels.enrich([to for to, _, _ in outs], chain)
+        for to, val, cnt in outs:
             _node(to, hop + 1)
             # arrows always point the way the money actually travelled
             src, dst = (key, _norm(to)) if direction == "out" else (_norm(to), key)
-            edges.append({"from": src, "to": dst,
-                          "value": round(val, 4), "tx": cnt,
-                          "usd": prices.usd(val, price)})
+            edge = {"from": src, "to": dst, "value": round(val, 4), "tx": cnt,
+                    "usd": prices.usd(val, price)}
+            if direction == "out" and labels.type_of(to) == "exchange":
+                from crypttrace import chains as _ch
+                memos = [m["memo"] for m in _ch.exchange_deposits(addr, chain, asset=asset, only_to=to)]
+                if memos:
+                    edge["memo"] = ", ".join(memos)
+            edges.append(edge)
             _walk(to, d - 1, seen, False, hop + 1)
 
     _walk(address, depth, set(), True, 0)
+    for n in nodes.values():                 # labels found by enrichment after the node was made
+        n["type"], n["label"] = labels.type_of(n["id"]), labels.label_of(n["id"])
     return {"nodes": list(nodes.values()), "edges": edges,
             "symbol": symbol, "direction": direction}

@@ -70,6 +70,11 @@ def _addr(raw: Optional[str]) -> str:
     return addresses.ton_friendly(raw or "") or (raw or "")
 
 
+def _memo(text) -> str:
+    """A transfer comment, cleaned — exchanges read deposit memos from it."""
+    return str(text or "").replace("\x00", "").strip()
+
+
 def _hex(tx_hash: str) -> str:
     """toncenter gives base64 hashes; explorers link by hex."""
     try:
@@ -100,8 +105,12 @@ def transfers(address: str, limit: int = 1000) -> List[Dict]:
                 continue
             # the sender's and the receiver's transactions have different hashes;
             # the message hash is the same on both sides (the store keys on it)
-            rows.append({"from": src, "to": dst, "value": value, "timestamp": ts,
-                         "hash": h, "symbol": "TON", "msg_hash": _hex(m.get("hash") or "")})
+            row = {"from": src, "to": dst, "value": value, "timestamp": ts,
+                   "hash": h, "symbol": "TON", "msg_hash": _hex(m.get("hash") or "")}
+            memo = _memo(((m.get("message_content") or {}).get("decoded") or {}).get("comment"))
+            if memo:
+                row["memo"] = memo
+            rows.append(row)
     return rows
 
 
@@ -140,9 +149,11 @@ def jetton_transfers(address: str, limit: int = 1000) -> List[Dict]:
             value = int(t.get("amount") or 0) / (10 ** meta["decimals"])
         except (ValueError, TypeError):
             continue
+        payload = t.get("decoded_forward_payload") or {}
+        memo = _memo(payload.get("comment")) if isinstance(payload, dict) else ""
         rows.append({"from": _addr(t.get("source")), "to": _addr(t.get("destination")),
                      "value": value, "timestamp": int(t.get("transaction_now") or 0),
                      "hash": _hex(t.get("transaction_hash", "")),
                      "symbol": meta["symbol"], "name": meta["name"], "contract": master,
-                     "flagged": meta["scam"]})
+                     "flagged": meta["scam"], **({"memo": memo} if memo else {})})
     return rows

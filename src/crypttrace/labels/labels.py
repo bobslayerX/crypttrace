@@ -17,7 +17,7 @@ from typing import Optional, Dict, List
 import requests
 
 from crypttrace import addresses, config
-from crypttrace.labels import bulk
+from crypttrace.labels import bulk, tonapi
 
 _HERE = Path(__file__).parent
 _IMPORTED = config.DATA_DIR / "imported_labels.json"
@@ -162,6 +162,8 @@ RISK = {
     "scam": 85,
     "bridge": 40,
     "exchange": 20,
+    "dex": 0,
+    "service": 0,
     "unknown": 0,
 }
 
@@ -171,6 +173,8 @@ TYPE_ICON = {
     "scam": "\U0001F534",
     "bridge": "\U0001F309",      # bridge
     "exchange": "\U0001F7E2",    # green
+    "dex": "\U0001F504",         # swap arrows
+    "service": "\U0001F537",     # blue diamond
     "unknown": "⚪",         # white
 }
 
@@ -182,7 +186,18 @@ def lookup(address: str) -> Optional[dict]:
     hit = _KNOWN.get(address.lower())
     if hit:
         return hit
-    return _match_partial(address) or bulk.lookup(address)
+    found = _match_partial(address) or bulk.lookup(address)
+    if not found and (len(address) == 48 or ":" in address):
+        found = tonapi.lookup(address)              # cached explorer tag, no network here
+    return found
+
+
+def enrich(addrs, chain: str) -> None:
+    """Fetch explorer tags the curated set lacks (TON: tonapi names). Network, cached."""
+    if chain == "ton":
+        _load()
+        tonapi.enrich(a for a in addrs
+                      if a and not _KNOWN.get((addresses.ton_friendly(a) or a).lower()))
 
 
 def is_deposit(address: str) -> bool:
