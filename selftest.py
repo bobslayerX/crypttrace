@@ -861,6 +861,64 @@ text = " ".join(_c.export_text().split())
 check("tokens hides counterfeits and keeps them out of the total",
       "$USD₮" not in text and "1 spam or counterfeit token(s) hidden" in text and "$10.00" in text, text[-300:])
 
+# ---------------------------------------------------------------- exchange memos
+section("18. Exchange deposits with a memo; tonapi names")
+from crypttrace.labels import tonapi as tonapi_mod
+from crypttrace import trace
+import time
+real_enrich = tonapi_mod.enrich
+tonapi_mod.enrich = lambda addrs: None                    # no network in the selftest
+KUCOIN_TON = "UQCA1BI4QRZ8qYmskSRDzJmkucGodYRTZCf_b9hckjla6Yug"
+DRAINER = addresses.ton_friendly("0:" + "dd" * 32)
+try:
+    def memo_center(path, params=None, timeout=30):
+        if path == "/transactions":
+            return {"transactions": [{"now": 1700000900, "hash": "AQID", "in_msg": {}, "out_msgs": [
+                {"source": "0:" + "dd" * 32, "destination": KUCOIN_TON, "value": "1280000000000", "hash": "BAUG",
+                 "message_content": {"decoded": {"type": "text_comment", "comment": "2093842166\x00"}}}]}]}
+        if path == "/jetton/transfers":
+            return {"jetton_transfers": [{"source": "0:" + "dd" * 32, "destination": KUCOIN_TON, "amount": "5000000",
+                    "jetton_master": USDT_TON_RAW, "transaction_hash": "BwgJ", "transaction_now": 1700000950,
+                    "decoded_forward_payload": {"type": "text_comment", "comment": "777"}}]}
+        return {}
+    ton_fetch._get = memo_center
+    nat, jt = ton_fetch.transfers(DRAINER, 10), ton_fetch.jetton_transfers(DRAINER, 10)
+    check("transfer comments are read as memos (TON and jettons), padding stripped",
+          nat and nat[0].get("memo") == "2093842166" and jt and jt[0].get("memo") == "777", str(nat + jt)[:200])
+    ton_fetch._get = real_ton_get
+    store.save("ton", DRAINER, nat)
+    check("memos survive the local store", [r.get("memo") for r in store.load("ton", DRAINER)] == ["2093842166"])
+
+    chains.transfers = lambda addr, chain="eth", limit=1000, asset=None, **kw: \
+        (nat if asset is None else []) if addr == DRAINER else []
+    deps = chains.exchange_deposits(DRAINER, "ton")
+    check("a deposit with a memo to an exchange wallet is reported with its memo",
+          [(d["memo"], d["value"], d["txs"]) for d in deps] == [("2093842166", 1280.0, 1)], str(deps))
+    check("such a deposit is not mistaken for an exchange deposit *address* (off-ramp)",
+          offramp.detect(DRAINER, "ton") is None)
+    _tree, fnd = trace.build(DRAINER, "ton", 1, 3)
+    check("trace puts the memo on the exchange finding",
+          any(f.get("memo") == "2093842166" for f in fnd), str(fnd)[:200])
+    chains.transfers = real_transfers
+
+    check("tonapi: an exchange's own name is a label, with memo_required",
+          tonapi_mod.classify({"name": "Kucoin 1", "memo_required": True})["type"] == "exchange")
+    check("tonapi: a self-chosen .ton name is not a label",
+          tonapi_mod.classify({"name": "crypto-exch-io.ton", "interfaces": ["wallet_v3r2"]}) is None)
+    check("tonapi: a scam flag wins over any name",
+          tonapi_mod.classify({"name": "kucoin-1.ton", "is_scam": True})["type"] == "scam")
+    check("tonapi: STON.fi and DeDust contracts are DEXes",
+          tonapi_mod.classify({"name": "", "interfaces": ["stonfi_router_v2"]})["type"] == "dex")
+    tonapi_mod._load()[addresses.ton_friendly("0:" + "be" * 32)] = {
+        "at": time.time(), "day": "2026-10-12", "label": {"name": "Bybit 7", "type": "exchange"}}
+    hit = labels.lookup(addresses.ton_friendly("0:" + "be" * 32))
+    check("cached tonapi names are labels with their source",
+          hit and hit["type"] == "exchange" and hit["source_kind"] == "explorer-tag", str(hit))
+finally:
+    tonapi_mod.enrich = real_enrich
+    ton_fetch._get = real_ton_get
+    chains.transfers = real_transfers
+
 # ---------------------------------------------------------------- result
 print("\n" + "=" * 72)
 print(f"RESULT: {len(PASSED)} passed, {len(FAILED)} failed")

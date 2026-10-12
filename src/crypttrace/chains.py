@@ -15,6 +15,7 @@ from typing import List, Dict, Optional
 from crypttrace import config
 from crypttrace import addresses as _addresses
 from crypttrace import spam as _spam
+from crypttrace.labels import labels as _labels
 from crypttrace.fetchers import etherscan, bitcoin, http as _http, tron, solana, ton
 
 EVM_CHAINS = set(config.CHAINS)
@@ -248,6 +249,35 @@ def flows(address: str, chain: str, top: int, direction: str = "out",
         rec[1] += 1
     ranked = sorted(agg.items(), key=lambda kv: kv[1][0], reverse=True)
     return [(a, v, c) for a, (v, c) in ranked][:top]
+
+
+def exchange_deposits(address: str, chain: str, limit: int = 1000,
+                      asset: Optional[dict] = None, only_to: Optional[str] = None) -> List[Dict]:
+    """Deposits this address made to exchanges with a memo, per (exchange wallet, memo).
+
+    On TON an exchange's hot wallet takes every customer's deposits and tells
+    them apart by the memo (the transfer comment). The memo is therefore the
+    lead: it names one account at the exchange, which holds that customer's KYC.
+    Returns [{exchange_address, exchange, memo, value, txs, symbol, last_ts, hash}].
+    """
+    me = norm_addr(address, chain)
+    rows = [r for r in transfers(address, chain, limit, asset=asset)
+            if r.get("from") == me and (r.get("memo") or "").strip()
+            and (not only_to or r.get("to") == only_to)]
+    _labels.enrich({r.get("to") for r in rows}, chain)
+    agg: Dict[tuple, dict] = {}
+    for r in rows:
+        to, memo = r.get("to") or "", r["memo"].strip()
+        if _labels.type_of(to) != "exchange":
+            continue
+        rec = agg.setdefault((to, memo), {"exchange_address": to, "exchange": _labels.label_of(to),
+                                          "memo": memo, "value": 0.0, "txs": 0,
+                                          "symbol": r.get("symbol", ""), "last_ts": 0, "hash": ""})
+        rec["value"] += r.get("value", 0) or 0
+        rec["txs"] += 1
+        if (r.get("timestamp") or 0) >= rec["last_ts"]:
+            rec["last_ts"], rec["hash"] = r.get("timestamp") or 0, r.get("hash", "")
+    return sorted(agg.values(), key=lambda d: -d["value"])
 
 
 def outflows(address: str, chain: str, top: int, limit: int = 1000, asset=None):

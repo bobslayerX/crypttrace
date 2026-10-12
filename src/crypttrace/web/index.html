@@ -368,7 +368,7 @@ function renderGraph(g){
   const edges=g.edges.map(e=>({
     from:e.from,to:e.to,arrows:{to:{enabled:true,scaleFactor:.7}},
     label:`${e.value} ${g.symbol}${e.usd!=null?'  ≈'+fmtUsd(e.usd):''}`,
-    title:`${e.value} ${g.symbol} in ${e.tx} tx — click to open on explorer`,
+    title:`${e.value} ${g.symbol} in ${e.tx} tx${e.memo?' · deposit memo '+e.memo:''} — click to open on explorer`,
     font:{color:'#93a1b5',size:10.5,strokeWidth:4,strokeColor:'rgba(8,11,18,.85)',align:'horizontal'},
     color:{color:'rgba(255,255,255,.18)',highlight:'#4d9dff',hover:'#4d9dff'},
     width:1.2, hoverWidth:2.4, selectionWidth:2.4,
@@ -444,6 +444,12 @@ async function inspect(addr){
       kv('transfers',p.txs)+
       kv('first seen',fmtTs(p.first_seen))+
       kv('last seen',fmtTs(p.last_seen)));
+    if(p.deposits && p.deposits.length){
+      h+=card('🏦 Exchange deposits with a memo',
+        `<div class="muted">The memo names one account at the exchange, which holds its KYC — quote it
+        with the transaction in a report or freeze request.</div>`+
+        p.deposits.map(d=>kv(esc(d.exchange),`memo <b class="mono">${esc(d.memo)}</b> · ${esc(d.value.toLocaleString())} ${esc(d.symbol)} · ${d.txs} tx`)).join(''),'alert');
+    }
     if(o.offramp){
       h+=card('⚠ Off-ramp detected',
         `<div class="muted">~${Math.round(o.offramp.fraction*100)}% of outgoing funds forwarded to

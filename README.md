@@ -69,6 +69,7 @@ own credentials (all optional):
 export TRONGRID_API_KEY=xxxx            # optional: higher TronGrid quota
 export CRYPTTRACE_SOLANA_RPC=https://…  # optional: your own (faster) Solana RPC
 export TONCENTER_API_KEY=xxxx          # optional: toncenter allows ~1 request/s without it
+export TONAPI_KEY=xxxx                 # optional: faster tonapi name lookups on TON
 ```
 
 (In PowerShell: `$env:TRONGRID_API_KEY = "xxxx"` and so on.)
@@ -446,6 +447,29 @@ exchange publishes itself for proof-of-reserves; on TON, Binance's reserve
 wallets. That is what lets `offramp` flag deposit addresses on those chains. Funds sent to an exchange not on that
 list still show as `unknown`. Every label records where it came from — see
 `crypttrace labels audit`.
+
+**TON: names from tonapi.** On TON, addresses the curated set does not know are
+looked up on tonapi, which names exchange hot wallets ("Bybit 7", "Kucoin 1"),
+DEX contracts (STON.fi, DeDust) and services (Fragment), and flags scam
+accounts. These become labels of kind `explorer-tag`, cached for a week. A
+`.ton` name an owner chose for himself — "crypto-exch-io.ton", or an impostor's
+"kucoin-1.ton" — is not taken as a label. A trace stops at a DEX: the funds
+come back to the sender in another token.
+
+**Exchange deposits with a memo.** A TON exchange takes all customers' deposits
+into one hot wallet and tells them apart by the transfer comment, the *memo*.
+The memo is the lead: it names one account at the exchange, which holds that
+customer's KYC. `trace`, `profile`, the web UI and the HTML report show every
+deposit an address made to an exchange with its memo:
+
+```
+├── ──1280.0000 TON (1 tx)──▶ 🟢 UQCA1BI4QR…la6Yug  [KuCoin hot wallet (memo required)]
+│   └── ↳ deposit memo 2093842166 — names one account at KuCoin, which holds its KYC
+```
+
+In the fragment-api case this found the attacker's KuCoin account directly, and
+the account of the exchange service he cashed out through (its relay deposits
+under one memo every time).
 
 **Deposit addresses, labelled outright.** OKX signs every address that holds
 customer funds — over 300,000, nearly all of them per-customer deposit addresses

@@ -30,6 +30,10 @@ def _one(address: str, chain: str, threshold: float, asset: Optional[dict]) -> O
         to = r.get("to") or ""
         if r.get("from") != me or not to:
             continue
+        # a deposit with a memo (TON) is a customer paying into their own exchange
+        # account — the memo is the lead (chains.exchange_deposits), not this address
+        if r.get("memo") and labels.type_of(to) == "exchange":
+            continue
         val = r.get("value", 0) or 0
         out_total += val
         # sending *into* another customer's deposit address is a cash-out by

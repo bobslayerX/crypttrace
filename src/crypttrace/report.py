@@ -228,7 +228,8 @@ def _render_md(d: dict, json_name: str) -> str:
     if d["key_findings"]:
         L.append("| Entity | Type | Risk | Value reached | ≈ USD |\n|---|---|---|---|---|\n")
         for f in d["key_findings"]:
-            L.append(f"| {f['label']} | {f['type']} | {f['risk']}/100 | {f['value_reached']} "
+            memo = f" (deposit memo {f['memo']})" if f.get("memo") else ""
+            L.append(f"| {f['label']}{memo} | {f['type']} | {f['risk']}/100 | {f['value_reached']} "
                      f"{f.get('symbol', '')} | {prices.fmt_usd(f.get('usd_reached'))} |\n")
     else:
         L.append("_None within the traced depth._\n")
@@ -390,6 +391,12 @@ def render_html(d: dict, raw_json: str, digest: str, json_name: str) -> str:
         if sig["name"] in ("address poisoning", "paid a look-alike"):
             acts.append(f"<div class='box alert'><b>Address poisoning.</b> {_e(sig['observed'])} — "
                         f"{_e(sig['implication'])}.</div>")
+    for f in d["key_findings"]:
+        if f.get("memo"):
+            acts.append(f"<div class='box alert'><b>Deposit to {_e(labels.company(f['label']))} with memo "
+                        f"{_e(f['memo'])}.</b> The memo names one account at the exchange, which holds "
+                        "its owner's KYC and can freeze it. Quote the memo and the transaction hashes "
+                        "below in the report to the exchange and the police.</div>")
     exch = sorted({labels.company(f["label"]) for f in d["key_findings"]
                    if f["type"] in ("exchange", "offramp")})
     if exch:

@@ -224,6 +224,20 @@ def funding_tree(address: str, hops: list, symbol: str = "ETH") -> Tree:
     return root
 
 
+def deposits_table(deposits: list) -> Table:
+    """Exchange deposits made with a memo — each memo names one account at the exchange."""
+    t = Table(title="Exchange deposits — the memo names one account at the exchange (KYC)",
+              header_style="bold")
+    t.add_column("Exchange wallet")
+    t.add_column("Memo", style="bold green")
+    t.add_column("Amount", justify="right")
+    t.add_column("Txs", justify="right")
+    for d in deposits:
+        t.add_row(escape(d["exchange"]), escape(d["memo"]), f"{d['value']:,.4f} {escape(d['symbol'])}",
+                  str(d["txs"]))
+    return t
+
+
 def holdings_table(address: str, chain: str, holdings: list, show_all: bool = False) -> Table:
     """Token holdings with per-token and total USD value.
 

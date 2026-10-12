@@ -119,6 +119,7 @@ def create_app() -> Flask:
             "type": labels.type_of(addr),
             "risk": labels.risk_score(addr),
             "explorer": chains.explorer_url(addr, chain),
+            "deposits": chains.exchange_deposits(addr, chain)[:5],
         })
 
     @app.route("/api/trace")

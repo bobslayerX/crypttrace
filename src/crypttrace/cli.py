@@ -159,6 +159,9 @@ def profile(
                                             chains_mod.symbol(chain)))
     if rows:
         console.print(render.counterparties_rows_table(address, chain, rows))
+        deposits = chains_mod.exchange_deposits(address, chain)
+        if deposits:
+            console.print(render.deposits_table(deposits))
     else:
         console.print("[dim]No transactions found for this address on this chain.[/dim]")
 
@@ -191,7 +194,7 @@ def trace(
     console.print(tree)
     console.print(
         "\n[dim]Legend: \U0001F7E2 exchange  \U0001F7E3 mixer  \U0001F534 sanctioned/scam"
-        "  \U0001F309 bridge  ⚪ unknown[/dim]"
+        "  \U0001F309 bridge  \U0001F504 DEX  \U0001F537 service  ⚪ unknown[/dim]"
     )
 
 
