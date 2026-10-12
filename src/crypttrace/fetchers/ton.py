@@ -70,6 +70,21 @@ def _addr(raw: Optional[str]) -> str:
     return addresses.ton_friendly(raw or "") or (raw or "")
 
 
+# messages contracts send back as part of a transfer: gas refunds ("excesses"),
+# jetton and NFT arrival notices, bounces. They carry TON, but nobody *sent* it.
+SERVICE_OPS = {"0xd53276db", "0x7362d09c", "0x05138d91", "0xffffffff"}
+MESSAGE_MAX = 0.05     # a comment with less TON than this is a note, not a payment
+
+
+def kind_of(opcode, memo: str, value: float) -> str:
+    """'service' for contract plumbing, 'message' for a note sent to an address, else ''."""
+    if opcode in SERVICE_OPS:
+        return "service"
+    if memo and value < MESSAGE_MAX:
+        return "message"
+    return ""
+
+
 def _memo(text) -> str:
     """A transfer comment, cleaned — exchanges read deposit memos from it."""
     return str(text or "").replace("\x00", "").strip()
@@ -110,6 +125,9 @@ def transfers(address: str, limit: int = 1000) -> List[Dict]:
             memo = _memo(((m.get("message_content") or {}).get("decoded") or {}).get("comment"))
             if memo:
                 row["memo"] = memo
+            kind = kind_of(m.get("opcode"), memo, value)
+            if kind:
+                row["kind"] = kind
             rows.append(row)
     return rows
 
@@ -133,6 +151,19 @@ def _meta(master: str) -> Optional[dict]:
         except (TonError, ValueError, TypeError):
             return None
     return _META[master]
+
+
+def nft_transfers(address: str, limit: int = 1000) -> List[Dict]:
+    """NFTs (Telegram usernames, numbers, domains, collectibles) moved to or from `address`."""
+    rows = []
+    for t in _pages("/nft/transfers", "nft_transfers", {"owner_address": address}, limit, JETTON_PAGE):
+        if t.get("transaction_aborted"):
+            continue
+        rows.append({"from": _addr(t.get("old_owner")), "to": _addr(t.get("new_owner")),
+                     "value": 1.0, "symbol": "NFT", "timestamp": int(t.get("transaction_now") or 0),
+                     "hash": _hex(t.get("transaction_hash", "")), "item": _addr(t.get("nft_address")),
+                     "contract": (t.get("nft_collection") or t.get("nft_address") or "").lower()})
+    return rows
 
 
 def jetton_transfers(address: str, limit: int = 1000) -> List[Dict]:

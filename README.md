@@ -378,6 +378,13 @@ flip the timing verdict entirely. Each chain has a dust threshold; override with
 paged rather than read one page deep, so an old sweep isn't hidden behind recent
 spam.
 
+**On TON, only payments count.** A drainer's collector also receives notes
+people send the attacker, dust from look-alike addresses, and gas refunds and
+notices from jetton wallets and NFT items. None of those senders are victims,
+and `victims` leaves them out. It also counts the NFTs (Telegram usernames,
+numbers, domains) each wallet lost — a victim who lost only NFTs is listed too,
+with an `nfts` column in the CSV. Failed (aborted) NFT transfers are not counted.
+
 ### Bitcoin clustering (common-input-ownership)
 
 Bitcoin's UTXO model enables the strongest clustering heuristic in blockchain

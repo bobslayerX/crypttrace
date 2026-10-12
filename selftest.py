@@ -919,6 +919,65 @@ finally:
     ton_fetch._get = real_ton_get
     chains.transfers = real_transfers
 
+# ---------------------------------------------------------------- TON victims
+section("19. Victims on TON: notes, gas refunds and NFTs")
+from crypttrace import analysis as an_mod, verify as verify_mod
+check("contract plumbing and notes are told apart from payments",
+      ton_fetch.kind_of("0xd53276db", "", 0.04) == "service"
+      and ton_fetch.kind_of("0x00000000", "hello attacker", 0.01) == "message"
+      and ton_fetch.kind_of(None, "", 3446.99) == ""
+      and ton_fetch.kind_of("0x00000000", "2500 Telegram Stars", 31.75) == "")
+COL = addresses.ton_friendly("0:" + "c0" * 32)
+VIC, NOTE, REF, NFTV = (addresses.ton_friendly("0:" + h * 32) for h in ("a1", "a2", "a3", "a4"))
+victim_rows = [
+    {"from": VIC, "to": COL, "value": 50.0, "timestamp": 10, "hash": "v"},
+    {"from": NOTE, "to": COL, "value": 0.01, "timestamp": 11, "hash": "n", "memo": "scammer", "kind": "message"},
+    {"from": REF, "to": COL, "value": 0.04, "timestamp": 12, "hash": "r", "kind": "service"},
+]
+real_nfts = ton_fetch.nft_transfers
+chains.transfers = lambda addr, chain="eth", limit=1000, asset=None, **kw: \
+    (victim_rows if asset is None else []) if addr == COL else []
+ton_fetch.nft_transfers = lambda addr, limit=1000: [
+    {"from": NFTV, "to": COL, "value": 1.0, "symbol": "NFT", "timestamp": 13, "hash": "x", "item": "i1", "contract": "c"},
+    {"from": VIC, "to": COL, "value": 1.0, "symbol": "NFT", "timestamp": 14, "hash": "y", "item": "i2", "contract": "c"}]
+try:
+    got = {r["address"]: r for r in an_mod.collect_sources(COL, "ton", 1, None, min_value=0.0)}
+    check("notes and gas refunds are not victims", NOTE not in got and REF not in got, str(list(got))[:200])
+    check("NFTs taken are counted, and an NFT-only victim is listed",
+          got.get(VIC, {}).get("nfts") == 1 and got.get(NFTV, {}).get("nfts") == 1
+          and got[NFTV]["value"] == 0.0, str(got)[:300])
+finally:
+    chains.transfers = real_transfers
+    ton_fetch.nft_transfers = real_nfts
+
+def aborted_center(path, params=None, timeout=30):
+    if path == "/nft/transfers":
+        return {"nft_transfers": [
+            {"old_owner": "0:" + "a4" * 32, "new_owner": "0:" + "c0" * 32, "transaction_aborted": True,
+             "transaction_now": 5, "transaction_hash": "AQ==", "nft_address": "0:" + "11" * 32},
+            {"old_owner": "0:" + "a4" * 32, "new_owner": "0:" + "c0" * 32, "transaction_aborted": False,
+             "transaction_now": 6, "transaction_hash": "Ag==", "nft_address": "0:" + "12" * 32}]}
+    return {}
+ton_fetch._get = aborted_center
+try:
+    check("a failed (aborted) NFT transfer is not an NFT taken", len(ton_fetch.nft_transfers(COL, 10)) == 1)
+finally:
+    ton_fetch._get = real_ton_get
+
+# net vs balance on TON allows each outgoing transaction its fee
+out_rows = [{"from": COL, "to": VIC, "value": 1.0, "timestamp": i, "hash": f"o{i}"} for i in range(10)]
+chains.transfers = lambda addr, chain="eth", limit=1000, asset=None, **kw: \
+    [{"from": VIC, "to": COL, "value": 10.1, "timestamp": 0, "hash": "in"}] + out_rows
+real_balance = chains.balance
+chains.balance = lambda addr, chain="eth": 0.0
+try:
+    v = verify_mod.reconcile(COL, "ton")
+    check("ten outgoing TON transactions may cost 0.1 TON in fees without a mismatch",
+          v["status"] != "mismatch", str(v)[:200])
+finally:
+    chains.transfers = real_transfers
+    chains.balance = real_balance
+
 # ---------------------------------------------------------------- result
 print("\n" + "=" * 72)
 print(f"RESULT: {len(PASSED)} passed, {len(FAILED)} failed")

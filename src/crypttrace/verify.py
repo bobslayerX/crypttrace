@@ -21,6 +21,9 @@ from crypttrace.fetchers import bitcoin
 # how far computed and reported totals may drift before we complain
 REL_TOLERANCE = 0.005     # 0.5%
 ABS_TOLERANCE = 1e-6
+# fee an account-based chain may charge per outgoing transaction, which never
+# shows up as a transfer: the net-vs-balance check allows this much per tx
+GAS_PER_TX = {"ton": 0.02}
 
 
 def _within(a: float, b: float) -> bool:
@@ -99,7 +102,9 @@ def reconcile(address: str, chain: str = "btc", asset: Optional[dict] = None,
     if ref_in is None and ref_balance is not None and asset is None and complete:
         # no aggregate feed: fall back to net vs balance (fees make it inexact)
         net = got_in - got_out
-        ok = abs(net - ref_balance) <= max(0.01, abs(ref_balance) * 0.02)
+        n_out = len({r.get("hash") for r in rows if r.get("from") == me})
+        ok = abs(net - ref_balance) <= max(0.01, abs(ref_balance) * 0.02,
+                                           GAS_PER_TX.get(chain, 0) * n_out)
         checks.append(("net vs balance", net, ref_balance, ok))
         if not ok:
             notes.append("net flow differs from the current balance; on account-based "

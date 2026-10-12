@@ -141,10 +141,13 @@ def sources_table(rows: list, symbol: str, top: int = 25) -> Table:
     t.add_column(f"Sent ({symbol})", justify="right")
     t.add_column("Txs", justify="right")
     t.add_column("When (UTC)")
+    nfts = any(r.get("nfts") for r in rows)
+    if nfts:
+        t.add_column("NFTs", justify="right")
     for r in rows[:top]:
         t.add_row(addr_label(r["address"]), str(r.get("hop", 1)),
-                  f"{r['value']:.8f}".rstrip("0").rstrip("."), str(r["txs"]),
-                  _ts(str(r.get("first_ts") or 0)))
+                  f"{r['value']:.8f}".rstrip("0").rstrip(".") or "0", str(r["txs"]),
+                  _ts(str(r.get("first_ts") or 0)), *([str(r.get("nfts") or "")] if nfts else []))
     return t
 
 

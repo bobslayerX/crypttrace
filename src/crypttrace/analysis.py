@@ -51,8 +51,8 @@ def _direct(address: str, chain: str, asset: Optional[dict], limit: int,
             continue
         other = r.get(far)
         val = r.get("value", 0) or 0
-        if not other or val <= 0 or val < min_value:
-            continue
+        if not other or val <= 0 or val < min_value or r.get("kind"):
+            continue                     # TON: gas refunds, notices and notes are not payments
         rec = agg.setdefault(other, {"address": other, "value": 0.0, "txs": 0,
                                      "first_ts": None, "last_ts": None})
         rec["value"] += val
@@ -97,6 +97,7 @@ def collect_sources(address: str, chain: str = "btc", depth: int = 1,
                     found[key]["txs"] += rec["txs"]
                     continue
                 rec = dict(rec)
+                rec.setdefault("nfts", 0)
                 rec["hop"] = hop
                 rec["into"] = node
                 rec["label"] = labels.label_of(addr)
@@ -105,11 +106,32 @@ def collect_sources(address: str, chain: str = "btc", depth: int = 1,
                 if key not in seen:
                     seen.add(key)
                     next_frontier.append(addr)
+            if chain == "ton" and asset is None:
+                _add_nfts(found, node, hop)
         frontier = next_frontier
         if not frontier or len(found) >= max_addresses:
             break
 
-    return sorted(found.values(), key=lambda r: r["value"], reverse=True)
+    return sorted(found.values(), key=lambda r: (r["value"], r.get("nfts", 0)), reverse=True)
+
+
+def _add_nfts(found: Dict[str, dict], node: str, hop: int) -> None:
+    """Count NFTs each sender handed to `node` — a drained wallet often loses only its NFTs."""
+    from crypttrace.fetchers import ton
+    try:
+        rows = ton.nft_transfers(node, 1000)
+    except ton.TonError:
+        return
+    for r in rows:
+        if r["to"] != node or not r["from"] or r["from"] == node:
+            continue
+        rec = found.setdefault(r["from"], {"address": r["from"], "value": 0.0, "txs": 0, "nfts": 0,
+                                           "first_ts": r["timestamp"], "last_ts": r["timestamp"],
+                                           "hop": hop, "into": node,
+                                           "label": labels.label_of(r["from"]),
+                                           "type": labels.type_of(r["from"])})
+        rec["nfts"] = rec.get("nfts", 0) + 1
+        rec["first_ts"] = min(rec["first_ts"] or r["timestamp"], r["timestamp"])
 
 
 def export_csv(rows: List[dict], path: Path, chain: str, symbol: str) -> Path:
@@ -117,6 +139,9 @@ def export_csv(rows: List[dict], path: Path, chain: str, symbol: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     cols = ["address", "hop", f"amount_sent_{symbol}", "transactions",
             "first_seen_utc", "last_seen_utc", "sent_into", "label", "explorer"]
+    nfts = any(r.get("nfts") for r in rows)
+    if nfts:
+        cols.append("nfts")
     with open(path, "w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
         w.writerow(cols)
@@ -124,7 +149,7 @@ def export_csv(rows: List[dict], path: Path, chain: str, symbol: str) -> Path:
             w.writerow([r["address"], r.get("hop", 1), round(r["value"], 8), r["txs"],
                         _ts(r.get("first_ts")), _ts(r.get("last_ts")),
                         r.get("into", ""), r.get("label", ""),
-                        chains.explorer_url(r["address"], chain)])
+                        chains.explorer_url(r["address"], chain)] + ([r.get("nfts", 0)] if nfts else []))
     return path
 
 

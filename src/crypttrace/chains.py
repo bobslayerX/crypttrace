@@ -242,7 +242,7 @@ def flows(address: str, chain: str, top: int, direction: str = "out",
         if r.get(near) != me:
             continue
         other = r.get(far)
-        if not other or r.get("value", 0) <= 0:
+        if not other or r.get("value", 0) <= 0 or r.get("kind"):
             continue
         rec = agg.setdefault(other, [0.0, 0])
         rec[0] += r["value"]
