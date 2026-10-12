@@ -6,7 +6,7 @@
 A wallet counts as a victim when it sent the collector at least one of:
   - a plain TON transfer (no comment, no contract opcode) of 0.001 TON or more,
   - a jetton (USDT or any other),
-  - an NFT.
+  - an NFT (aborted NFT transfers are not counted: the owner kept the NFT).
 Left out, because they are not thefts: comments people send the collector
 (0.01 TON with a message), 0.0001-TON dust from look-alike addresses, and the
 notifications and gas refunds that jetton wallets and NFT items send back.
@@ -68,6 +68,8 @@ def main() -> None:
 
     nfts = ton._get("/nft/transfers", {"owner_address": me, "limit": 1000}).get("nft_transfers") or []
     for n in nfts:
+        if n.get("transaction_aborted"):        # the transfer failed: the owner kept the NFT
+            continue
         when = int(n.get("transaction_now") or 0)
         if addresses.ton_friendly(n.get("new_owner") or "") == me and when <= until:
             hit(addresses.ton_friendly(n["old_owner"]), when)["nfts"] += 1
