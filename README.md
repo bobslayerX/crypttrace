@@ -95,6 +95,30 @@ them (`UQ…`); jetton transfers are reported between the owners' wallets.
 
 ---
 
+## Was my wallet drained?
+
+```bash
+crypttrace check YOUR_ADDRESS --chain ton
+```
+
+For someone who just found their wallet empty. `check` reads the wallet's
+history and answers in plain language:
+
+- **drained or not** — several signed transfers moving everything (tokens, NFTs,
+  then the coin) to one new address within minutes, leaving the wallet empty:
+  a program holding your key did that, not you;
+- **a mass drain?** — whether the same address emptied other wallets in the same
+  hour (leaked keys from a shared service or tool, not a scam aimed at you);
+- **is the key still in use?** — money that arrived after the drain and was
+  taken too;
+- **where the money went next** — exchange deposits with the memo that names the
+  account (see *Exchange deposits with a memo*);
+- **what to do now** — what is still on the wallet worth moving (on TON: real
+  jetton balances and NFTs from trusted collections, not airdropped spam), and
+  who to report to.
+
+The web UI has the same check in its **Was I drained?** tab.
+
 ## Web UI
 
 ```bash

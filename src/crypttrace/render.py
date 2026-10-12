@@ -227,6 +227,68 @@ def funding_tree(address: str, hops: list, symbol: str = "ETH") -> Tree:
     return root
 
 
+def drain_report(res: dict):
+    """What `crypttrace check` prints: verdict, what was taken, where it went, what to do."""
+    from rich.console import Group
+    from rich.panel import Panel
+    verdict = {
+        "drained": ("[bold red]DRAINED[/bold red] — someone who has this wallet's key or seed "
+                    "phrase emptied it.", "red"),
+        "suspicious": ("[bold yellow]POSSIBLY DRAINED[/bold yellow] — the wallet was emptied to a new "
+                       "address. If you did not send it, treat the key as leaked.", "yellow"),
+        "no_drain": ("[bold green]No drain found[/bold green] in the history read.", "green"),
+    }[res["verdict"]]
+    parts = [Text.from_markup(verdict[0])]
+    for r in res.get("reasons", []):
+        parts.append(Text(f"  • {r}"))
+    if res["verdict"] != "no_drain":
+        taken = ", ".join(f"{v:,.4f} {k}" for k, v in res.get("assets", {}).items())
+        if res.get("nfts"):
+            taken += f"{', ' if taken else ''}{res['nfts']} NFT"
+        t = Table(show_header=False, box=None, pad_edge=False)
+        t.add_column(style="dim")
+        t.add_column()
+        t.add_row("when (UTC)", _ts(str(res.get("start") or 0)))
+        t.add_row("taken", escape(taken or "—"))
+        t.add_row("to", escape(res["to"] + (f"  [{res['to_label']}]" if res.get("to_label") else "")))
+        if res.get("other_wallets_same_hour") is not None:
+            t.add_row("same hour", f"this address emptied {res['other_wallets_same_hour']} other wallet(s)")
+        parts += [Text(""), t]
+        if res.get("next"):
+            nx = Table(title="Where the money went next — the memo names one account at the exchange",
+                       header_style="bold")
+            nx.add_column("Exchange")
+            nx.add_column("Memo", style="bold green")
+            nx.add_column("Amount", justify="right")
+            nx.add_column("Deposited from")
+            for d in res["next"]:
+                amt = f"{d['value']:,.4f} {d['symbol']}" if d.get("value") is not None else "—"
+                nx.add_row(escape(d["exchange"]), escape(d.get("memo") or "—"), amt,
+                           escape(d["from"][:10] + "…" + d["from"][-6:]))
+            parts += [Text(""), nx]
+        steps = ["This seed phrase is burned. Make a new wallet with a new seed phrase; never type it "
+                 "into a site, bot or \"support\" chat again.",
+                 "Send nothing to this wallet — " + ("the attacker took money that arrived after the "
+                                                     "drain, too." if res.get("resweeps") else
+                                                     "anything that arrives can be taken."),
+                 "Other wallets made from the same seed phrase (other versions, other networks) are "
+                 "exposed too: move them first."]
+        left = [f"{x['amount']:,.4f} {x['symbol']}" for x in res.get("remaining_tokens", [])]
+        if res.get("remaining_nfts"):
+            left.append(f"{res['remaining_nfts']} NFT")
+        if left:
+            steps.insert(1, "Move what is still here to the new wallet right away: " + ", ".join(left) + ".")
+        if any(d.get("memo") for d in res.get("next", [])):
+            steps.append("Report it to the police and to the exchange above, quoting the memo and the "
+                         "transaction: the exchange can freeze the account and identify its owner.")
+        else:
+            steps.append("Report it to the police with this wallet, the receiving address and the time.")
+        parts += [Text(""), Text("What to do now", style="bold")]
+        parts += [Text(f"  {i}. {s}") for i, s in enumerate(steps, 1)]
+    return Panel(Group(*parts), title=f"Drain check — {res['address']} ({res['chain']})",
+                 border_style=verdict[1])
+
+
 def deposits_table(deposits: list) -> Table:
     """Exchange deposits made with a memo — each memo names one account at the exchange."""
     t = Table(title="Exchange deposits — the memo names one account at the exchange (KYC)",

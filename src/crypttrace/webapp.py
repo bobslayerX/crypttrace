@@ -185,6 +185,21 @@ def create_app() -> Flask:
         v["symbol"] = asset["symbol"] if asset else chains.symbol(chain)
         return jsonify(v)
 
+    @app.route("/api/check")
+    def api_check():
+        from crypttrace import drain
+        addr = request.args.get("address", "")
+        chain = request.args.get("chain", "eth")
+        bad = validate(addr, chain)
+        if bad:
+            return jsonify({"error": bad}), 400
+        try:
+            res = drain.check(addr, chain)
+        except _KNOWN_ERRORS as e:
+            return jsonify({"error": str(e)}), 400
+        res["to_explorer"] = chains.explorer_url(res["to"], chain) if res.get("to") else None
+        return jsonify(res)
+
     @app.route("/api/victims")
     def api_victims():
         """Addresses that fed this wallet — in a mass theft, the victim list."""
