@@ -978,6 +978,45 @@ finally:
     chains.transfers = real_transfers
     chains.balance = real_balance
 
+# ---------------------------------------------------------------- drain check
+section("20. Was I drained?")
+from crypttrace import drain as drain_mod
+ME, THIEFW, SHOP = "TVictimVictimVictimVictimVictim111", "TDrainerDrainerDrainerDrainer11111", "TShopShopShopShopShopShopShopSh111"
+OTHERS = [f"TOtherVictimOtherVictimOther{i:05d}" for i in range(12)]
+T1 = 1790000000
+hist = {
+    ME: [{"from": SHOP, "to": ME, "value": 500.0, "timestamp": T1 - 9000, "hash": "buy", "symbol": "TRX"},
+         {"from": ME, "to": SHOP, "value": 20.0, "timestamp": T1 - 8000, "hash": "pay", "symbol": "TRX"},
+         {"from": ME, "to": THIEFW, "value": 300.0, "timestamp": T1, "hash": "d1", "symbol": "USDT", "contract": assets.resolve_asset("usdt", "tron")["contract"].lower()},
+         {"from": ME, "to": THIEFW, "value": 50.0, "timestamp": T1 + 4, "hash": "d2", "symbol": "SUN", "contract": "sun"},
+         {"from": ME, "to": THIEFW, "value": 479.9, "timestamp": T1 + 9, "hash": "d3", "symbol": "TRX"},
+         {"from": SHOP, "to": ME, "value": 40.0, "timestamp": T1 + 7200, "hash": "topup", "symbol": "TRX"},
+         {"from": ME, "to": THIEFW, "value": 39.9, "timestamp": T1 + 7230, "hash": "d4", "symbol": "TRX"}],
+    THIEFW: [{"from": o, "to": THIEFW, "value": 100.0, "timestamp": T1 + 60 * i, "hash": f"o{i}", "symbol": "TRX"}
+             for i, o in enumerate(OTHERS)],
+}
+def fake_hist(addr, chain="eth", limit=1000, asset=None, **kw):
+    rows = hist.get(addr, [])
+    tok = asset is not None
+    return [r for r in rows if (r.get("contract") is not None) == tok and (ME in (r["from"], r["to"]) if addr == ME else True)]
+saved = (chains.transfers, chains.balance, chains.token_holdings)
+chains.transfers = fake_hist
+chains.balance = lambda addr, chain="eth": 0.0 if addr == ME else 1e6
+chains.token_holdings = lambda addr, chain="eth", limit=1000: []
+try:
+    r = drain_mod.check(ME, "tron")
+    check("a burst of signed transfers that empties the wallet is a drain",
+          r["verdict"] == "drained" and r["to"] == THIEFW and set(r["assets"]) == {"USDT", "SUN", "TRX"}, str(r)[:300])
+    check("the same receiver emptying many wallets in that hour is called a mass drain",
+          r["other_wallets_same_hour"] >= 10 and any("mass drain" in x for x in r["reasons"]))
+    check("money taken again after a top-up shows the key is still in use",
+          r["resweeps"] == 1 and any("still has the key" in x for x in r["reasons"]))
+    chains.balance = lambda addr, chain="eth": 480.0
+    check("a wallet that still holds its money is not called drained",
+          drain_mod.check(ME, "tron")["verdict"] == "no_drain")
+finally:
+    chains.transfers, chains.balance, chains.token_holdings = saved
+
 # ---------------------------------------------------------------- result
 print("\n" + "=" * 72)
 print(f"RESULT: {len(PASSED)} passed, {len(FAILED)} failed")

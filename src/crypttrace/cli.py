@@ -167,6 +167,22 @@ def profile(
 
 
 @app.command()
+def check(
+    address: str = typer.Argument(..., help="Your wallet address"),
+    chain: str = CHAIN_OPT,
+):
+    """Was this wallet drained? Who took it, whether others were hit too, what to do now."""
+    from crypttrace import drain
+    try:
+        with console.status("Reading the wallet's history…"):
+            res = drain.check(address, chain)
+    except (chains_mod.ChainError, etherscan.EtherscanError) as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
+    console.print(render.drain_report(res))
+
+
+@app.command()
 def trace(
     address: str = typer.Argument(..., help="Starting address (0x…)"),
     chain: str = CHAIN_OPT,

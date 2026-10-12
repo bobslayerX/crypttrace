@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.16.0
+
+### Added
+- **`crypttrace check` — was this wallet drained?** For a victim's own address:
+  finds the burst of signed transfers that emptied the wallet, whether the
+  receiver swept many other wallets in the same hour (a mass drain from leaked
+  keys), whether money that arrived later was taken too (the key is still in
+  use), where the money went next (exchange deposits with their memo), and
+  what to do now — including what is still on the wallet worth moving (on
+  TON, real jetton balances and NFTs from collections tonapi trusts). Also a
+  **Was I drained?** tab in the web UI and `/api/check`. On a fragment-api
+  victim: drained, 175 other wallets within the hour, KuCoin memo 2093842166.
+
 ## 0.15.0
 
 ### Added
