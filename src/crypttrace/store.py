@@ -106,6 +106,12 @@ def _conn() -> sqlite3.Connection:
         c.execute(f"DELETE FROM fetched WHERE chain IN ({marks}) AND asset=''", evm)
         c.execute("PRAGMA user_version=5")
         c.commit()
+    if c.execute("PRAGMA user_version").fetchone()[0] < 6:
+        # 0.21: Solana history skipped every version-1 transaction — read it again
+        c.execute("DELETE FROM transfers WHERE chain='sol'")
+        c.execute("DELETE FROM fetched WHERE chain='sol'")
+        c.execute("PRAGMA user_version=6")
+        c.commit()
     return c
 
 

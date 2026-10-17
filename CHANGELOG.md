@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.21.0
+
+### Added
+- **Deeper Solana history.** Signatures are read page after page and failed
+  transactions are skipped before they are fetched. The latest 50 transactions
+  per address on the public endpoint (was 25), paced to its real limit of
+  about one call a second instead of tripping into 10-second back-offs; up to
+  1,000, fetched in parallel, with your own endpoint
+  (`CRYPTTRACE_SOLANA_RPC`). `CRYPTTRACE_SOLANA_MAX_TXS` overrides.
+
+### Fixed
+- **Every Solana version-1 transaction was silently dropped**: they were
+  requested with `maxSupportedTransactionVersion: 0`, the node refused, and
+  the error was swallowed. Stored Solana history is read again once.
+- **Failed Solana transactions were counted** as transfers that never
+  happened.
+
 ## 0.20.0
 
 ### Added

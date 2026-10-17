@@ -67,13 +67,20 @@ own credentials (all optional):
 
 ```bash
 export TRONGRID_API_KEY=xxxx            # optional: higher TronGrid quota
-export CRYPTTRACE_SOLANA_RPC=https://…  # optional: your own (faster) Solana RPC
+export CRYPTTRACE_SOLANA_RPC=https://…  # optional: your own Solana RPC — 1,000 txs of history instead of 50
 export TONCENTER_API_KEY=xxxx          # optional: toncenter allows ~1 request/s without it
 export TONAPI_KEY=xxxx                 # optional: faster tonapi name lookups on TON
 export TRONSCAN_API_KEY=xxxx           # optional: Tron exchange and scam tags from Tronscan
 ```
 
 (In PowerShell: `$env:TRONGRID_API_KEY = "xxxx"` and so on.)
+
+**Solana history depth.** Solana has no "transfers of an address" call: every
+transaction is a separate request, and the public endpoint sustains about one
+a second. So on it crypttrace reads the latest **50** transactions of each
+address (about a minute); with your own endpoint (a free Helius or QuickNode
+key) it reads up to **1,000**, in parallel. `CRYPTTRACE_SOLANA_MAX_TXS` sets
+the number either way.
 
 ## Supported chains
 

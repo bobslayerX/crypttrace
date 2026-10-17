@@ -1145,6 +1145,38 @@ try:
 finally:
     chains.transfers = real_transfers
 
+# ---------------------------------------------------------------- Solana depth
+section("25. Solana: paged signatures, failed and v1 transactions")
+SOLW = "SoLWaLLeTSoLWaLLeTSoLWaLLeTSoLWaLLeT111"
+calls25 = {"pages": [], "versions": set()}
+def rpc25(method, params, timeout=30):
+    if method == "getSignaturesForAddress":
+        opts = params[1]
+        calls25["pages"].append(opts.get("before"))
+        start = 0 if not opts.get("before") else int(opts["before"][1:]) + 1
+        n = min(opts["limit"], 130 - start)
+        return [{"signature": f"s{start + i}", "err": ({"x": 1} if (start + i) % 10 == 3 else None)}
+                for i in range(max(0, n))]
+    if method == "getTransaction":
+        calls25["versions"].add(params[1].get("maxSupportedTransactionVersion"))
+        sig = params[0]
+        return {"blockTime": 1, "meta": {"err": {"InstructionError": 1} if sig == "s5" else None},
+                "transaction": {"message": {"accountKeys": [], "instructions": [
+                    {"program": "system", "parsed": {"type": "transfer", "info": {
+                        "source": SOLW, "destination": "dest", "lamports": 10 ** 9}}}]}}}
+real_rpc25, real_sig_page, real_max = sol_fetch._rpc, sol_fetch.SIG_PAGE, sol_fetch.MAX_TXS
+sol_fetch._rpc, sol_fetch.SIG_PAGE, sol_fetch.MAX_TXS = rpc25, 50, 100
+try:
+    sigs = sol_fetch._signatures(SOLW, 100)
+    check("signatures are read page after page, failed ones left out",
+          len(sigs) == 100 and len(calls25["pages"]) >= 2 and not any(int(x[1:]) % 10 == 3 for x in sigs),
+          f"{len(sigs)} sigs, pages {calls25['pages'][:4]}")
+    rows = sol_fetch.transfers(SOLW, 20)
+    check("a failed transaction moved nothing", "s5" not in {r["hash"] for r in rows} and len(rows) >= 15)
+    check("version-1 transactions are asked for", calls25["versions"] == {1}, str(calls25["versions"]))
+finally:
+    sol_fetch._rpc, sol_fetch.SIG_PAGE, sol_fetch.MAX_TXS = real_rpc25, real_sig_page, real_max
+
 # ---------------------------------------------------------------- result
 print("\n" + "=" * 72)
 print(f"RESULT: {len(PASSED)} passed, {len(FAILED)} failed")
