@@ -101,12 +101,14 @@ def balance(address: str, chain: str = "eth") -> float:
 
 # ---------- normalized row builders ----------
 
-def _evm_native(address: str, chain: str, limit: int) -> List[Dict]:
+def _evm_native(address: str, chain: str, limit: int, oldest: bool = False) -> List[Dict]:
     """The native coin moved: normal transactions plus internal ones (sent by contracts —
-    withdrawals from mixers and exchanges, ETH back from swaps). Failed calls moved nothing."""
+    withdrawals from mixers and exchanges, ETH back from swaps). Failed calls moved nothing.
+    `oldest` reads the start of the history instead of its latest part."""
     rows = []
-    calls = [(tx, False) for tx in etherscan.get_txs(address, chain, limit=limit)]
-    calls += [(tx, True) for tx in etherscan.get_internal_txs(address, chain, limit=limit)]
+    sort = "asc" if oldest else "desc"
+    calls = [(tx, False) for tx in etherscan.get_txs(address, chain, limit=limit, sort=sort)]
+    calls += [(tx, True) for tx in etherscan.get_internal_txs(address, chain, limit=limit, sort=sort)]
     for tx, internal in calls:
         if str(tx.get("isError", "0")) == "1":
             continue
@@ -175,6 +177,12 @@ def transfers(address: str, chain: str = "eth", limit: int = 1000,
 
     Served from the local store when it holds recent data for this address, so
     repeat analysis costs nothing and works offline.
+
+    `oldest_first` returns the *first* `limit` transfers of the address, oldest
+    first — what "who funded this wallet" needs. On EVM chains, Tron and TON the
+    explorers can list a history from its start, so a busy wallet's first
+    funding is found however long ago it was; on Bitcoin and Solana (newest
+    first only) it is the oldest of the latest `limit`.
     """
     check(chain)
     if chain == "ton":
@@ -189,6 +197,11 @@ def transfers(address: str, chain: str = "eth", limit: int = 1000,
     else:
         asset_key = (contract or "*").lower()
     skip_read = fresh or FORCE_FRESH
+    if oldest_first and not asset and not OFFLINE and (is_evm(chain) or chain in ("tron", "ton")):
+        # the store keeps the latest part of a history; only a complete one holds its start
+        if not (USE_STORE and not skip_read and store.is_fresh(chain, address, asset_key)
+                and store.is_complete(chain, address, asset_key)):
+            return _oldest(address, chain, limit, fresh or FORCE_FRESH)
     if USE_STORE and not skip_read:
         if OFFLINE or store.is_fresh(chain, address, asset_key):
             rows = store.load(address=address, chain=chain, contract=asset_key,
@@ -236,6 +249,28 @@ def transfers(address: str, chain: str = "eth", limit: int = 1000,
             pass          # a store problem must never break an investigation
 
     rows.sort(key=lambda r: r.get("timestamp", 0), reverse=not oldest_first)
+    return rows
+
+
+def _oldest(address: str, chain: str, limit: int, fresh: bool) -> List[Dict]:
+    """The first `limit` native transfers of an address, oldest first.
+
+    Not written to the store: it keeps the latest part of each history, and a
+    start-of-history slice filed there would pass for it."""
+    was_fresh = _http.FRESH
+    _http.FRESH = was_fresh or fresh
+    try:
+        if is_evm(chain):
+            rows = _evm_native(address, chain, limit, oldest=True)
+        elif chain == "tron":
+            rows = tron.transfers(address, limit, oldest=True)
+        else:
+            rows = ton.transfers(address, limit, oldest=True)
+    except _UPSTREAM_ERRORS as e:
+        raise ChainError(str(e))
+    finally:
+        _http.FRESH = was_fresh
+    rows.sort(key=lambda r: r.get("timestamp", 0))
     return rows
 
 

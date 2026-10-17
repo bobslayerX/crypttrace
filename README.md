@@ -388,8 +388,11 @@ coin.
 then whoever funded that funder. A fresh laundering wallet must be bootstrapped
 from somewhere, and the chain frequently terminates at an exchange withdrawal —
 an identification point. A core primitive for tying "unrelated" wallets to one
-controller. (Uses external transactions; wallets first funded by an internal
-contract call need internal-tx data — a planned extension.)
+controller. On EVM chains, Tron and TON the history is read from its start, so
+the first funding of a years-old, busy wallet is found too; Bitcoin and Solana
+explorers list newest first, so there it is the earliest of the latest 200
+transfers. On EVM chains a first funding sent by a contract (a mixer or bridge
+withdrawal, an internal transaction) counts and is flagged.
 
 ### Victim lists and timing analysis
 

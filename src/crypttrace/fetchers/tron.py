@@ -85,13 +85,16 @@ def balance(address: str) -> float:
 PAGE = 200    # TronGrid's page size
 
 
-def _pages(path: str, limit: int) -> List[Dict]:
-    """Up to `limit` items, following TronGrid's fingerprint cursor page by page.
+def _pages(path: str, limit: int, oldest: bool = False) -> List[Dict]:
+    """Up to `limit` items, following TronGrid's fingerprint cursor page by page;
+    the latest ones, or with `oldest` the first ones.
 
     One page (200 items) used to be all we read, so a busy wallet's history
     ended a few days back and older transfers were simply invisible."""
     items: List[Dict] = []
     params = {"limit": min(limit, PAGE)}
+    if oldest:
+        params["order_by"] = "block_timestamp,asc"
     while len(items) < limit:
         d = _get(path, dict(params))
         page = d.get("data", []) or []
@@ -103,10 +106,10 @@ def _pages(path: str, limit: int) -> List[Dict]:
     return items[:limit]
 
 
-def _native(address: str, limit: int) -> List[Dict]:
+def _native(address: str, limit: int, oldest: bool = False) -> List[Dict]:
     # the endpoint lists every transaction type; TRX transfers are a subset of it
     rows = []
-    for tx in _pages(f"/v1/accounts/{address}/transactions", limit):
+    for tx in _pages(f"/v1/accounts/{address}/transactions", limit, oldest):
         try:
             c = (tx.get("raw_data", {}).get("contract") or [])[0]
             if c.get("type") != "TransferContract":
@@ -147,6 +150,7 @@ def token_transfers(address: str, limit: int = 200) -> List[Dict]:
     return rows
 
 
-def transfers(address: str, limit: int = 200) -> List[Dict]:
-    """Native TRX transfers (use token_transfers for USDT-TRC20)."""
-    return _native(address, limit)
+def transfers(address: str, limit: int = 200, oldest: bool = False) -> List[Dict]:
+    """Native TRX transfers (use token_transfers for USDT-TRC20); the latest
+    `limit`, or with `oldest` the first."""
+    return _native(address, limit, oldest)

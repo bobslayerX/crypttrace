@@ -168,6 +168,17 @@ def is_fresh(chain: str, address: str, asset_key: str = "",
     return a is not None and a <= max_age
 
 
+def is_complete(chain: str, address: str, asset_key: str = "") -> bool:
+    """Whether the last fetch of this address read its whole history."""
+    c = _conn()
+    try:
+        row = c.execute("SELECT complete FROM fetched WHERE chain=? AND address=? AND asset=?",
+                        (chain, address, asset_key)).fetchone()
+    finally:
+        c.close()
+    return bool(row and row[0])
+
+
 def load(chain: str, address: str, contract: str = "", native_symbol: str = "") -> List[dict]:
     """Every stored transfer touching this address, newest first."""
     c = _conn()
