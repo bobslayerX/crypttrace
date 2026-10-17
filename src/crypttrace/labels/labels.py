@@ -17,7 +17,7 @@ from typing import Optional, Dict, List
 import requests
 
 from crypttrace import addresses, config
-from crypttrace.labels import bulk, tonapi
+from crypttrace.labels import bulk, tonapi, tronscan
 
 _HERE = Path(__file__).parent
 _IMPORTED = config.DATA_DIR / "imported_labels.json"
@@ -189,15 +189,19 @@ def lookup(address: str) -> Optional[dict]:
     found = _match_partial(address) or bulk.lookup(address)
     if not found and (len(address) == 48 or ":" in address):
         found = tonapi.lookup(address)              # cached explorer tag, no network here
+    elif not found and len(address) == 34 and address.startswith("T"):
+        found = tronscan.lookup(address)
     return found
 
 
 def enrich(addrs, chain: str) -> None:
-    """Fetch explorer tags the curated set lacks (TON: tonapi names). Network, cached."""
+    """Fetch explorer tags the curated set lacks (TON: tonapi, Tron: Tronscan). Network, cached."""
+    _load()
     if chain == "ton":
-        _load()
         tonapi.enrich(a for a in addrs
                       if a and not _KNOWN.get((addresses.ton_friendly(a) or a).lower()))
+    elif chain == "tron":
+        tronscan.enrich(a for a in addrs if a and not _KNOWN.get(a.lower()))
 
 
 def is_deposit(address: str) -> bool:

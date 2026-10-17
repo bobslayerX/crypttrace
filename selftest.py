@@ -41,6 +41,9 @@ try:
     from crypttrace.fetchers import bitcoin
     import crypttrace.cli  # noqa: F401
     check("all modules import", True)
+    # explorer-tag sources reach the network (and use a key if one is set): not in a selftest
+    from crypttrace.labels import tonapi as _tonapi, tronscan as _tronscan
+    _tonapi.enrich = _tronscan.enrich = lambda addrs: None
 except Exception as e:  # pragma: no cover
     print(f"  FAIL  import error: {type(e).__name__}: {e}")
     import traceback
@@ -1049,6 +1052,37 @@ try:
 finally:
     drain_mod.check = real_check
     chains.transfers = real_transfers
+
+# ---------------------------------------------------------------- tronscan tags
+section("22. Tron labels from Tronscan")
+from crypttrace.labels import tronscan as ts_mod
+check("a Tronscan exchange tag is an exchange label",
+      ts_mod.classify({"addressTag": "Binance-Cold 1", "publicTag": "Binance-Cold 1"}) == {"name": "Binance-Cold 1", "type": "exchange"}
+      and ts_mod.classify({"addressTag": "Okex 1"})["type"] == "exchange")
+check("a red tag makes the address a scam, whatever else it says",
+      ts_mod.classify({"addressTag": "Some Name", "redTag": "Phishing"})["type"] == "scam")
+check("no tag, no label; a contract's own name is not a tag",
+      ts_mod.classify({"name": "TetherToken", "addressTag": "", "redTag": ""}) is None)
+TAGGED = "TTaggedTaggedTaggedTaggedTagged111"
+ts_mod._load()[TAGGED] = {"at": time.time(), "day": "2026-10-17", "label": {"name": "Bybit-Hot", "type": "exchange"}}
+hit = labels.lookup(TAGGED)
+check("cached Tronscan tags are labels with their source",
+      hit and hit["type"] == "exchange" and hit["source_kind"] == "explorer-tag" and "Tronscan" in hit["source"])
+import importlib
+real_req = http_mod.request_json
+def no_network(*a, **k):
+    raise AssertionError("network used")
+http_mod.request_json = no_network
+try:
+    importlib.reload(ts_mod)                   # the real enrich, not the selftest stub
+    ts_mod._key = lambda: None
+    ts_mod.enrich(["TNoKeyNoKeyNoKeyNoKeyNoKeyNoKey111"])
+    check("without a Tronscan key nothing is fetched", True)
+except AssertionError as e:
+    check("without a Tronscan key nothing is fetched", False, str(e))
+finally:
+    http_mod.request_json = real_req
+    ts_mod.enrich = lambda addrs: None
 
 # ---------------------------------------------------------------- result
 print("\n" + "=" * 72)

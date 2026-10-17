@@ -70,6 +70,7 @@ export TRONGRID_API_KEY=xxxx            # optional: higher TronGrid quota
 export CRYPTTRACE_SOLANA_RPC=https://…  # optional: your own (faster) Solana RPC
 export TONCENTER_API_KEY=xxxx          # optional: toncenter allows ~1 request/s without it
 export TONAPI_KEY=xxxx                 # optional: faster tonapi name lookups on TON
+export TRONSCAN_API_KEY=xxxx           # optional: Tron exchange and scam tags from Tronscan
 ```
 
 (In PowerShell: `$env:TRONGRID_API_KEY = "xxxx"` and so on.)
@@ -502,6 +503,13 @@ accounts. These become labels of kind `explorer-tag`, cached for a week. A
 `.ton` name an owner chose for himself — "crypto-exch-io.ton", or an impostor's
 "kucoin-1.ton" — is not taken as a label. A trace stops at a DEX: the funds
 come back to the sender in another token.
+
+**Tron: tags from Tronscan.** With a free Tronscan API key (`TRONSCAN_API_KEY`,
+created in a Tronscan account), Tron addresses the curated set does not know
+get Tronscan's tags: exchange wallets ("Binance-Cold 1", "Okex 1") become
+exchange labels and a red tag (scam, phishing) makes the address a scam — both
+as `explorer-tag` labels naming Tronscan as the source, cached for a week.
+Without a key nothing is fetched.
 
 **Exchange deposits with a memo.** A TON exchange takes all customers' deposits
 into one hot wallet and tells them apart by the transfer comment, the *memo*.
