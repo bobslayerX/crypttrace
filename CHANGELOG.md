@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.23.0
+
+### Added
+- **Binance's reserve wallets on the EVM chains**: 78 addresses from Binance's
+  own proof-of-reserves list, on Ethereum, BNB Chain, Arbitrum, Polygon, Base
+  and Optimism (11 custodied by Ceffu); each label names the networks
+  Binance lists it for. Five long-known Binance hot wallets (Binance 14–18)
+  now carry that list as their source instead of none. Before, EVM labels
+  for Binance stopped at those five.
+- Three Bitcoin reserve wallets Binance listed since the last import.
+
 ## 0.22.0
 
 ### Fixed

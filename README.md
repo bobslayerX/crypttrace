@@ -519,7 +519,8 @@ Add sources in `labels/labels.py` → `SOURCES`.
 
 On Bitcoin, Tron and Solana the labels cover the reserve wallets of Binance,
 OKX and HTX, plus Bybit's older 2022 list — each taken from the address list the
-exchange publishes itself for proof-of-reserves; on TON, Binance's reserve
+exchange publishes itself for proof-of-reserves; on TON and the EVM chains
+(Ethereum, BNB Chain, Arbitrum, Polygon, Base, Optimism), Binance's reserve
 wallets. That is what lets `offramp` flag deposit addresses on those chains. Funds sent to an exchange not on that
 list still show as `unknown`. Every label records where it came from — see
 `crypttrace labels audit`.
@@ -680,8 +681,8 @@ cases/             # worked investigations with their data
 
 ## Roadmap
 
-- More exchanges on Bitcoin, Tron, Solana (now: Binance, OKX, HTX, Bybit) and
-  TON (now: Binance),
+- More exchanges on Bitcoin, Tron, Solana (now: Binance, OKX, HTX, Bybit), TON
+  and the EVM chains (now: Binance),
   and refreshing these lists as the exchanges republish them
 - More label sources: Chainabuse, CryptoScamDB, exchange deposit-address sets
 
