@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.18.0
+
+### Added
+- **Tron labels from Tronscan.** With a free `TRONSCAN_API_KEY`, Tron addresses
+  the curated set lacks get Tronscan's tags in traces, graphs, `check` and the
+  evidence pack: exchange hot and cold wallets become exchange labels, a red
+  tag (scam, phishing) makes the address a scam. Labels of kind
+  `explorer-tag` with Tronscan as the source, cached for a week. No key, no
+  requests. On an OKX reserve wallet's counterparties this names a 5M TRX
+  sender "Okex 1".
+
 ## 0.17.0
 
 ### Added

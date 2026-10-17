@@ -26,18 +26,13 @@ import requests
 
 from crypttrace import addresses, config
 from crypttrace.fetchers import http
+from crypttrace.labels.names import EXCHANGES
 
 API = "https://tonapi.io/v2/accounts/{}"
 CACHE = config.DATA_DIR / "tonapi_names.json"
 MAX_AGE = 7 * 24 * 3600
 _KEY = os.environ.get("TONAPI_KEY")
 http.MIN_INTERVAL["tonapi.io"] = 0.12 if _KEY else 1.1
-
-# custodial platforms that hold KYC and can freeze: a deposit there is a lead
-_EXCHANGES = re.compile(
-    r"\b(binance|bybit|okx|okex|kucoin|htx|huobi|gate(\.io)?|mexc|bitget|kraken|coinbase|"
-    r"bitfinex|bingx|bitmart|lbank|whitebit|exmo|coinex|poloniex|crypto\.com|bitpanda|"
-    r"bithumb|upbit|cryptobot|crypto bot|xrocket|wallet in telegram|telegram wallet)\b", re.I)
 
 _cache: Optional[Dict[str, dict]] = None
 
@@ -73,7 +68,7 @@ def classify(account: dict) -> Optional[dict]:
         return {"name": name or "DEX contract", "type": "dex"}
     if not name or self_named:
         return None
-    if _EXCHANGES.search(name):
+    if EXCHANGES.search(name):
         memo = " (memo required)" if account.get("memo_required") else ""
         return {"name": f"{name}{memo}", "type": "exchange", "memo_required": bool(account.get("memo_required"))}
     return {"name": name, "type": "service"}
