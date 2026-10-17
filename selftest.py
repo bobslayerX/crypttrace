@@ -1177,6 +1177,38 @@ try:
 finally:
     sol_fetch._rpc, sol_fetch.SIG_PAGE, sol_fetch.MAX_TXS = real_rpc25, real_sig_page, real_max
 
+# ---------------------------------------------------------------- first funder from the start
+section("26. first funder: history read from its start")
+OLDW = "TOldOldOldOldOldOldOldOldOldOld111"            # synthetic
+GENESIS, RECENT = "TGenesisGenesisGenesisGenesis1111", "TRecentRecentRecentRecentRecent11"
+asked26 = []
+def tron26(address, limit=200, oldest=False):
+    asked26.append(oldest)
+    return ([{"from": GENESIS, "to": OLDW, "value": 100.0, "timestamp": 1_600_000_000, "hash": "first", "symbol": "TRX"}]
+            if oldest else
+            [{"from": RECENT, "to": OLDW, "value": 5.0, "timestamp": 1_790_000_000 + i, "hash": f"n{i}", "symbol": "TRX"}
+             for i in range(limit)])
+real_tron26 = tron_fetch.transfers
+tron_fetch.transfers = tron26
+chains.transfers = real_transfers
+try:
+    store.clear()
+    chains.transfers(OLDW, "tron", 200)                  # stores the latest 200: not the whole history
+    ff = funder_mod.first_funder(OLDW, "tron")
+    check("a busy wallet's first funder comes from the start of its history, not the latest page",
+          ff and ff["funder"] == GENESIS and asked26 == [False, True], f"{ff} {asked26}")
+    check("a start-of-history read is not filed as the stored history",
+          not any(r["hash"] == "first" for r in store.load(chain="tron", address=OLDW)))
+    store.save("tron", OLDW, [{"from": RECENT, "to": OLDW, "value": 7.0, "timestamp": 5, "hash": "all", "symbol": "TRX"}],
+               complete=True)
+    asked26.clear()
+    ff = funder_mod.first_funder(OLDW, "tron")
+    check("a complete stored history answers without the network",
+          ff and ff["hash"] == "all" and asked26 == [], f"{ff} {asked26}")
+finally:
+    tron_fetch.transfers = real_tron26
+    store.clear()
+
 # ---------------------------------------------------------------- result
 print("\n" + "=" * 72)
 print(f"RESULT: {len(PASSED)} passed, {len(FAILED)} failed")

@@ -53,12 +53,14 @@ def _get(path: str, params: Optional[dict] = None, timeout: int = 30) -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def _pages(path: str, key: str, params: dict, limit: int, page: int) -> List[dict]:
+def _pages(path: str, key: str, params: dict, limit: int, page: int,
+           oldest: bool = False) -> List[dict]:
     items: List[dict] = []
     offset = 0
+    sort = "asc" if oldest else "desc"
     while len(items) < limit:
         n = min(page, limit - len(items))
-        batch = _get(path, dict(params, limit=n, offset=offset, sort="desc")).get(key) or []
+        batch = _get(path, dict(params, limit=n, offset=offset, sort=sort)).get(key) or []
         items += batch
         if len(batch) < n:
             break
@@ -103,11 +105,12 @@ def balance(address: str) -> float:
     return int(d.get("balance") or 0) / NANO
 
 
-def transfers(address: str, limit: int = 1000) -> List[Dict]:
-    """TON moved in and out of `address`: its incoming message and outgoing ones."""
+def transfers(address: str, limit: int = 1000, oldest: bool = False) -> List[Dict]:
+    """TON moved in and out of `address`: its incoming message and outgoing ones;
+    from the latest transactions, or with `oldest` from the first."""
     me = _addr(address)
     rows = []
-    for tx in _pages("/transactions", "transactions", {"account": address}, limit, TX_PAGE):
+    for tx in _pages("/transactions", "transactions", {"account": address}, limit, TX_PAGE, oldest):
         ts, h = int(tx.get("now") or 0), _hex(tx.get("hash", ""))
         msgs = [tx.get("in_msg") or {}] + list(tx.get("out_msgs") or [])
         for m in msgs:

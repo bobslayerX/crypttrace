@@ -7,9 +7,11 @@ funding hub or — the prize — a centralised-exchange withdrawal, which is a K
 identification point. Investigators like ZachXBT lean on this constantly to tie
 "unrelated" laundering wallets back to a single controller.
 
-Limitation: this uses normal (external) transactions. Wallets first funded by an
-internal contract call (some exchanges, disperse tools) need internal-tx data,
-a natural next extension.
+The history is read from its start on EVM chains, Tron and TON, so a busy
+wallet's first funding is found however long ago it came. Bitcoin and Solana
+explorers list newest first, so there it is the earliest of the latest 200
+transfers. On EVM chains a first funding sent by a contract (an internal
+transaction — a mixer or bridge withdrawal) counts, and is flagged.
 """
 from typing import Optional, List, Dict
 

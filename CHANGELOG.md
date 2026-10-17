@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.22.0
+
+### Fixed
+- **`funder` named a recent sender as a busy wallet's first funder.** It
+  read the latest 200 transfers and took the oldest of those, so on any
+  wallet with a longer history the "first funding" was simply the start of
+  that window — on a Binance wallet on Tron, a payment from today instead of
+  the real one from 2021. On EVM chains, Tron and TON the history is now read
+  from its start (Etherscan `sort=asc`, TronGrid `order_by=block_timestamp,asc`,
+  toncenter `sort=asc`), unless the stored history is already complete. The
+  same goes for `cluster`, whose siblings and children rest on first fundings.
+  Bitcoin and Solana explorers list newest first only; there it is still the
+  earliest of the latest transfers.
+
 ## 0.21.0
 
 ### Added
