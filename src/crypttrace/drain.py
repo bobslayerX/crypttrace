@@ -100,7 +100,9 @@ def check(address: str, chain: str, limit: int = 1000) -> Dict:
     res.update({"to": dest, "to_label": labels.label_of(dest), "to_type": labels.type_of(dest),
                 "start": burst["start"], "end": burst["end"], "transfers": len({r.get("hash") for r in win}),
                 "assets": assets, "nfts": nfts, "emptied": emptied, "new_destination": not paid_before,
-                "tight_pairs": tight})
+                "tight_pairs": tight,
+                "drain_txs": [{"timestamp": r["timestamp"], "value": r.get("value", 0), "symbol": r.get("symbol", ""),
+                               "hash": r.get("hash", "")} for r in sorted(win, key=lambda r: r["timestamp"])]})
 
     # a mass drain: the same address swept many wallets around the same time
     try:

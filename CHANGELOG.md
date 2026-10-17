@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.17.0
+
+### Added
+- **`crypttrace evidence` — an evidence pack for the exchange and the police.**
+  From a victim's own address: the theft (when, how much, to whom, a mass
+  drain or not), every transfer with its explorer link, the path to each
+  exchange deposit with its memo and the hash of every hop, the requests to
+  the exchange (freeze the account behind the memo, preserve KYC, login and
+  withdrawal records) and to the police (with the exchange's law-enforcement
+  portal where known), and how it was established. English for exchanges,
+  Russian for police reports (`--lang`). HTML for printing to PDF, Markdown,
+  JSON; download buttons on the web UI's **Was I drained?** tab
+  (`/api/evidence-pack`). The victim's details are left blank, never filled in.
+
 ## 0.16.0
 
 ### Added
