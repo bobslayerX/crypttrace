@@ -655,7 +655,6 @@ cases/             # worked investigations with their data
 - More exchanges on Bitcoin, Tron, Solana (now: Binance, OKX, HTX, Bybit) and
   TON (now: Binance),
   and refreshing these lists as the exchanges republish them
-- Internal transactions (completes `funder` and contract-mediated transfers)
 - More label sources: Chainabuse, CryptoScamDB, exchange deposit-address sets
 - Entity clustering on EVM via the gas-funding heuristic
 

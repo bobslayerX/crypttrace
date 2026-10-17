@@ -102,15 +102,26 @@ def balance(address: str, chain: str = "eth") -> float:
 # ---------- normalized row builders ----------
 
 def _evm_native(address: str, chain: str, limit: int) -> List[Dict]:
+    """The native coin moved: normal transactions plus internal ones (sent by contracts —
+    withdrawals from mixers and exchanges, ETH back from swaps). Failed calls moved nothing."""
     rows = []
-    for tx in etherscan.get_txs(address, chain, limit=limit):
+    calls = [(tx, False) for tx in etherscan.get_txs(address, chain, limit=limit)]
+    calls += [(tx, True) for tx in etherscan.get_internal_txs(address, chain, limit=limit)]
+    for tx, internal in calls:
+        if str(tx.get("isError", "0")) == "1":
+            continue
         try:
             val = int(tx.get("value", 0)) / config.WEI
         except (TypeError, ValueError):
             val = 0.0
-        rows.append({"from": tx.get("from", "").lower(), "to": tx.get("to", "").lower(),
-                     "value": val, "timestamp": int(tx.get("timeStamp", "0") or 0),
-                     "hash": tx.get("hash", ""), "symbol": symbol(chain)})
+        if internal and val <= 0:
+            continue
+        row = {"from": tx.get("from", "").lower(), "to": (tx.get("to") or "").lower(),
+               "value": val, "timestamp": int(tx.get("timeStamp", "0") or 0),
+               "hash": tx.get("hash", ""), "symbol": symbol(chain)}
+        if internal:
+            row["internal"] = True
+        rows.append(row)
     return rows
 
 
