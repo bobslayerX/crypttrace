@@ -37,6 +37,7 @@ def first_funder(address: str, chain: str = "eth") -> Optional[dict]:
             "value": r.get("value", 0.0),
             "timestamp": str(r.get("timestamp", 0)),
             "hash": r.get("hash", ""),
+            "internal": bool(r.get("internal")),       # EVM: sent by a contract, not a wallet
         }
     return None
 

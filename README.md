@@ -434,6 +434,24 @@ almost certainly controls all of them. `cluster` surfaces those co-signers,
 turning a single address into a set of wallets belonging to the same owner. A
 strong lead, not proof.
 
+### EVM clustering (gas funding)
+
+```bash
+crypttrace cluster 0xADDRESS            # Ethereum; --chain bsc / polygon / … for others
+```
+
+A new EVM wallet can't send anything until someone gives it coin for gas, so its
+first funder is whoever set it up. `cluster` lists the wallets that share this
+one's first funder (*siblings*) and the wallets this one funded first
+(*children*). Siblings funded the same day with similar amounts — what a script
+spinning up wallets looks like — make a strong link. A first funding from an
+exchange, mixer, bridge or any contract (an internal transaction) links
+nothing: those fund countless unrelated wallets, and the tool says so instead
+of listing strangers.
+
+On the Ronin bridge exploiter this finds the 18 laundering wallets it set up
+with 1,000–3,300 ETH each in April 2022; from any one of them, its 17 siblings.
+
 ### Cross-chain tracing (bridges)
 
 When funds cross a bridge the trail ends at the bridge contract and reappears on
@@ -656,7 +674,6 @@ cases/             # worked investigations with their data
   TON (now: Binance),
   and refreshing these lists as the exchanges republish them
 - More label sources: Chainabuse, CryptoScamDB, exchange deposit-address sets
-- Entity clustering on EVM via the gas-funding heuristic
 
 ## Contributing
 

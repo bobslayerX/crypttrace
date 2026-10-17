@@ -181,6 +181,42 @@ def cluster_table(address: str, peers: list) -> Table:
     return t
 
 
+def gas_cluster_report(res: dict, symbol: str = "ETH"):
+    """EVM clustering by gas funding: the funder, siblings and children, with the caveat."""
+    from rich.console import Group
+    parts = []
+    f = res.get("funder")
+    if f:
+        who = escape(f["address"]) + (f"  [{escape(f['label'])}]" if f.get("label") else "")
+        parts.append(Text.from_markup(f"First funded by {who} — {f['value']:,.4f} {symbol} on {_ts(str(f['timestamp']))}"))
+    if res.get("note"):
+        parts.append(Text(res["note"], style="yellow"))
+    for title, rows, extra in (("Siblings — wallets this funder also set up (same first funder)", res["siblings"], True),
+                               ("Children — wallets this one set up (it was their first funder)", res["children"], False)):
+        if not rows:
+            continue
+        t = Table(title=title, header_style="bold")
+        t.add_column("Address")
+        t.add_column(f"First funding ({symbol})", justify="right")
+        t.add_column("When (UTC)")
+        if extra:
+            t.add_column("Same day")
+            t.add_column("Similar amount")
+        for r in rows:
+            cells = [addr_label(r["address"]), f"{r['value']:,.4f}", _ts(str(r["timestamp"]))]
+            if extra:
+                cells += ["yes" if r["same_day"] else "", "yes" if r["similar_amount"] else ""]
+            t.add_row(*cells)
+        parts.append(t)
+    verdict = {"strong": "[bold green]Strong link[/bold green]: one funder set up several wallets the same day, "
+                         "or many with similar amounts — what a script spinning up wallets looks like.",
+               "moderate": "[bold yellow]Possible link[/bold yellow]: shared first funder, but not the tell-tale "
+                           "pattern — check the wallets' activity before acting on it.",
+               "none": "[dim]No linked wallets found.[/dim]"}[res.get("strength", "none")]
+    parts.append(Text.from_markup(verdict))
+    return Group(*parts)
+
+
 def crosschain_tree(address: str, chain: str, results: list) -> Tree:
     """Render bridge-outs and their likely cross-chain continuations."""
     root = Tree(Text.assemble(addr_label(address), Text(f"  (source chain: {chain})")))

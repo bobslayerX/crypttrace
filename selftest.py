@@ -1112,6 +1112,39 @@ finally:
     chains.USE_STORE = saved_store
 check("the 0.1 ETH Tornado pool is labelled as such", labels.label_of(POOL) == "Tornado Cash: 0.1 ETH")
 
+# ---------------------------------------------------------------- gas-funding clusters
+section("24. EVM clustering by gas funding")
+from crypttrace import gascluster
+F, A1, A2, A3, NOT_SIB = ("0x" + c * 40 for c in "f123a")
+BRIDGE, VICT = "0x" + "b" * 40, "0x" + "e" * 40
+t = 1_700_000_000
+hist24 = {
+    A1: [{"from": F, "to": A1, "value": 0.05, "timestamp": t, "hash": "h1"}],
+    A2: [{"from": F, "to": A2, "value": 0.06, "timestamp": t + 600, "hash": "h2"}],
+    A3: [{"from": F, "to": A3, "value": 0.04, "timestamp": t + 1200, "hash": "h3"}],
+    NOT_SIB: [{"from": "0x" + "9" * 40, "to": NOT_SIB, "value": 1.0, "timestamp": t - 99, "hash": "h0"},
+              {"from": F, "to": NOT_SIB, "value": 0.05, "timestamp": t + 50, "hash": "h4"}],
+    F: [{"from": F, "to": a, "value": v, "timestamp": ts, "hash": h} for a, v, ts, h in
+        ((A1, 0.05, t, "h1"), (A2, 0.06, t + 600, "h2"), (A3, 0.04, t + 1200, "h3"), (NOT_SIB, 0.05, t + 50, "h4"))],
+    VICT: [{"from": BRIDGE, "to": VICT, "value": 100.0, "timestamp": t, "hash": "hb", "internal": True}],
+}
+chains.transfers = lambda addr, chain="eth", limit=1000, oldest_first=False, asset=None, **kw: \
+    sorted(hist24.get(addr, []), key=lambda r: r["timestamp"], reverse=not oldest_first) if asset is None else []
+try:
+    r = gascluster.cluster(A1, "eth")
+    sibs = {s["address"] for s in r["siblings"]}
+    check("wallets set up by the same wallet are siblings", sibs == {A2, A3}, str(sibs))
+    check("a wallet funded first by someone else is not a sibling", NOT_SIB not in sibs)
+    check("same-day funding with similar amounts is a strong link", r["strength"] == "strong", r["strength"])
+    r = gascluster.cluster(VICT, "eth")
+    check("a first funding from a contract links nothing",
+          not r["siblings"] and "contract" in r["note"], r["note"])
+    rc = gascluster.cluster(F, "eth")
+    check("wallets this one funded first are its children",
+          {c["address"] for c in rc["children"]} == {A1, A2, A3}, str([c["address"] for c in rc["children"]]))
+finally:
+    chains.transfers = real_transfers
+
 # ---------------------------------------------------------------- result
 print("\n" + "=" * 72)
 print(f"RESULT: {len(PASSED)} passed, {len(FAILED)} failed")

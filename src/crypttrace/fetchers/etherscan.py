@@ -50,7 +50,11 @@ class EtherscanError(RuntimeError):
     pass
 
 
-def _call(chain: str, params: Dict[str, str], cache_age: int = 3600) -> dict:
+MIN_INTERVAL = 0.22        # the free plan allows 5 calls a second
+_last_call = 0.0
+
+
+def _call(chain: str, params: Dict[str, str], cache_age: int = 3600, _tries: int = 0) -> dict:
     if chain not in config.CHAINS:
         raise EtherscanError(f"unsupported chain '{chain}'. Options: {list(config.CHAINS)}")
     if not config.ETHERSCAN_API_KEY:
@@ -69,15 +73,20 @@ def _call(chain: str, params: Dict[str, str], cache_age: int = 3600) -> dict:
     if cached is not None:
         return cached
 
+    global _last_call
+    wait = MIN_INTERVAL - (time.time() - _last_call)
+    if wait > 0:
+        time.sleep(wait)
+    _last_call = time.time()
     resp = requests.get(config.ETHERSCAN_BASE, params=q, timeout=30)
     resp.raise_for_status()
     data = resp.json()
     # status "0" with "No transactions found" is a valid empty result, not an error
     if data.get("status") == "0" and "No transactions" not in str(data.get("message", "")):
         # rate-limit or bad key etc.
-        if "rate limit" in str(data.get("result", "")).lower():
-            time.sleep(1)
-            return _call(chain, params, cache_age)
+        if "rate limit" in str(data.get("result", "")).lower() and _tries < 4:
+            time.sleep(1 + _tries)
+            return _call(chain, params, cache_age, _tries + 1)
         # otherwise return as-is; caller handles empty
     _cache_put(key, data)
     return data
