@@ -200,6 +200,23 @@ def create_app() -> Flask:
         res["to_explorer"] = chains.explorer_url(res["to"], chain) if res.get("to") else None
         return jsonify(res)
 
+    @app.route("/api/evidence-pack")
+    def api_evidence_pack():
+        from crypttrace import evidence as ev
+        addr = request.args.get("address", "")
+        chain = request.args.get("chain", "eth")
+        lang = request.args.get("lang", "en")
+        bad = validate(addr, chain)
+        if bad or lang not in ev.T:
+            return jsonify({"error": bad or "lang must be en or ru"}), 400
+        try:
+            doc = ev.build(addr, chain)
+        except _KNOWN_ERRORS as e:
+            return jsonify({"error": str(e)}), 400
+        resp = app.response_class(ev.render_html(doc, lang), mimetype="text/html")
+        resp.headers["Content-Disposition"] = f"attachment; filename=evidence_{chain}_{addr[:12]}_{lang}.html"
+        return resp
+
     @app.route("/api/victims")
     def api_victims():
         """Addresses that fed this wallet — in a mass theft, the victim list."""

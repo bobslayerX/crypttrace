@@ -183,6 +183,36 @@ def check(
 
 
 @app.command()
+def evidence(
+    address: str = typer.Argument(..., help="The victim's own wallet address"),
+    chain: str = CHAIN_OPT,
+    lang: str = typer.Option("en", "--lang", "-l", help="en (for exchanges) or ru (for the police)"),
+    out: Path = typer.Option(Path.home() / "crypttrace-reports", "--out", "-o", help="Folder to save into"),
+):
+    """An evidence pack for the exchange and the police: what was taken, the path, the memo, the requests."""
+    from crypttrace import evidence as ev
+    if lang not in ev.T:
+        console.print(f"[red]Error:[/red] --lang must be one of {', '.join(ev.T)}")
+        raise typer.Exit(1)
+    try:
+        with console.status("Reading the wallet's history…"):
+            doc = ev.build(address, chain)
+    except (chains_mod.ChainError, etherscan.EtherscanError) as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
+    if doc["check"]["verdict"] == "no_drain":
+        console.print("[green]No drain found[/green] for this wallet — nothing to put in an evidence pack.")
+        raise typer.Exit(0)
+    paths = ev.write(doc, out, lang)
+    memos = ", ".join(f"{d['company']} memo {d['memo']}" for d in doc["deposits"]) or "none found yet"
+    console.print(f"[bold]Evidence pack saved[/bold] — exchange deposits: {memos}")
+    for p in paths:
+        console.print(f"  {p}")
+    console.print("[dim]Open the .html in a browser and print it to PDF. Fill in your name and contact, "
+                  "then send it with your report.[/dim]")
+
+
+@app.command()
 def trace(
     address: str = typer.Argument(..., help="Starting address (0x…)"),
     chain: str = CHAIN_OPT,

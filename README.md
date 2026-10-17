@@ -119,6 +119,22 @@ history and answers in plain language:
 
 The web UI has the same check in its **Was I drained?** tab.
 
+### An evidence pack for the exchange and the police
+
+```bash
+crypttrace evidence YOUR_ADDRESS --chain ton --lang en   # for the exchange
+crypttrace evidence YOUR_ADDRESS --chain ton --lang ru   # for a police report (Russian)
+```
+
+Turns the check into a document to send: a summary of the theft, every
+transfer out of the wallet with its explorer link, the path to the exchange
+deposit and its memo with the hash of each hop, a precise request to the
+exchange (freeze the account behind the memo, preserve KYC, login and
+withdrawal records) and to the police (request them through the exchange's
+law-enforcement channel), and how it was established — so anyone can check it.
+Name, contact and signature are left blank to fill in. Saved as HTML (print to
+PDF), Markdown and JSON; the **Was I drained?** tab has download buttons too.
+
 ## Web UI
 
 ```bash

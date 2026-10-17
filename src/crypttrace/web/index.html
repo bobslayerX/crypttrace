@@ -644,6 +644,11 @@ async function loadCheck(a){
       }
       const left=(r.remaining_tokens||[]).map(x=>`${Number(x.amount).toLocaleString()} ${esc(x.symbol)}`)
         .concat(r.remaining_nfts?[`${r.remaining_nfts} NFT`]:[]);
+      const ev=l=>`/api/evidence-pack?address=${q(a)}&chain=${chain()}&lang=${l}`;
+      h+=`<div style="margin-top:14px">
+        <a class="btnlink" href="${ev('en')}">Evidence pack for the exchange (EN) ⬇</a>
+        <a class="btnlink" href="${ev('ru')}">Для полиции (RU) ⬇</a>
+        <div class="muted" style="margin-top:6px">Open it in a browser, print to PDF, fill in your name and contact.</div></div>`;
       h+=`<h3 style="margin-top:16px">What to do now</h3><ol>
         <li>This seed phrase is burned. Make a new wallet with a new seed phrase; never type it into a site, bot or "support" chat again.</li>
         ${left.length?`<li>Move what is still here to the new wallet right away: ${left.join(', ')}.</li>`:''}

@@ -1017,6 +1017,39 @@ try:
 finally:
     chains.transfers, chains.balance, chains.token_holdings = saved
 
+# ---------------------------------------------------------------- evidence pack
+section("21. Evidence pack for the exchange and the police")
+from crypttrace import evidence as ev_mod
+VW, COLW, NEXTW, HOTW = "UQvictimvictim", "UQcollector", "UQsecondwallet", "UQkucoinhot"
+fake_check = {"address": VW, "chain": "ton", "verdict": "drained", "reasons": [], "to": COLW,
+              "to_label": "drainer", "to_type": "scam", "start": 1790707913, "end": 1790707953, "transfers": 2,
+              "assets": {"TON": 3447.0}, "nfts": 0, "other_wallets_same_hour": 175, "resweeps": 1,
+              "drain_txs": [{"timestamp": 1790707913, "value": 3447.0, "symbol": "TON", "hash": "aa11"}],
+              "next": [{"exchange_address": HOTW, "exchange": "KuCoin hot wallet (memo required)", "memo": "2093842166",
+                        "value": 1280.0, "txs": 1, "symbol": "TON", "last_ts": 1790787182, "hash": "bb22",
+                        "from": NEXTW}]}
+real_check = drain_mod.check
+drain_mod.check = lambda address, chain, limit=1000: dict(fake_check)
+chains.transfers = lambda addr, chain="eth", limit=1000, asset=None, **kw: \
+    [{"from": COLW, "to": NEXTW, "value": 320.86, "timestamp": 1790786366, "hash": "cc33"}] if addr == COLW else []
+try:
+    doc = ev_mod.build(VW, "ton")
+    en, ru = ev_mod.render_markdown(doc, "en"), ev_mod.render_html(doc, "ru")
+    check("the pack names the exchange account by its memo and asks to freeze it",
+          "2093842166" in en and "freeze the account identified by deposit memo 2093842166" in en)
+    check("the path links every hop to its transaction",
+          all(h in en for h in ("aa11", "bb22", "cc33")) and f"{VW} → {COLW} → {NEXTW} → {HOTW}" in en)
+    check("the police version is in Russian and points to the exchange's portal",
+          "Хищение криптовалюты" in ru and "kucoin.com/legal/requests" in ru)
+    check("a mass drain and a re-sweep are stated", "175 other wallets" in en and "still holds the wallet's key" in en)
+    check("the victim's details are left blank, not invented", "Name: ____" in en and "UQvictimvictim" in en)
+    drain_mod.check = lambda address, chain, limit=1000: {"address": VW, "chain": "ton", "verdict": "no_drain",
+                                                          "reasons": []}
+    check("no drain, no evidence pack", "No drain was found" in ev_mod.render_markdown(ev_mod.build(VW, "ton")))
+finally:
+    drain_mod.check = real_check
+    chains.transfers = real_transfers
+
 # ---------------------------------------------------------------- result
 print("\n" + "=" * 72)
 print(f"RESULT: {len(PASSED)} passed, {len(FAILED)} failed")
