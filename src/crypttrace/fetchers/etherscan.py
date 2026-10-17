@@ -104,6 +104,19 @@ def get_txs(address: str, chain: str = "eth", limit: int = 1000,
     return result if isinstance(result, list) else []
 
 
+def get_internal_txs(address: str, chain: str = "eth", limit: int = 1000,
+                     sort: str = "desc") -> List[dict]:
+    """Internal transactions: the native coin a contract sent or received as part of a call
+    (a mixer or exchange withdrawal, ETH back from a DEX swap, a multisig payout)."""
+    data = _call(chain, {
+        "module": "account", "action": "txlistinternal", "address": address,
+        "startblock": "0", "endblock": "99999999",
+        "page": "1", "offset": str(limit), "sort": sort,
+    })
+    result = data.get("result")
+    return result if isinstance(result, list) else []
+
+
 def get_token_txs(address: str, chain: str = "eth", limit: int = 1000) -> List[dict]:
     """ERC-20 token transfers, newest first."""
     data = _call(chain, {

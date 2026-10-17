@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.19.0
+
+### Added
+- **EVM internal transactions.** ETH (and BNB, POL, …) that a contract sends —
+  a withdrawal from a mixer or an exchange, ETH back from a DEX swap, a
+  multisig payout — is now part of the native history, so `trace`, `funder`,
+  `victims`, `check` and reports follow money through contracts. A wallet
+  funded by a Tornado Cash withdrawal showed no funder before; now its funder
+  is "Tornado Cash: 0.1 ETH".
+- **Keys from the Windows user environment.** `ETHERSCAN_API_KEY` (and
+  `TRONSCAN_API_KEY`) saved with `SetEnvironmentVariable(..., "User")` work in
+  an already-open terminal.
+
+### Fixed
+- **Failed EVM transactions counted as transfers.** A call that reverted moved
+  nothing, but its value was booked as sent.
+- **Two Tornado Cash labels were wrong**, checked against their own payouts:
+  `0x12d66f…b8fc` pays out 0.1 ETH per withdrawal (was labelled 1 ETH), and
+  `0xd90e2f…f31b` pays out 0.1, 1 and 10 ETH withdrawals — a router, not the
+  0.1 ETH pool.
+
+EVM native history stored by earlier versions is read again once, to pick up
+the internal transactions.
+
 ## 0.18.0
 
 ### Added

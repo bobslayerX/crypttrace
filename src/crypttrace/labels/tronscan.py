@@ -12,8 +12,6 @@ Lookups are cached on disk for a week; only `enrich()` uses the network.
 """
 import datetime as dt
 import json
-import os
-import sys
 import time
 from typing import Dict, Iterable, Optional
 
@@ -31,15 +29,7 @@ _cache: Optional[Dict[str, dict]] = None
 
 
 def _key() -> Optional[str]:
-    k = os.environ.get("TRONSCAN_API_KEY")
-    if not k and sys.platform == "win32":          # set with [Environment]::SetEnvironmentVariable(..., "User")
-        try:
-            import winreg
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as reg:
-                k = winreg.QueryValueEx(reg, "TRONSCAN_API_KEY")[0]
-        except OSError:
-            k = None
-    return (k or "").strip() or None
+    return config.env("TRONSCAN_API_KEY") or None
 
 
 def _load() -> Dict[str, dict]:

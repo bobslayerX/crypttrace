@@ -1084,6 +1084,34 @@ finally:
     http_mod.request_json = real_req
     ts_mod.enrich = lambda addrs: None
 
+# ---------------------------------------------------------------- EVM internal transactions
+section("23. EVM: internal transactions; failed calls")
+from crypttrace import funder as funder23
+from crypttrace.fetchers import etherscan as es23
+POOL = "0x12d66f87a04a9e220743712ce6d9bb1b5616b8fc"
+WD = "0x" + "fb" * 20
+real_txs, real_int = es23.get_txs, es23.get_internal_txs
+es23.get_txs = lambda address, chain="eth", limit=1000, sort="desc": [
+    {"from": WD, "to": "0x" + "aa" * 20, "value": str(5 * 10 ** 16), "timeStamp": "200", "hash": "0xpay", "isError": "0"},
+    {"from": WD, "to": "0x" + "bb" * 20, "value": str(10 ** 18), "timeStamp": "150", "hash": "0xfail", "isError": "1"}]
+es23.get_internal_txs = lambda address, chain="eth", limit=1000, sort="desc": [
+    {"from": POOL, "to": WD, "value": str(97922978921300000), "timeStamp": "100", "hash": "0xwithdraw", "isError": "0"},
+    {"from": POOL, "to": WD, "value": "0", "timeStamp": "120", "hash": "0xzero", "isError": "0"}]
+chains.transfers = real_transfers
+saved_store = chains.USE_STORE
+chains.USE_STORE = False
+try:
+    rows = chains.transfers(WD, "eth", 100)
+    check("ETH a contract sent (a mixer withdrawal) is a transfer", any(r["hash"] == "0xwithdraw" and r.get("internal") for r in rows))
+    check("a failed call moved nothing, a zero internal call is no transfer",
+          not any(r["hash"] in ("0xfail", "0xzero") for r in rows), str([r["hash"] for r in rows]))
+    ff = funder23.first_funder(WD, "eth")
+    check("the first funder can be a contract: here Tornado Cash", ff and ff["funder"] == POOL, str(ff))
+finally:
+    es23.get_txs, es23.get_internal_txs = real_txs, real_int
+    chains.USE_STORE = saved_store
+check("the 0.1 ETH Tornado pool is labelled as such", labels.label_of(POOL) == "Tornado Cash: 0.1 ETH")
+
 # ---------------------------------------------------------------- result
 print("\n" + "=" * 72)
 print(f"RESULT: {len(PASSED)} passed, {len(FAILED)} failed")

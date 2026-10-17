@@ -86,6 +86,14 @@ def _conn() -> sqlite3.Connection:
         c.execute("DELETE FROM fetched WHERE chain='ton'")
         c.execute("PRAGMA user_version=3")
         c.commit()
+    if c.execute("PRAGMA user_version").fetchone()[0] < 4:
+        # 0.19: EVM native history now includes internal transactions — read it again
+        evm = tuple(config.CHAINS)
+        marks = ",".join("?" * len(evm))
+        c.execute(f"DELETE FROM transfers WHERE chain IN ({marks}) AND (contract IS NULL OR contract='')", evm)
+        c.execute(f"DELETE FROM fetched WHERE chain IN ({marks}) AND asset=''", evm)
+        c.execute("PRAGMA user_version=4")
+        c.commit()
     return c
 
 
