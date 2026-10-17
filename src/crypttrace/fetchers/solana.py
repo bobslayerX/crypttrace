@@ -1,9 +1,15 @@
 """Solana fetcher via public JSON-RPC — no API key required.
 
 Solana has no "list transfers for an address" endpoint: you fetch the address's
-recent signatures, then each transaction, and read the parsed instructions. That
-means one RPC call per transaction, so this fetcher is slower and intentionally
-capped. Set CRYPTTRACE_SOLANA_RPC to use your own (faster) endpoint.
+signatures (page after page), then the transactions, and read the parsed
+instructions; failed transactions are skipped — they moved nothing.
+
+The public endpoint sustains about one getTransaction call a second — faster,
+and most calls come back 429 with a 10-second wait; JSON-RPC batches fare worse.
+So on it transactions are fetched one at a time, paced to that rate, and history
+is capped at MAX_TXS = 50 transactions per address. With your own endpoint in
+CRYPTTRACE_SOLANA_RPC (e.g. a free Helius or QuickNode key) calls run in parallel
+and the cap is 1,000. CRYPTTRACE_SOLANA_MAX_TXS overrides either.
 """
 import os
 from typing import List, Dict
@@ -12,9 +18,15 @@ import requests
 
 from crypttrace import assets
 
-RPC = os.environ.get("CRYPTTRACE_SOLANA_RPC", "https://api.mainnet-beta.solana.com")
+PUBLIC_RPC = "https://api.mainnet-beta.solana.com"
+RPC = os.environ.get("CRYPTTRACE_SOLANA_RPC", PUBLIC_RPC)
 LAMPORTS = 1_000_000_000
-MAX_TXS = 25  # keep the number of RPC round-trips sane
+MAX_TXS = int(os.environ.get("CRYPTTRACE_SOLANA_MAX_TXS") or (50 if RPC == PUBLIC_RPC else 1000))
+WORKERS = 1 if RPC == PUBLIC_RPC else 8   # calls in flight; the HTTP layer spaces their starts
+if RPC == PUBLIC_RPC:
+    from crypttrace.fetchers import http as _http
+    _http.MIN_INTERVAL["api.mainnet-beta.solana.com"] = 1.1
+SIG_PAGE = 1000       # the most getSignaturesForAddress returns at once
 
 # mint -> symbol for the tokens crypttrace knows; others show as "SPL"
 _KNOWN_MINTS = {t["contract"]: t["symbol"] for t in assets.tokens_for("sol").values()}
@@ -53,15 +65,44 @@ def balance(address: str) -> float:
 
 
 def _signatures(address: str, limit: int) -> List[str]:
-    res = _rpc("getSignaturesForAddress", [address, {"limit": min(limit, MAX_TXS)}]) or []
-    return [s.get("signature") for s in res if s.get("signature")]
+    """Signatures of successful transactions, newest first, page after page."""
+    want = min(limit, MAX_TXS)
+    out: List[str] = []
+    before = None
+    while len(out) < want:
+        opts = {"limit": min(SIG_PAGE, want - len(out) + 50)}
+        if before:
+            opts["before"] = before
+        page = _rpc("getSignaturesForAddress", [address, opts]) or []
+        if not page:
+            break
+        out += [s["signature"] for s in page if s.get("signature") and s.get("err") is None]
+        before = page[-1].get("signature")
+        if len(page) < opts["limit"]:
+            break
+    return out[:want]
 
 
-def _parse_tx(sig: str) -> List[Dict]:
-    tx = _rpc("getTransaction", [sig, {"encoding": "jsonParsed",
-                                       "maxSupportedTransactionVersion": 0}])
-    if not tx:
-        return []
+def _transactions(sigs: List[str]) -> List[tuple]:
+    """(signature, transaction) for each signature — one cached call each, a few at a time."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    def one(sig):
+        try:
+            return sig, _rpc("getTransaction", [sig, {"encoding": "jsonParsed",
+                                                      "maxSupportedTransactionVersion": 1}])
+        except SolanaError:
+            return sig, None
+    with ThreadPoolExecutor(max_workers=WORKERS) as pool:
+        return list(pool.map(one, sigs))
+
+
+def _parse_tx(sig: str, tx=None) -> List[Dict]:
+    if tx is None:
+        tx = _rpc("getTransaction", [sig, {"encoding": "jsonParsed",
+                                           "maxSupportedTransactionVersion": 1}])
+    if not tx or (tx.get("meta") or {}).get("err") is not None:
+        return []                               # a failed transaction moved nothing
     ts = int(tx.get("blockTime") or 0)
     rows = []
     meta = tx.get("meta") or {}
@@ -121,11 +162,9 @@ def _parse_tx(sig: str) -> List[Dict]:
 
 
 def transfers(address: str, limit: int = MAX_TXS) -> List[Dict]:
-    """Normalized transfer rows. Note: capped at MAX_TXS transactions."""
+    """Normalized transfer rows from the latest `limit` (at most MAX_TXS) successful transactions."""
     rows: List[Dict] = []
-    for sig in _signatures(address, limit):
-        try:
-            rows.extend(_parse_tx(sig))
-        except SolanaError:
-            continue
+    for sig, tx in _transactions(_signatures(address, limit)):
+        if tx:                                  # unreadable ones are skipped, not refetched
+            rows.extend(_parse_tx(sig, tx))
     return rows
