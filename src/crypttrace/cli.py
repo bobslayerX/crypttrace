@@ -775,9 +775,32 @@ def verify(
 
 @app.command()
 def cluster(
-    address: str = typer.Argument(..., help="Bitcoin address (bc1…/1…/3…)"),
+    address: str = typer.Argument(..., help="Bitcoin (bc1…/1…/3…) or EVM (0x…) address"),
+    chain: Optional[str] = typer.Option(None, "--chain", "-c",
+                                        help="btc, or an EVM chain (eth, bsc, …); guessed from the address"),
+    checks: int = typer.Option(60, "--checks", help="EVM: how many of the funder's wallets to check"),
 ):
-    """Bitcoin only: find addresses likely owned by the same person (common-input-ownership)."""
+    """Addresses likely owned by the same party.
+
+    Bitcoin: common-input ownership. EVM: gas funding — wallets whose first funding came
+    from the same wallet, and wallets this one funded first."""
+    chain = chain or ("btc" if not address.lower().startswith("0x") else "eth")
+    if chain in config.CHAINS:
+        from crypttrace import gascluster
+        try:
+            with console.status("Finding who set up this wallet and what else they set up…"):
+                res = gascluster.cluster(address, chain, max_checks=checks)
+        except (chains_mod.ChainError, etherscan.EtherscanError) as e:
+            console.print(f"[red]Error:[/red] {e}")
+            raise typer.Exit(1)
+        console.print(render.gas_cluster_report(res, chains_mod.symbol(chain)))
+        console.print("\n[dim]Heuristic: a new wallet needs gas before it can send anything, so its first "
+                      "funder set it up. Wallets set up by the same person's wallet are likely one party; a "
+                      "funding from an exchange, mixer, bridge or any contract links nothing. A lead, not proof.[/dim]")
+        return
+    if chain != "btc":
+        console.print("[red]Error:[/red] cluster works on Bitcoin and EVM chains")
+        raise typer.Exit(1)
     from crypttrace.fetchers import bitcoin
     try:
         peers = bitcoin.cluster(address)

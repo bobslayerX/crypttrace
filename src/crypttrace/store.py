@@ -94,6 +94,18 @@ def _conn() -> sqlite3.Connection:
         c.execute(f"DELETE FROM fetched WHERE chain IN ({marks}) AND asset=''", evm)
         c.execute("PRAGMA user_version=4")
         c.commit()
+    if c.execute("PRAGMA user_version").fetchone()[0] < 5:
+        # 0.20: remember which EVM transfers were internal (sent by a contract) — gas-funding
+        # clustering must not link wallets a contract paid; read EVM native history again
+        cols = [r[1] for r in c.execute("PRAGMA table_info(transfers)")]
+        if "internal" not in cols:
+            c.execute("ALTER TABLE transfers ADD COLUMN internal INTEGER")
+        evm = tuple(config.CHAINS)
+        marks = ",".join("?" * len(evm))
+        c.execute(f"DELETE FROM transfers WHERE chain IN ({marks}) AND (contract IS NULL OR contract='')", evm)
+        c.execute(f"DELETE FROM fetched WHERE chain IN ({marks}) AND asset=''", evm)
+        c.execute("PRAGMA user_version=5")
+        c.commit()
     return c
 
 
@@ -117,13 +129,13 @@ def save(chain: str, address: str, rows: List[dict], asset_key: str = "",
     try:
         c.executemany(
             "INSERT OR REPLACE INTO transfers"
-            "(id,chain,tx_hash,from_addr,to_addr,value,symbol,contract,ts,fee_share,memo,kind)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            "(id,chain,tx_hash,from_addr,to_addr,value,symbol,contract,ts,fee_share,memo,kind,internal)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
             [(_row_id(chain, r), chain, r.get("hash", ""), r.get("from", ""),
               r.get("to", ""), float(r.get("value", 0) or 0), r.get("symbol", ""),
               r.get("contract", ""), int(r.get("timestamp", 0) or 0),
               float(r.get("fee_share", 0) or 0), r.get("memo") or None,
-              r.get("kind") or None) for r in rows])
+              r.get("kind") or None, 1 if r.get("internal") else None) for r in rows])
         c.execute("INSERT OR REPLACE INTO fetched(chain,address,asset,fetched_at,rows,complete)"
                   " VALUES (?,?,?,?,?,?)",
                   (chain, address, asset_key, int(time.time()), len(rows), int(complete)))
@@ -153,7 +165,8 @@ def is_fresh(chain: str, address: str, asset_key: str = "",
 def load(chain: str, address: str, contract: str = "", native_symbol: str = "") -> List[dict]:
     """Every stored transfer touching this address, newest first."""
     c = _conn()
-    cols = "SELECT from_addr,to_addr,value,symbol,contract,ts,tx_hash,fee_share,memo,kind FROM transfers"
+    cols = ("SELECT from_addr,to_addr,value,symbol,contract,ts,tx_hash,fee_share,memo,kind,internal"
+            " FROM transfers")
     try:
         if contract == "*":
             # every token, whatever its contract (address-poisoning checks need fakes too)
@@ -179,7 +192,7 @@ def load(chain: str, address: str, contract: str = "", native_symbol: str = "") 
     finally:
         c.close()
     out = []
-    for f, t, v, sym, con, ts, h, fee, memo, kind in rows:
+    for f, t, v, sym, con, ts, h, fee, memo, kind, internal in rows:
         r = {"from": f, "to": t, "value": v, "symbol": sym,
              "timestamp": ts, "hash": h}
         if con:
@@ -190,6 +203,8 @@ def load(chain: str, address: str, contract: str = "", native_symbol: str = "") 
             r["memo"] = memo
         if kind:
             r["kind"] = kind
+        if internal:
+            r["internal"] = True
         out.append(r)
     return out
 

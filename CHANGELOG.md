@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.20.0
+
+### Added
+- **EVM clustering by gas funding** — `crypttrace cluster 0x…` (Bitcoin keeps
+  common-input ownership). Siblings: wallets whose first funding came from the
+  same wallet; children: wallets this one funded first. Same-day funding with
+  similar amounts, or many similar fundings, is a strong link. A first funding
+  from an exchange, mixer, bridge or any contract links nothing, and the
+  result says so. On the Ronin bridge exploiter: 18 laundering wallets.
+
+### Fixed
+- **The internal-transaction flag was lost in the local store**, so stored EVM
+  history could not tell a contract's payout from a wallet's. It is kept now;
+  EVM native history stored by 0.19 is read again once.
+- **Etherscan calls are paced** (at most 5 a second, the free plan's limit) and
+  a rate-limit reply is retried a few times instead of indefinitely.
+
 ## 0.19.0
 
 ### Added
