@@ -2,6 +2,11 @@
 
 The blockchain is public: every transaction is queryable. This module wraps the
 Etherscan API and caches responses so repeated traces don't re-hit the API.
+
+Etherscan's free plan does not cover every chain: BNB Chain, Base and Optimism
+need a paid plan. Etherscan says so in an error, which used to pass for an
+empty history — a wallet there looked untouched. Now any error Etherscan
+returns is raised (and never cached); only "No transactions found" is empty.
 """
 import json
 import sqlite3
@@ -50,6 +55,15 @@ class EtherscanError(RuntimeError):
     pass
 
 
+def _empty(data: dict) -> bool:
+    """A valid answer with nothing in it ("No transactions found") — not an error."""
+    return str(data.get("message", "")).startswith("No ") or isinstance(data.get("result"), list)
+
+
+def _failed(data: dict) -> bool:
+    return str(data.get("status")) == "0" and not _empty(data)
+
+
 MIN_INTERVAL = 0.22        # the free plan allows 5 calls a second
 _last_call = 0.0
 
@@ -70,7 +84,7 @@ def _call(chain: str, params: Dict[str, str], cache_age: int = 3600, _tries: int
     key = f"{chain}:" + "&".join(f"{k}={v}" for k, v in sorted(q.items()) if k != "apikey")
     from crypttrace.fetchers import http
     cached = None if http.FRESH else _cache_get(key, cache_age)
-    if cached is not None:
+    if cached is not None and not _failed(cached):      # older versions cached errors too
         return cached
 
     global _last_call
@@ -78,16 +92,23 @@ def _call(chain: str, params: Dict[str, str], cache_age: int = 3600, _tries: int
     if wait > 0:
         time.sleep(wait)
     _last_call = time.time()
-    resp = requests.get(config.ETHERSCAN_BASE, params=q, timeout=30)
-    resp.raise_for_status()
-    data = resp.json()
-    # status "0" with "No transactions found" is a valid empty result, not an error
-    if data.get("status") == "0" and "No transactions" not in str(data.get("message", "")):
-        # rate-limit or bad key etc.
-        if "rate limit" in str(data.get("result", "")).lower() and _tries < 4:
+    try:
+        resp = requests.get(config.ETHERSCAN_BASE, params=q, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+    except (requests.RequestException, ValueError) as e:
+        raise EtherscanError(f"Etherscan request failed: {e}")
+    if _failed(data):
+        said = str(data.get("result") or data.get("message") or "")
+        if "rate limit" in said.lower() and _tries < 4:
             time.sleep(1 + _tries)
             return _call(chain, params, cache_age, _tries + 1)
-        # otherwise return as-is; caller handles empty
+        if "not supported for this chain" in said:
+            raise EtherscanError(
+                f"Etherscan's free plan does not cover {chain}: its history needs a paid "
+                "Etherscan API plan (https://etherscan.io/apis). Without one, crypttrace "
+                f"cannot read {chain} — it is not that the wallet is empty.")
+        raise EtherscanError(f"Etherscan answered: {said}")
     _cache_put(key, data)
     return data
 

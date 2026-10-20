@@ -15,7 +15,7 @@ are reported as likely continuations with the delay and amount so the analyst
 can judge. (v1 matches native-coin value; token-bridging and recipient-address
 decoding from bridge calldata are natural extensions.)
 """
-from typing import List, Dict
+from typing import Dict, List, Optional
 
 from crypttrace.fetchers import etherscan
 from crypttrace.labels import labels
@@ -46,9 +46,13 @@ def bridge_outflows(address: str, chain: str = "eth") -> List[Dict]:
 
 
 def find_arrivals(address: str, source_chain: str, amount: float, after_ts: int,
-                  tol: float = 0.05, window_h: int = 48) -> List[Dict]:
+                  tol: float = 0.05, window_h: int = 48,
+                  unread: Optional[Dict[str, str]] = None) -> List[Dict]:
     """Search every other supported chain for an inbound transfer to `address`
-    of ~`amount` (within `tol`) within `window_h` hours after `after_ts`."""
+    of ~`amount` (within `tol`) within `window_h` hours after `after_ts`.
+
+    A chain that could not be read is no evidence of "no arrival": it goes into
+    `unread` (chain -> why) instead of silently counting as searched."""
     me = address.lower()
     hits = []
     for ch in config.CHAINS:
@@ -56,7 +60,9 @@ def find_arrivals(address: str, source_chain: str, amount: float, after_ts: int,
             continue
         try:
             txs = etherscan.get_txs(address, ch, limit=200, sort="asc")
-        except etherscan.EtherscanError:
+        except etherscan.EtherscanError as e:
+            if unread is not None:
+                unread[ch] = str(e)
             continue
         for tx in txs:
             if tx.get("to", "").lower() != me:
@@ -80,11 +86,12 @@ def find_arrivals(address: str, source_chain: str, amount: float, after_ts: int,
 
 
 def trace_cross(address: str, chain: str = "eth", tol: float = 0.05,
-                window_h: int = 48) -> List[Dict]:
-    """For each bridge-out from `address`, list likely continuations on other chains."""
+                window_h: int = 48, unread: Optional[Dict[str, str]] = None) -> List[Dict]:
+    """For each bridge-out from `address`, list likely continuations on other chains.
+    Chains that could not be searched are collected in `unread`."""
     results = []
     for out in bridge_outflows(address, chain):
         arrivals = find_arrivals(address, chain, out["amount"], out["timestamp"],
-                                 tol=tol, window_h=window_h)
+                                 tol=tol, window_h=window_h, unread=unread)
         results.append({"bridge_out": out, "arrivals": arrivals})
     return results

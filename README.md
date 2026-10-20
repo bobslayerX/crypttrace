@@ -45,7 +45,7 @@ python selftest.py                 # offline checks, no API keys needed
 
 | | Needed? | How to get it |
 |---|---|---|
-| **EVM chains** (Ethereum, BSC, Polygon, Arbitrum, Optimism, Base) | **Required** | Free key at [etherscan.io/myapikey](https://etherscan.io/myapikey). One v2 key covers all EVM chains. |
+| **EVM chains** (Ethereum, BSC, Polygon, Arbitrum, Optimism, Base) | **Required** | Free key at [etherscan.io/myapikey](https://etherscan.io/myapikey) covers Ethereum, Polygon and Arbitrum. BSC, Optimism and Base need a paid Etherscan plan; on a free key crypttrace says so instead of showing an empty wallet. |
 | **Bitcoin, Tron, Solana, TON** | **Not required** | Work out of the box via public endpoints. |
 
 ```bash
@@ -86,7 +86,7 @@ the number either way.
 
 | Chain | `--chain` | Data source | Model |
 |---|---|---|---|
-| Ethereum, BSC, Polygon, Arbitrum, Optimism, Base | `eth` `bsc` `polygon` `arbitrum` `optimism` `base` | Etherscan v2 | account |
+| Ethereum, BSC, Polygon, Arbitrum, Optimism, Base | `eth` `bsc` `polygon` `arbitrum` `optimism` `base` | Etherscan v2 (BSC, Optimism, Base: paid plan) | account |
 | Bitcoin | `btc` | mempool.space | UTXO |
 | Tron (TRX + USDT-TRC20) | `tron` | TronGrid | account |
 | Solana (SOL + SPL) | `sol` | public JSON-RPC | account |

@@ -38,5 +38,7 @@ CHAINS = {
     "optimism": 10,
     "base": 8453,
 }
+# not served on Etherscan's free plan; the API says so and crypttrace reports it
+PAID_PLAN_CHAINS = {"bsc", "optimism", "base"}
 
 WEI = 10 ** 18

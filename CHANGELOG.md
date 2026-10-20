@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.24.0
+
+### Fixed
+- **BSC, Optimism and Base looked empty on a free Etherscan key.** Etherscan's
+  free plan does not serve those chains and says so in an error, but the
+  error passed for "no transactions": every wallet there showed a zero
+  balance and no history, and the answer was cached for an hour. Any error
+  Etherscan returns is now reported — for these chains with what is needed
+  (a paid plan) — and never cached; errors cached by older versions are
+  ignored. `crypttrace chains` and the README say which chains need the paid
+  plan.
+- A network failure talking to Etherscan is reported as such instead of
+  surfacing as a raw `requests` exception.
+- `crosschain` silently skipped every chain it could not read, so "no
+  arrival found" also covered chains it never searched. It now lists them
+  under "Not searched".
+
 ## 0.23.0
 
 ### Added

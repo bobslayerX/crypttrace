@@ -1209,6 +1209,67 @@ finally:
     tron_fetch.transfers = real_tron26
     store.clear()
 
+# ---------------------------------------------------------------- Etherscan errors
+section("27. Etherscan: an error is not an empty wallet")
+from crypttrace import config as config27
+from crypttrace.fetchers import etherscan as es27
+class Resp27:
+    def __init__(self, payload): self.payload = payload
+    def raise_for_status(self): pass
+    def json(self): return self.payload
+NOT_ON_PLAN = {"status": "0", "message": "NOTOK",
+               "result": "Free API access is not supported for this chain. Please upgrade your api plan "
+                         "for full chain coverage. https://etherscan.io/apis"}
+answers27 = []
+real_get27, real_key27, real_sleep27 = es27.requests.get, config27.ETHERSCAN_API_KEY, es27.time.sleep
+es27.requests.get = lambda url, params=None, timeout=30: Resp27(answers27.pop(0))
+config27.ETHERSCAN_API_KEY, es27.time.sleep = "selftest-key", (lambda s: None)
+W27 = "0x" + "27" * 20
+try:
+    answers27[:] = [NOT_ON_PLAN]
+    try:
+        es27.get_balance(W27, "bsc")
+        said = "no error"
+    except es27.EtherscanError as e:
+        said = str(e)
+    check("a chain the free plan leaves out is reported, not shown as an empty wallet",
+          "paid" in said and "bsc" in said, said)
+    answers27[:] = [{"status": "1", "message": "OK", "result": "5000000000000000000"}]
+    check("the refusal was not cached", es27.get_balance(W27, "bsc") == 5.0)
+    answers27[:] = [{"status": "0", "message": "No transactions found", "result": []}]
+    check("'No transactions found' is still an empty history", es27.get_txs("0x" + "28" * 20, "eth") == [])
+    answers27[:] = [{"status": "0", "message": "NOTOK", "result": "Invalid API Key"}]
+    try:
+        es27.get_txs("0x" + "29" * 20, "eth")
+        said = "no error"
+    except es27.EtherscanError as e:
+        said = str(e)
+    check("any other Etherscan error is raised too", "Invalid API Key" in said, said)
+    es27._cache_put("eth:" + "&".join(f"{k}={v}" for k, v in sorted({
+        "chainid": 1, "module": "account", "action": "txlist", "address": "0x" + "30" * 20,
+        "startblock": "0", "endblock": "99999999", "page": "1", "offset": "1000", "sort": "desc"}.items())),
+        NOT_ON_PLAN)
+    answers27[:] = [{"status": "1", "message": "OK", "result": [{"hash": "0xok"}]}]
+    check("an error cached by an older version is not served",
+          es27.get_txs("0x" + "30" * 20, "eth") == [{"hash": "0xok"}])
+finally:
+    es27.requests.get, config27.ETHERSCAN_API_KEY, es27.time.sleep = real_get27, real_key27, real_sleep27
+
+from crypttrace import bridges as bridges27
+def txs27(address, chain="eth", limit=1000, sort="desc"):
+    if chain == "base":
+        raise es27.EtherscanError("Etherscan's free plan does not cover base")
+    return []
+real_txs27 = bridges27.etherscan.get_txs
+bridges27.etherscan.get_txs = txs27
+try:
+    unread27 = {}
+    bridges27.find_arrivals(W27, "eth", 1.0, 0, unread=unread27)
+    check("crosschain names a chain it could not search instead of counting it as searched",
+          list(unread27) == ["base"], str(unread27))
+finally:
+    bridges27.etherscan.get_txs = real_txs27
+
 # ---------------------------------------------------------------- result
 print("\n" + "=" * 72)
 print(f"RESULT: {len(PASSED)} passed, {len(FAILED)} failed")
