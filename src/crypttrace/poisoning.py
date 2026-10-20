@@ -210,6 +210,16 @@ def _substantial(row: dict, chain: str) -> bool:
     return bool(real and real.get("stable") and contract == real["contract"].lower() and v >= 10)
 
 
+def _set_up_by(wallet: str, me: str, chain: str) -> bool:
+    """Whether `me` funded `wallet` first — a wallet it set up, not a stranger."""
+    from crypttrace import funder
+    try:
+        ff = funder.first_funder(wallet, chain)
+    except chains.ChainError:
+        return False
+    return bool(ff) and chains.norm_addr(ff["funder"], chain) == me
+
+
 def baited_payments(address: str, chain: str, limit: int = 1000,
                     confirm: int = 3) -> List[dict]:
     """Payers who sent `address` real money right after it lured them.
@@ -219,11 +229,22 @@ def baited_payments(address: str, chain: str, limit: int = 1000,
     makes it appear in the payer's history. For up to `confirm` payers their
     own history is read for the address this one imitates, which turns a
     pattern into a specific claim.
+
+    Not a lured payment: money a contract sent (an internal transaction — a
+    bridge or protocol paying out), money that arrived inside a transaction this
+    address signed itself (it called a contract that paid it), and money from a
+    wallet this address set up (its own wallet returning funds). A victim of
+    poisoning signs the payment themselves, from a wallet of their own.
     """
     me = chains.norm_addr(address, chain)
     if labels.type_of(me) == "exchange" and not labels.is_deposit(me):
         return []                         # an exchange paying its own wallets lures no one
     rows = _history(address, chain, limit)
+    # transactions this address signed (TON hashes name the account's own transaction,
+    # whoever started it, so the rule cannot be read from them there)
+    signed = set() if chain == "ton" else {
+        r.get("hash") for r in rows
+        if r.get("from") == me and not r.get("contract") and not r.get("internal") and r.get("hash")}
     first_active = min((int(r.get("timestamp") or 0) for r in rows if r.get("timestamp")), default=0)
     lure: Dict[str, dict] = {}           # counterparty -> earliest lure
     paid: Dict[Tuple[str, str], dict] = {}
@@ -238,6 +259,8 @@ def baited_payments(address: str, chain: str, limit: int = 1000,
         elif frm == me:
             kind = "small transfer from this address"
         elif _substantial(r, chain):
+            if r.get("internal") or r.get("hash") in signed:
+                continue                  # paid by a contract, or in this address's own transaction
             p = paid.setdefault((other, r.get("symbol") or "?"), {"value": 0.0, "first_ts": ts})
             p["value"] += v
             p["first_ts"] = min(p["first_ts"], ts)
@@ -259,6 +282,7 @@ def baited_payments(address: str, chain: str, limit: int = 1000,
                     "address_age_s": p["first_ts"] - first_active if first_active else None,
                     "imitates": None})
     out.sort(key=lambda x: -x["paid"])
+    out = [x for x in out if not _set_up_by(x["payer"], me, chain)]
     for x in out[:confirm]:
         try:
             for pair in lookalikes(x["payer"], chain, limit):

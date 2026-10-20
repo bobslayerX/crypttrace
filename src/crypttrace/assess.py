@@ -60,9 +60,16 @@ def constant_fee_signature(values: List[float], min_hits: int = 5) -> Optional[d
     return {"fee": delta, "hits": hits, "of": total, "share": hits / total}
 
 
-def repeated_amounts(values: List[float], min_repeat: int = 3) -> List[tuple]:
-    """Identical amounts arriving from unrelated addresses — batch automation."""
-    c = Counter(round(v, 8) for v in values if v > 0)
+def repeated_amounts(payments: List[tuple], min_repeat: int = 3) -> List[tuple]:
+    """Identical amounts arriving from unrelated addresses — batch automation.
+
+    `payments` are (amount, sender); an amount counts once per distinct sender,
+    so one wallet paying the same sum again is not a batch."""
+    senders: Dict[float, set] = {}
+    for v, frm in payments:
+        if v > 0:
+            senders.setdefault(round(v, 8), set()).add(frm)
+    c = Counter({amt: len(s) for amt, s in senders.items()})
     return [(amt, n) for amt, n in c.most_common(5) if n >= min_repeat]
 
 
@@ -143,7 +150,11 @@ def assess(address: str, chain: str = "eth", asset: Optional[dict] = None,
                 evidence={"count": b[1], "span_minutes": round(span_min, 1),
                           "from_ts": b[2], "to_ts": b[3]}))
 
-    rep = repeated_amounts([r.get("value", 0) for r in inbound])
+    # small sums are what spammers and lure campaigns send every known address, in
+    # fixed amounts by design; batch processing shows in money worth moving
+    floor = 100 * analysis.dust_threshold(chain, asset)
+    rep = repeated_amounts([(r.get("value", 0), r.get("from")) for r in inbound
+                            if r.get("value", 0) >= floor and not r.get("kind")])
     if rep:
         top = rep[0]
         signals.append(Signal(
