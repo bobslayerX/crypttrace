@@ -303,8 +303,9 @@ def crosschain(
     tol: float = typer.Option(0.05, "--tol", help="Amount tolerance (0.05 = 5%, for bridge fees)"),
 ):
     """Follow funds across bridges: find likely arrivals of the same address on other chains."""
+    unread = {}
     try:
-        results = bridges_mod.trace_cross(address, chain, tol=tol, window_h=window)
+        results = bridges_mod.trace_cross(address, chain, tol=tol, window_h=window, unread=unread)
     except etherscan.EtherscanError as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1)
@@ -313,6 +314,10 @@ def crosschain(
                       "address on this chain.[/dim]")
         return
     console.print(render.crosschain_tree(address, chain, results))
+    if unread:
+        console.print(f"\n[yellow]Not searched:[/yellow] {', '.join(sorted(unread))} — "
+                      "could not be read, so no arrival there is not evidence of none. "
+                      f"({next(iter(unread.values()))})")
     console.print("\n[dim]Cross-chain links are heuristic (same-address arrival by amount+time), "
                   "not proof. Verify each candidate before relying on it.[/dim]")
 
@@ -875,7 +880,8 @@ def chains():
     """List supported chains."""
     console.print("[bold]EVM[/bold] (Etherscan v2, needs ETHERSCAN_API_KEY):")
     for name, cid in config.CHAINS.items():
-        console.print(f"  {name:<10} chainid {cid}")
+        paid = "  (paid Etherscan plan only)" if name in config.PAID_PLAN_CHAINS else ""
+        console.print(f"  {name:<10} chainid {cid}{paid}")
     console.print("\n[bold]Non-EVM[/bold] (no API key needed):")
     console.print("  btc        Bitcoin — mempool.space (UTXO)")
     console.print("  tron       Tron — TronGrid (TRX + USDT-TRC20)")
