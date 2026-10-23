@@ -512,10 +512,25 @@ with the reason.
 ### Labels
 
 Ships a curated seed set (major exchanges, Tornado Cash, bridges, notable
-hacks). `update-labels` pulls authoritative public lists — currently the OFAC
-SDN sanctioned-address list — and merges them into the local DB in
-`~/.crypttrace/`. The curated seed wins on conflicts, so richer names survive.
-Add sources in `labels/labels.py` → `SOURCES`.
+hacks). `update-labels` pulls public lists and merges them into the local DB
+in `~/.crypttrace/`:
+
+- **ScamSniffer's phishing blacklist** — about 2,500 EVM addresses of
+  phishing sites and wallet drainers, kept by a security team whose lists
+  wallets such as Rabby and Phantom use. Updated daily, published with a
+  7-day delay. Labelled `scam`.
+- **The OFAC SDN list** — sanctioned addresses. Labelled `sanctioned`; it wins
+  where both lists name an address.
+
+Each download replaces that list's previous copy, so an address taken off a
+list loses its label too. The lists are fetched on your machine rather than
+shipped with crypttrace (ScamSniffer's is GPL-licensed, and both change
+daily); run `update-labels` now and then. The curated seed wins on conflicts,
+so richer names survive. Add sources in `labels/labels.py` → `SOURCES`.
+
+With the phishing list in place, `check` also names any payment the wallet
+made to a listed address. A fake site or a signed token approval takes money
+in a single transfer, so there is no burst for the drain check to find.
 
 On Bitcoin, Tron and Solana the labels cover the reserve wallets of Binance,
 OKX and HTX, plus Bybit's older 2022 list — each taken from the address list the
@@ -686,7 +701,9 @@ cases/             # worked investigations with their data
 
 - More exchanges on Bitcoin, Tron, Solana (now: Binance, OKX, HTX, Bybit, MEXC),
   TON and the EVM chains (now: Binance, HTX, MEXC)
-- More label sources: Chainabuse, CryptoScamDB, exchange deposit-address sets
+- More label sources: Chainabuse (needs an API key), more exchange
+  deposit-address sets (OKX's is in). CryptoScamDB is gone (its API has been
+  down since 2023); ScamSniffer's list took its place.
 
 ## Contributing
 

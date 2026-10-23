@@ -625,6 +625,14 @@ async function loadCheck(a){
       no_drain:['muted','No drain found in the history read.']}[r.verdict];
     let h=`<div class="${head[0]}" style="font-weight:600;margin-bottom:10px">${esc(head[1])}</div>`;
     h+=(r.reasons||[]).map(x=>`<div>• ${esc(x)}</div>`).join('');
+    h+=(r.flagged||[]).map(f=>`<div class="warn" style="margin-top:10px"><b>Sent to an address on a
+      ${f.type==='sanctioned'?'sanctions':'phishing'} list:</b>
+      ${Object.entries(f.amounts).map(([k,v])=>`${Number(v).toLocaleString()} ${esc(k)}`).join(', ')}
+      to <span class="mono">${esc(f.address)}</span> <span class="pill t-${esc(f.type)}">${esc(f.label)}</span>,
+      first on ${dstamp(f.first)} (${f.txs} transaction(s))</div>`).join('');
+    if((r.flagged||[]).some(f=>f.type==='scam'))
+      h+=`<div class="muted">If you did not mean to pay it, a fake site or a token approval you signed took it:
+        revoke this wallet's token approvals and move what is left.</div>`;
     if(r.verdict!=='no_drain'){
       const taken=Object.entries(r.assets||{}).map(([k,v])=>`${Number(v).toLocaleString()} ${esc(k)}`)
         .concat(r.nfts?[`${r.nfts} NFT`]:[]).join(', ');

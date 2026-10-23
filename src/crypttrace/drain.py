@@ -72,6 +72,25 @@ def _amounts(rows: List[dict]) -> Dict[str, float]:
     return dict(tot)
 
 
+def _flagged(out: List[dict]) -> List[dict]:
+    """Payments to an address on a phishing or sanctions list, per address.
+
+    A phishing site or a signed token approval usually takes money in one
+    transfer, so there is no burst to find; the destination's label is the tell."""
+    by: Dict[str, dict] = {}
+    for r in out:
+        kind = labels.type_of(r["to"])
+        if kind not in ("scam", "sanctioned"):
+            continue
+        f = by.setdefault(r["to"], {"address": r["to"], "label": labels.label_of(r["to"]), "type": kind,
+                                    "amounts": defaultdict(float), "first": r["timestamp"], "txs": set()})
+        f["amounts"][r.get("symbol") or "?"] += r.get("value") or 0
+        f["first"] = min(f["first"], r["timestamp"])
+        f["txs"].add(r.get("hash"))
+    return [{**f, "amounts": dict(f["amounts"]), "txs": len(f["txs"])}
+            for f in sorted(by.values(), key=lambda f: f["first"])]
+
+
 def check(address: str, chain: str, limit: int = 1000) -> Dict:
     """Verdict on one wallet: drained (and how), suspicious, or no drain found."""
     me = chains.norm_addr(address, chain)
@@ -86,6 +105,7 @@ def check(address: str, chain: str, limit: int = 1000) -> Dict:
     if not out:
         res["reasons"].append("this wallet has sent nothing in the history read")
         return res
+    res["flagged"] = _flagged(out)
 
     burst = _best_burst(out, chains.symbol(chain))
     dest, win = burst["to"], burst["rows"]
