@@ -1270,6 +1270,43 @@ try:
 finally:
     bridges27.etherscan.get_txs = real_txs27
 
+# ---------------------------------------------------------------- poisoning: what is not a lure
+section("28. poisoning: a contract payout or your own wallet is not a lured payment")
+from crypttrace import assess as assess28
+HACK, BRIDGE28, CHILD, VICTIM = ("0x" + c * 40 for c in "4567")
+rows28 = [
+    # the hacker calls the bridge (0 ETH); the bridge pays out inside that same transaction
+    {"from": HACK, "to": BRIDGE28, "value": 0.0, "timestamp": 100, "hash": "0xcall", "symbol": "ETH"},
+    {"from": BRIDGE28, "to": HACK, "value": 173600.0, "timestamp": 100, "hash": "0xcall", "symbol": "ETH",
+     "internal": True},
+    # gas for a wallet the hacker set up, which later sends the money back
+    {"from": HACK, "to": CHILD, "value": 1.0, "timestamp": 200, "hash": "0xgas", "symbol": "ETH"},
+    {"from": CHILD, "to": HACK, "value": 4870.0, "timestamp": 300, "hash": "0xback", "symbol": "ETH"},
+    # a real lure: zero-value bait to a stranger, who then pays in their own transaction
+    {"from": HACK, "to": VICTIM, "value": 0.0, "timestamp": 400, "hash": "0xbait", "symbol": "ETH"},
+    {"from": VICTIM, "to": HACK, "value": 10.0, "timestamp": 500, "hash": "0xpaid", "symbol": "ETH"},
+]
+hist28 = {HACK: rows28,
+          CHILD: [rows28[2], rows28[3]],
+          VICTIM: [{"from": "0x" + "8" * 40, "to": VICTIM, "value": 50.0, "timestamp": 1, "hash": "0xv0",
+                    "symbol": "ETH"}, rows28[4], rows28[5]]}
+def transfers28(address, chain="eth", limit=1000, oldest_first=False, asset=None, **kw):
+    return [] if asset else sorted(hist28.get(address, []), key=lambda r: r["timestamp"],
+                                   reverse=not oldest_first)
+chains.transfers = transfers28
+try:
+    lured28 = poisoning.baited_payments(HACK, "eth")
+    payers = {x["payer"] for x in lured28}
+    check("a bridge paying out inside the address's own call is not a lured payment", BRIDGE28 not in payers)
+    check("a wallet the address set up, paying it back, is not a lured payment", CHILD not in payers)
+    check("a stranger paying after zero-value bait still is", payers == {VICTIM}, str(lured28))
+finally:
+    chains.transfers = real_transfers
+check("one sender paying the same amount again is not a batch",
+      assess28.repeated_amounts([(1.0, HACK)] * 5) == [])
+check("the same amount from three different senders is",
+      assess28.repeated_amounts([(1.0, "0x" + c * 40) for c in "abc"]) == [(1.0, 3)])
+
 # ---------------------------------------------------------------- result
 print("\n" + "=" * 72)
 print(f"RESULT: {len(PASSED)} passed, {len(FAILED)} failed")

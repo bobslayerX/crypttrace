@@ -243,5 +243,5 @@ def describe_burst(burst, total_events: int) -> Optional[str]:
     if minutes <= 60 * 24:
         return (f"{count} of {total_events} transfers fall inside {minutes/60:.1f} hours ({when})."
                 " Activity is concentrated rather than spread out.")
-    return (f"Activity is spread over {minutes/60/24:.0f} days — no burst pattern, "
-            "which is what ordinary wallet use looks like.")
+    return (f"Activity is spread over {minutes/60/24:.0f} days — no burst pattern, so no sign "
+            "of an automated sweep (which says nothing about whose money it is).")
