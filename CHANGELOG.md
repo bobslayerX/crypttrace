@@ -12,6 +12,25 @@
 - **MEXC's law-enforcement portal in evidence packs**: funds traced to MEXC
   now come with `mexc.com/support/ticket/submit/law-enforcement-requests`,
   as KuCoin's did.
+## 0.25.0
+
+### Fixed
+- **`assess` called the Ronin bridge exploit "address poisoning".** The
+  exploiter's own withdrawal call (a 0-ETH transaction to the bridge) counted
+  as bait, and the 173,600 ETH the bridge paid out inside that call as a
+  victim's lured payment. Money a contract sends (an internal transaction) and
+  money that arrives in a transaction the address signed itself are no longer
+  lured payments: a poisoning victim signs the payment themselves.
+- **Its own wallets counted as poisoning victims.** A wallet the address set up
+  (gas sent, then funds sent back) looked like a stranger lured by a "small
+  transfer". A payer whose first funder is the address itself is now left out.
+  The documented $9.4M Tron campaign is still found, with the imitated address.
+- **"Repeated amounts" counted spam.** 0.0001-ETH dust sent 49 times to a
+  well-known address read as batch processing, and one sender paying the same
+  sum twice counted as two. Only amounts worth moving (100 times the chain's
+  dust level) from distinct senders count now.
+- `timeline` no longer calls activity without a burst "ordinary wallet use";
+  it says there is no sign of an automated sweep, and nothing more.
 
 ## 0.24.0
 
