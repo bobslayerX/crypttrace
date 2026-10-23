@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.27.0
+
+### Added
+- **`tools/refresh_por.py`** — refreshes the exchange reserve-wallet labels
+  as the exchanges republish their lists: Binance (its PoR feed), HTX (the
+  monthly snapshot on its GitHub) and MEXC (the monthly Hacken audit PDF,
+  read with a stdlib-only PDF reader; ligatures resolved by checksum). It
+  reports newly listed and no-longer-listed wallets; `--write` adds the new
+  ones with the same naming and sources, and marks the others "possibly
+  retired" without dropping them. Run for this release:
+  - Binance: 3 Bitcoin reserve wallets listed on 2026-10-22 (3,300–5,600 BTC
+    each).
+  - HTX, snapshot 2026-10-01: its first EVM wallets (3; a contract that holds
+    reserves is left out — it is shared, not HTX's), and one Bitcoin wallet
+    no longer listed.
+  - MEXC: the 2026-10-09 audit reads back the same 41 wallets imported in
+    0.26.0 — a cross-check of that import by a second parser.
+
 ## 0.26.0
 
 ### Added
