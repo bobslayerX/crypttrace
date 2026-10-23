@@ -1270,6 +1270,18 @@ try:
 finally:
     bridges27.etherscan.get_txs = real_txs27
 
+# ---------------------------------------------------------------- MEXC reserve wallets
+section("29. MEXC reserve wallets and its law-enforcement portal")
+from crypttrace import evidence as evidence29
+MEXC_TRON = "TEPSrSYPDSQ7yXpMFPq91Fb1QEWpMkRGfn"          # from MEXC's Hacken PoR audit, 2026-10-09
+MEXC_ETH = "0xd67f25ef2399a0c769b1a35634c5ce77166714db"
+check("MEXC's audited reserve wallets are labelled, on Tron and EVM alike",
+      labels.label_of(MEXC_TRON) == labels.label_of(MEXC_ETH) == "MEXC reserve wallet"
+      and labels.type_of(MEXC_TRON) == "exchange")
+check("an evidence pack for funds that reached MEXC names its law-enforcement portal",
+      evidence29.LE_PORTALS.get(labels.company(labels.label_of(MEXC_TRON))) ==
+      "https://www.mexc.com/support/ticket/submit/law-enforcement-requests")
+
 # ---------------------------------------------------------------- result
 print("\n" + "=" * 72)
 print(f"RESULT: {len(PASSED)} passed, {len(FAILED)} failed")
