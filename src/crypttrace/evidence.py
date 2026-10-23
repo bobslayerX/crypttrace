@@ -19,7 +19,8 @@ from crypttrace import __version__, chains, drain
 from crypttrace.labels import labels
 
 # law-enforcement request portals, only where checked against the exchange's own site
-LE_PORTALS = {"KuCoin": "https://www.kucoin.com/legal/requests"}
+LE_PORTALS = {"KuCoin": "https://www.kucoin.com/legal/requests",
+              "MEXC": "https://www.mexc.com/support/ticket/submit/law-enforcement-requests"}
 SOURCES = {"ton": "toncenter.com (transactions), tonapi.io (account names)",
            "tron": "TronGrid", "btc": "mempool.space", "sol": "Solana JSON-RPC"}
 

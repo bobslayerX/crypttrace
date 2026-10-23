@@ -1306,6 +1306,17 @@ check("one sender paying the same amount again is not a batch",
       assess28.repeated_amounts([(1.0, HACK)] * 5) == [])
 check("the same amount from three different senders is",
       assess28.repeated_amounts([(1.0, "0x" + c * 40) for c in "abc"]) == [(1.0, 3)])
+# ---------------------------------------------------------------- MEXC reserve wallets
+section("29. MEXC reserve wallets and its law-enforcement portal")
+from crypttrace import evidence as evidence29
+MEXC_TRON = "TEPSrSYPDSQ7yXpMFPq91Fb1QEWpMkRGfn"          # from MEXC's Hacken PoR audit, 2026-10-09
+MEXC_ETH = "0xd67f25ef2399a0c769b1a35634c5ce77166714db"
+check("MEXC's audited reserve wallets are labelled, on Tron and EVM alike",
+      labels.label_of(MEXC_TRON) == labels.label_of(MEXC_ETH) == "MEXC reserve wallet"
+      and labels.type_of(MEXC_TRON) == "exchange")
+check("an evidence pack for funds that reached MEXC names its law-enforcement portal",
+      evidence29.LE_PORTALS.get(labels.company(labels.label_of(MEXC_TRON))) ==
+      "https://www.mexc.com/support/ticket/submit/law-enforcement-requests")
 
 # ---------------------------------------------------------------- result
 print("\n" + "=" * 72)

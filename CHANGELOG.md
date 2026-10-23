@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.26.0
+
+### Added
+- **MEXC's reserve wallets**: 41 addresses on Bitcoin, Ethereum, BNB Chain,
+  Arbitrum, Base, Optimism, Polygon, Solana, Tron and TON, from the "verified
+  wallets" table of MEXC's Hacken proof-of-reserves audit of 2026-10-09
+  (ownership proven by a test transaction from each address), linked from
+  MEXC's own audit-report page. Live balances match an exchange's: 1,000 BTC,
+  10,000–15,000 ETH, 24,500 SOL, 6.2M TRX on single wallets.
+- **MEXC's law-enforcement portal in evidence packs**: funds traced to MEXC
+  now come with `mexc.com/support/ticket/submit/law-enforcement-requests`,
+  as KuCoin's did.
 ## 0.25.0
 
 ### Fixed
