@@ -1318,6 +1318,56 @@ check("an evidence pack for funds that reached MEXC names its law-enforcement po
       evidence29.LE_PORTALS.get(labels.company(labels.label_of(MEXC_TRON))) ==
       "https://www.mexc.com/support/ticket/submit/law-enforcement-requests")
 
+# ---------------------------------------------------------------- refreshing exchange lists
+section("30. refreshing exchange proof-of-reserves lists")
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "tools"))
+import json
+import refresh_por
+BTC30 = "34yeXcv1tQSQxwNRQXfS5qvFGSKDvk7Yiu"                   # listed by Binance 2026-10-22
+EVM30 = "0x28c6c06298d514db089934071355e5743bf21d60"
+feed30 = [{"network": "BTC", "address": BTC30, "createTime": 1792627200000, "thirdPartyCustodianName": ""},
+          {"network": "ETH", "address": EVM30, "createTime": 1760486400000, "thirdPartyCustodianName": ""},
+          {"network": "BSC", "address": EVM30, "createTime": 1760486400000, "thirdPartyCustodianName": ""},
+          {"network": "DOGE", "address": "DDogeDogeDoge", "createTime": 1, "thirdPartyCustodianName": ""}]
+b30 = {e["key"]: e for e in refresh_por.binance(feed30, "2026-10-23")}
+check("Binance: one EVM label per address, naming every network it is listed for",
+      set(b30) == {BTC30, EVM30} and "listed for Ethereum, BNB Chain since 2025-10-15" in b30[EVM30]["source"]
+      and b30[EVM30]["chain"] is None, str(b30.get(EVM30)))
+HTX_SIGNED, HTX_CONTRACT = "0x9be5b8a7314552fa47feb1355cd5b4adc7bb7516", "0xdaa4393013f359fd63a133a3b893d311aba4e471"
+csv30 = ("coin,snapshot height,balance\nBTC(All),-,1\n\ncoin,address,snapshot height,balance,message,signature\n"
+         f"ETH,{HTX_SIGNED},1,484,huobi,H5uV\nUSDS-ERC20,{HTX_CONTRACT},1,480000,-,-\n"
+         "DOGE,DDogeDogeDogeDogeDogeDogeDogeDoge1,1,5,-,-\n"
+         f"TRX,{MEXC_TRON},1,10,-,-\n")
+h30 = {e["key"]: e for e in refresh_por.htx(csv30, "2026-10-01", is_contract=lambda a: a.lower() == HTX_CONTRACT)}
+check("HTX: a contract holding reserves is left out, as are chains crypttrace cannot read",
+      set(h30) == {HTX_SIGNED, MEXC_TRON}, str(list(h30)))
+check("HTX: whether the address came with an ownership signature is kept",
+      "with an ownership signature" in h30[HTX_SIGNED]["source"]
+      and "without a signature" in h30[MEXC_TRON]["source"])
+check("a ligature in extracted PDF text yields every reading, for the validator to choose",
+      set(refresh_por.readings("0xﬀab")) == {"0xab", "0xffab"})
+table30 = ["Network", "Address", "Bitcoin", "bc1qnzf53flﬂ4a0lh00p9207c456xkk9fmgdnm6tyky",
+           "Tron", MEXC_TRON, "Ethereum", "0xd67f25ef2399a0c769b1a35634c5ce77166714", "db"]
+m30 = refresh_por.mexc(table30, "2026-10-09", "MEXC_PoR_Audit_20261009.pdf")
+check("MEXC: addresses read from the audit table, ligatures and wrapped lines resolved by checksum",
+      [e["key"] for e in m30] == ["bc1qnzf53fl4a0lh00p9207c456xkk9fmgdnm6tyky", MEXC_TRON, MEXC_ETH],
+      str([e["key"] for e in m30]))
+OLD30 = "1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ"
+src30 = "HTX proof-of-reserves snapshot 2026-09-01 on HTX's official GitHub (github.com/huobiapi/Tool-Node.js-VerifyAddress, snapshot/huobi_por.csv); listed without a signature"
+text30 = ("{\n" f'  "{OLD30}": ' + json.dumps({"name": "HTX reserve wallet", "type": "exchange", "chain": "btc",
+                                              "source": src30}) +
+          ",\n\n" '  "0xabc": {"name": "Other", "type": "exchange"}\n}\n')
+new30, gone30 = refresh_por.diff(json.loads(text30), "htx", list(h30.values()))
+check("an address no longer listed is found, new ones are found",
+      gone30 == [OLD30] and {e["key"] for e in new30} == set(h30), f"{gone30} {[e['key'] for e in new30]}")
+out30 = refresh_por.apply(text30, "htx", new30, gone30, "2026-10-23", "2026-10-01")
+j30 = json.loads(out30)
+check("applied: the old label stays, marked as possibly retired; the new ones are added",
+      "not in the 2026-10-01 list, so possibly retired" in j30[OLD30]["source"]
+      and all(k in j30 for k in h30) and j30[MEXC_TRON]["added"] == "2026-10-23")
+check("refreshing again does not mark it twice",
+      refresh_por.diff(j30, "htx", list(h30.values())) == ([], []))
+
 # ---------------------------------------------------------------- result
 print("\n" + "=" * 72)
 print(f"RESULT: {len(PASSED)} passed, {len(FAILED)} failed")

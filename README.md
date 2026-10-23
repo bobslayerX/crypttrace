@@ -678,14 +678,14 @@ src/crypttrace/
   webapp.py        # Flask backend for the web UI
   web/index.html   # single-page frontend (interactive graph)
 selftest.py        # offline end-to-end checks, run by CI
+tools/refresh_por.py  # maintainer: refresh exchange reserve-wallet labels
 cases/             # worked investigations with their data
 ```
 
 ## Roadmap
 
 - More exchanges on Bitcoin, Tron, Solana (now: Binance, OKX, HTX, Bybit, MEXC),
-  TON and the EVM chains (now: Binance, MEXC),
-  and refreshing these lists as the exchanges republish them
+  TON and the EVM chains (now: Binance, HTX, MEXC)
 - More label sources: Chainabuse, CryptoScamDB, exchange deposit-address sets
 
 ## Contributing
@@ -696,6 +696,13 @@ a `source` a reader can check and a `source_kind` (`self-published`,
 `official-list`, `explorer-tag`, `research`, `community`), then run
 `crypttrace labels audit` and `python selftest.py` before opening a PR.
 Accuracy matters more than volume — a wrong label is worse than no label.
+
+Exchanges republish their reserve-wallet lists (Binance continuously, HTX and
+MEXC monthly). `python tools/refresh_por.py binance htx` shows what changed
+since the labels were taken; `--write` adds the newly listed wallets and marks
+the ones no longer listed as possibly retired (their labels stay: old funds
+still lead there). For MEXC, download the latest Hacken audit PDF from
+mexc.com/proof-of-reserve/audit-report and pass it with `--mexc FILE`.
 
 ## Licence
 
