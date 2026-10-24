@@ -518,11 +518,11 @@ SDN sanctioned-address list — and merges them into the local DB in
 Add sources in `labels/labels.py` → `SOURCES`.
 
 On Bitcoin, Tron and Solana the labels cover the reserve wallets of Binance,
-OKX and HTX, plus Bybit's older 2022 list — each taken from the address list the
-exchange publishes itself for proof-of-reserves; on TON and the EVM chains
-(Ethereum, BNB Chain, Arbitrum, Polygon, Base, Optimism), Binance's reserve
-wallets. MEXC's reserve wallets are covered on every one of these chains, from
-the "verified wallets" table of its monthly Hacken proof-of-reserves audit.
+OKX and HTX — each taken from the address list the exchange publishes itself
+for proof-of-reserves; on TON and the EVM chains (Ethereum, BNB Chain,
+Arbitrum, Polygon, Base, Optimism), Binance's reserve wallets. Bybit's (274)
+and MEXC's reserve wallets are covered on every one of these chains, from the
+"verified wallets" table of their monthly Hacken proof-of-reserves audits.
 That is what lets `offramp` flag deposit addresses on those chains. Funds sent to an exchange not on that
 list still show as `unknown`. Every label records where it came from — see
 `crypttrace labels audit`.
@@ -685,7 +685,7 @@ cases/             # worked investigations with their data
 ## Roadmap
 
 - More exchanges on Bitcoin, Tron, Solana (now: Binance, OKX, HTX, Bybit, MEXC),
-  TON and the EVM chains (now: Binance, HTX, MEXC)
+  TON and the EVM chains (now: Binance, HTX, Bybit, MEXC)
 - More label sources: Chainabuse, CryptoScamDB, exchange deposit-address sets
 
 ## Contributing
@@ -702,7 +702,8 @@ MEXC monthly). `python tools/refresh_por.py binance htx` shows what changed
 since the labels were taken; `--write` adds the newly listed wallets and marks
 the ones no longer listed as possibly retired (their labels stay: old funds
 still lead there). For MEXC, download the latest Hacken audit PDF from
-mexc.com/proof-of-reserve/audit-report and pass it with `--mexc FILE`.
+mexc.com/proof-of-reserve/audit-report and pass it with `--mexc FILE`; for
+Bybit, the one from bybit.com/en/app/user/audit-report with `--bybit FILE`.
 
 ## Licence
 

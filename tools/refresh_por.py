@@ -13,11 +13,13 @@ previous one and, with --write, applies the difference:
     python tools/refresh_por.py binance htx              # show what changed
     python tools/refresh_por.py binance htx --write      # and apply it
     python tools/refresh_por.py --mexc MEXC_PoR_Audit_20261009.pdf [--write]
+    python tools/refresh_por.py --bybit Bybit_PoR_Audit_2026_Sep_23.pdf [--write]
 
-MEXC's list is the "Verified wallets" table of its monthly Hacken audit, a PDF
-linked from mexc.com/proof-of-reserve/audit-report (the site refuses scripts,
-so download it yourself). Run `crypttrace labels audit` and selftest.py after
---write, then review the diff before committing.
+MEXC's and Bybit's lists are the "Verified wallets" table of their monthly
+Hacken audits, PDFs linked from mexc.com/proof-of-reserve/audit-report and
+bybit.com/en/app/user/audit-report (download them yourself; MEXC refuses
+scripts). Run `crypttrace labels audit` and selftest.py after --write, then
+review the diff before committing.
 """
 import argparse
 import csv
@@ -44,12 +46,18 @@ FAMILIES = {
     "binance": "binance.com/bapi/apex/v1/public/apex/market/por/address",
     "htx": "github.com/huobiapi/Tool-Node.js-VerifyAddress",
     "mexc": "MEXC proof-of-reserves audit by Hacken",
+    "bybit": "Bybit proof-of-reserves audit by Hacken",
 }
+# an exchange's older list: its labels are renewed where the current list still has
+# the wallet, and marked possibly retired where it does not
+LEGACY = {"bybit": "static.bycustody.com/download/app/bybit_por_202212.csv"}
 
 
 def entry(address: str, chain: str, name: str, source: str) -> dict:
     """One listed wallet. EVM addresses are one label for every EVM chain."""
     evm = chain in EVM_NAMES
+    if chain == "ton":                # one spelling for TON: the canonical "UQ…" lookups use
+        address = addresses.ton_friendly(address) or address
     return {"key": address.lower() if evm else address, "chain": None if evm else chain,
             "name": name, "source": source}
 
@@ -234,16 +242,23 @@ def readings(text: str) -> List[str]:
     return list(dict.fromkeys(out))
 
 
-def mexc(lines: List[str], snapshot: str, report: str) -> List[dict]:
-    """Entries from the "Verified wallets" table: Network, then Address (an address
-    may wrap onto the next line). An address counts only if exactly one reading
-    passes its chain's validator — nothing is completed or guessed."""
+HACKEN_PAGES = {"MEXC": "mexc.com/proof-of-reserve/audit-report",
+                "Bybit": "bybit.com/en/app/user/audit-report"}
+
+
+def hacken(lines: List[str], exchange: str, snapshot: str, report: str) -> List[dict]:
+    """Entries from the "Verified wallets" table of a Hacken proof-of-reserves audit:
+    Network, then Address (an address may wrap onto the next line). An address
+    counts only if exactly one reading passes its chain's validator — nothing is
+    completed or guessed. An EVM address listed for several networks is one label
+    naming them all."""
     start = next(i for i in range(len(lines) - 1)
                  if lines[i] == "Network" and lines[i + 1] == "Address")
-    src = ("MEXC proof-of-reserves audit by Hacken, 'Verified wallets' table (ownership proven by a "
+    src = (f"{exchange} proof-of-reserves audit by Hacken, 'Verified wallets' table (ownership proven by a "
            f"test transaction from each address); {report}, listed at "
-           f"mexc.com/proof-of-reserve/audit-report; snapshot {snapshot}")
-    out, skipped = [], []
+           f"{HACKEN_PAGES[exchange]}; snapshot {snapshot}")
+    found: Dict[tuple, dict] = {}
+    skipped = []
     i = start
     while i < len(lines) - 1:
         chain = MEXC_NET.get(lines[i].strip().lower())
@@ -253,35 +268,80 @@ def mexc(lines: List[str], snapshot: str, report: str) -> List[dict]:
         cand = [lines[i + 1].strip(), lines[i + 1].strip() + (lines[i + 2].strip() if i + 2 < len(lines) else "")]
         good = list(dict.fromkeys(v for c in cand for v in readings(c) if addresses.validate(v, chain)[0]))
         if len(good) == 1:
-            listed = f"; listed for {EVM_NAMES[chain]}" if chain in EVM_NAMES else ""
-            out.append(entry(good[0], chain, "MEXC reserve wallet", src + listed))
+            evm = chain in EVM_NAMES
+            k = (good[0].lower(), None) if evm else (good[0], chain)
+            f = found.setdefault(k, {"address": good[0], "chain": chain, "nets": []})
+            if evm and EVM_NAMES[chain] not in f["nets"]:
+                f["nets"].append(EVM_NAMES[chain])
         else:
             skipped.append((chain, cand[0], len(good)))
         i += 2
     for s in skipped:
-        print(f"  MEXC: skipped {s[0]} {s[1]!r} ({s[2]} valid readings)", file=sys.stderr)
+        print(f"  {exchange}: skipped {s[0]} {s[1]!r} ({s[2]} valid readings)", file=sys.stderr)
+    out = []
+    for f in found.values():
+        listed = (f"; listed for {', '.join(n for n in EVM_NAMES.values() if n in f['nets'])}"
+                  if f["nets"] else "")
+        out.append(entry(f["address"], f["chain"], f"{exchange} reserve wallet", src + listed))
     return out
 
 
+def mexc(lines: List[str], snapshot: str, report: str) -> List[dict]:
+    return hacken(lines, "MEXC", snapshot, report)
+
+
+def bybit(lines: List[str], snapshot: str, report: str) -> List[dict]:
+    return hacken(lines, "Bybit", snapshot, report)
+
+
+def report_date(name: str) -> str:
+    """Snapshot date from a report's file name: ..._20261009.pdf or ..._2026_Sep_23.pdf."""
+    m = re.search(r"(20\d{2})(\d{2})(\d{2})", name)
+    if m:
+        return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+    m = re.search(r"(20\d{2})_([A-Za-z]{3})_(\d{1,2})", name)
+    if m:
+        return dt.datetime.strptime(f"{m.group(1)} {m.group(2)} {m.group(3)}", "%Y %b %d").date().isoformat()
+    return "(date not given)"
+
+
 # ------------------------------------------------------------------ diff + apply
+def _key(k: str) -> str:
+    return k.lower() if k.startswith("0x") else k
+
+
 def diff(known: Dict[str, dict], family: str, listed: List[dict]):
-    """(new entries, keys of this family's labels that the list no longer has)."""
-    marker = FAMILIES[family]
-    have = {k.lower() if k.startswith("0x") else k: v for k, v in known.items()}
-    lower = {k.lower() for k in known}
-    new = [e for e in listed if e["key"].lower() not in lower]
-    listed_keys = {e["key"].lower() if e["key"].startswith("0x") else e["key"] for e in listed}
+    """(new entries, keys of this family's labels that the list no longer has,
+    entries renewing a label taken from the exchange's older list)."""
+    marker, legacy = FAMILIES[family], LEGACY.get(family)
+    have = {_key(k): v for k, v in known.items()}
+    new = [e for e in listed if _key(e["key"]) not in have]
+    by_key = {_key(e["key"]): e for e in listed}
+    renew = [by_key[k] for k, v in have.items() if legacy and legacy in (v.get("source") or "") and k in by_key]
     gone = [k for k, v in have.items()
-            if marker in (v.get("source") or "") and k not in listed_keys
-            and RETIRED not in (v.get("source") or "")]
-    return new, gone
+            if (marker in (v.get("source") or "") or (legacy and legacy in (v.get("source") or "")))
+            and k not in by_key and RETIRED not in (v.get("source") or "")]
+    return new, gone, renew
 
 
-def apply(text: str, family: str, new: List[dict], gone: List[str], today: str, latest: str) -> str:
-    """known.json text with new entries placed after the family's last label and the
-    gone ones marked. Edits lines in place so the file's grouping and order survive."""
+def _replace(lines: List[str], key: str, edit) -> None:
+    i = next(n for n, l in enumerate(lines) if l.startswith(f"  {json.dumps(key)}:"))
+    k, _, rest = lines[i].partition(": ")
+    comma = rest.endswith(",")
+    lines[i] = f"{k}: {json.dumps(edit(json.loads(rest.rstrip(','))), ensure_ascii=False)}" + ("," if comma else "")
+
+
+def apply(text: str, family: str, new: List[dict], gone: List[str], today: str, latest: str,
+          renew: List[dict] = ()) -> str:
+    """known.json text with new entries placed after the family's last label, the
+    gone ones marked, and labels from an older list renewed from the current one.
+    Edits lines in place so the file's grouping and order survive."""
     lines = text.replace("\r\n", "\n").split("\n")
     marker = FAMILIES[family]
+    for e in renew:                   # same wallet, current list: its name and source, its old date
+        _replace(lines, e["key"], lambda v, e=e: {
+            "name": e["name"], "type": "exchange", **({"chain": e["chain"]} if e["chain"] else {}),
+            "source": e["source"], "source_kind": "self-published", "added": v.get("added", today)})
     for k in gone:
         i = next(n for n, l in enumerate(lines) if l.startswith(f"  {json.dumps(k)}:"))
         key, _, rest = lines[i].partition(": ")
@@ -318,6 +378,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("exchanges", nargs="*", choices=["binance", "htx"], help="lists to fetch")
     ap.add_argument("--mexc", metavar="PDF", help="MEXC's Hacken PoR audit PDF, downloaded")
+    ap.add_argument("--bybit", metavar="PDF", help="Bybit's Hacken PoR audit PDF, downloaded")
     ap.add_argument("--write", action="store_true", help="apply the changes to known.json")
     args = ap.parse_args()
     today = dt.date.today().isoformat()
@@ -326,22 +387,25 @@ def main() -> int:
     for ex in args.exchanges:
         jobs.append((ex, fetch_binance(today) if ex == "binance" else fetch_htx(),
                      today if ex == "binance" else None))
-    if args.mexc:
-        name = Path(args.mexc).name
-        m = re.search(r"(20\d{2})(\d{2})(\d{2})", name)
-        snap = f"{m.group(1)}-{m.group(2)}-{m.group(3)}" if m else "(date not given)"
-        jobs.append(("mexc", mexc(pdf_lines(Path(args.mexc).read_bytes()), snap, name), snap))
+    for family, pdf, read in (("mexc", args.mexc, mexc), ("bybit", args.bybit, bybit)):
+        if pdf:
+            name = Path(pdf).name
+            snap = report_date(name)
+            jobs.append((family, read(pdf_lines(Path(pdf).read_bytes()), snap, name), snap))
     for family, listed, latest in jobs:
         if family == "htx":
             latest = re.search(r"snapshot (\S+) on", listed[0]["source"]).group(1) if listed else today
-        new, gone = diff(json.loads(text), family, listed)
-        print(f"{family}: {len(listed)} listed, {len(new)} new, {len(gone)} no longer listed")
+        new, gone, renew = diff(json.loads(text), family, listed)
+        print(f"{family}: {len(listed)} listed, {len(new)} new, {len(gone)} no longer listed"
+              + (f", {len(renew)} renewed from the older list" if renew else ""))
         for e in new:
             print(f"  + {e['chain'] or 'evm':8} {e['key']}  {e['name']}")
+        for e in renew:
+            print(f"  = {e['chain'] or 'evm':8} {e['key']}  {e['name']}")
         for k in gone:
             print(f"  - {k}")
         if args.write:
-            text = apply(text, family, new, gone, today, latest)
+            text = apply(text, family, new, gone, today, latest, renew)
     if args.write:
         with open(KNOWN, "w", encoding="utf-8", newline="\n") as fh:
             fh.write(text)

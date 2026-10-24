@@ -1357,7 +1357,7 @@ src30 = "HTX proof-of-reserves snapshot 2026-09-01 on HTX's official GitHub (git
 text30 = ("{\n" f'  "{OLD30}": ' + json.dumps({"name": "HTX reserve wallet", "type": "exchange", "chain": "btc",
                                               "source": src30}) +
           ",\n\n" '  "0xabc": {"name": "Other", "type": "exchange"}\n}\n')
-new30, gone30 = refresh_por.diff(json.loads(text30), "htx", list(h30.values()))
+new30, gone30, renew30 = refresh_por.diff(json.loads(text30), "htx", list(h30.values()))
 check("an address no longer listed is found, new ones are found",
       gone30 == [OLD30] and {e["key"] for e in new30} == set(h30), f"{gone30} {[e['key'] for e in new30]}")
 out30 = refresh_por.apply(text30, "htx", new30, gone30, "2026-10-23", "2026-10-01")
@@ -1366,7 +1366,45 @@ check("applied: the old label stays, marked as possibly retired; the new ones ar
       "not in the 2026-10-01 list, so possibly retired" in j30[OLD30]["source"]
       and all(k in j30 for k in h30) and j30[MEXC_TRON]["added"] == "2026-10-23")
 check("refreshing again does not mark it twice",
-      refresh_por.diff(j30, "htx", list(h30.values())) == ([], []))
+      refresh_por.diff(j30, "htx", list(h30.values())) == ([], [], []))
+
+# ---------------------------------------------------------------- Bybit from its Hacken audit
+section("32. Bybit reserve wallets from its Hacken audit; TON keys in one spelling")
+from crypttrace import addresses as addresses32
+BY_TRON_OLD, BY_TRON_GONE = "TQVxjVy2sYt4at45ezD7VG4H6nQZtsua5C", "TBpr1tQ5kvoKMv85XsCESVavYo4oZZdWpY"
+BY_EVM = "0x18673311fec54ac2244a602e6d91845553d24e62"             # from Bybit's 2026-09-23 audit
+BY_TON_UQ = "UQA4Po_6cQFtlGI5CENqKENLYtREeZpmpwwSV13dn73to24y"
+BY_TON_EQ = addresses32.ton_friendly(BY_TON_UQ, bounceable=True)
+table32 = ["Network", "Address", "Arbitrum", BY_EVM, "Ethereum", BY_EVM, "Arbitrum", "Nova",
+           "0x" + "ab" * 20, "TON", BY_TON_EQ, "Tron", BY_TRON_OLD]
+b32 = refresh_por.bybit(table32, "2026-09-23", "Bybit_PoR_Audit_2026_Sep_23.pdf")
+k32 = {e["key"]: e for e in b32}
+check("an EVM address listed for several networks is one label naming them all",
+      "listed for Ethereum, Arbitrum" in k32[BY_EVM]["source"] and k32[BY_EVM]["name"] == "Bybit reserve wallet",
+      str(k32.get(BY_EVM)))
+check("a network this tool does not know (Arbitrum Nova, split over two lines) adds nothing",
+      "0x" + "ab" * 20 not in k32)
+check("a TON address is stored in the canonical spelling lookups use", BY_TON_UQ in k32 and BY_TON_EQ not in k32)
+check("the snapshot date is read from either report-name style",
+      refresh_por.report_date("Bybit_PoR_Audit_2026_Sep_23.pdf") == "2026-09-23"
+      and refresh_por.report_date("MEXC_PoR_Audit_20261009.pdf") == "2026-10-09")
+legacy32 = ("Bybit proof-of-reserves address list, Dec 2022 (static.bycustody.com/download/app/bybit_por_202212.csv, "
+            "linked from Bybit's help center); may since be retired")
+text32 = "{\n" + ",\n".join(
+    f'  "{a}": ' + json.dumps({"name": "Bybit (2022 reserve list)", "type": "exchange", "chain": "tron",
+                              "source": legacy32, "source_kind": "self-published", "added": "2026-09-23"})
+    for a in (BY_TRON_OLD, BY_TRON_GONE)) + "\n}\n"
+new32, gone32, renew32 = refresh_por.diff(json.loads(text32), "bybit", b32)
+check("a wallet from the 2022 list still listed is renewed, one no longer listed is retired",
+      [e["key"] for e in renew32] == [BY_TRON_OLD] and gone32 == [BY_TRON_GONE]
+      and {e["key"] for e in new32} == {BY_EVM, BY_TON_UQ}, f"{renew32} {gone32}")
+j32 = json.loads(refresh_por.apply(text32, "bybit", new32, gone32, "2026-10-24", "2026-09-23", renew32))
+check("renewed: the current list's name and source, the original date",
+      j32[BY_TRON_OLD]["name"] == "Bybit reserve wallet" and "Hacken" in j32[BY_TRON_OLD]["source"]
+      and j32[BY_TRON_OLD]["added"] == "2026-09-23")
+check("retired: the 2022 label stays, marked", "not in the 2026-09-23 list" in j32[BY_TRON_GONE]["source"])
+check("a TON label is found whichever spelling the address is written in",
+      labels.label_of(BY_TON_EQ) == labels.label_of(BY_TON_UQ) == "Bybit reserve wallet")
 
 # ---------------------------------------------------------------- result
 print("\n" + "=" * 72)

@@ -1,2 +1,2 @@
 """crypttrace — OSINT crypto investigation CLI."""
-__version__ = "0.27.0"
+__version__ = "0.29.0"
