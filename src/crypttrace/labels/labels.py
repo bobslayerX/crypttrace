@@ -6,7 +6,9 @@ anonymous hex string into "Binance hot wallet" or "Tornado Cash".
 Two layers are merged:
   1. known.json  — the curated seed set shipped with the tool (rich names).
   2. imported labels — downloaded by `crypttrace update-labels` from public
-     sources (OFAC sanctions, etc.), cached in the user's data dir.
+     sources (OFAC sanctions, ScamSniffer's phishing blacklist), cached in the
+     user's data dir. They are fetched on the user's machine rather than
+     shipped: ScamSniffer's list is GPL-licensed, and both change daily.
 The seed set takes priority on conflicts, so its richer names win.
 """
 import json
@@ -25,9 +27,22 @@ _KNOWN: Dict[str, dict] = {}
 _PARTIAL: List[dict] = []
 
 
-# Public label sources. Each is fetched and merged on `update-labels`.
-# "lines" format = one address per line (comments/blank lines skipped).
+# Public label sources. Each is fetched and merged on `update-labels`; a later
+# source wins where two list the same address (sanctions over phishing).
+# "lines" format = one address per line (comments/blank lines skipped);
+# "json-list" = a JSON array of addresses.
 SOURCES: List[dict] = [
+    {
+        "name": "ScamSniffer — phishing and drainer addresses (EVM)",
+        "url": ("https://raw.githubusercontent.com/scamsniffer/scam-database/"
+                "main/blacklist/address.json"),
+        "format": "json-list",
+        "label": "Phishing (ScamSniffer blacklist)",
+        "type": "scam",
+        "source": ("ScamSniffer phishing address blacklist (github.com/scamsniffer/scam-database, "
+                   "blacklist/address.json; published with a 7-day delay)"),
+        "source_kind": "research",
+    },
     {
         "name": "OFAC SDN — sanctioned ETH addresses",
         "url": ("https://raw.githubusercontent.com/0xB10C/"
@@ -36,6 +51,9 @@ SOURCES: List[dict] = [
         "format": "lines",
         "label": "OFAC SDN (sanctioned)",
         "type": "sanctioned",
+        "source": ("US Treasury OFAC SDN list, digital-currency addresses as extracted by "
+                   "github.com/0xB10C/ofac-sanctioned-digital-currency-addresses"),
+        "source_kind": "official-list",
     },
 ]
 
@@ -110,6 +128,18 @@ def _match_partial(address: str) -> Optional[dict]:
     return None
 
 
+def _list_of(entry: dict) -> str:
+    """Which source an imported entry came from."""
+    if entry.get("list"):
+        return entry["list"]
+    return next((s["name"] for s in SOURCES if s["label"] == entry.get("name")), "")
+
+
+def _rank(list_name: str) -> int:
+    """Position in SOURCES: a later source outranks an earlier one."""
+    return next((i for i, s in enumerate(SOURCES) if s["name"] == list_name), -1)
+
+
 def update(timeout: int = 30) -> List[tuple]:
     """Fetch every source and merge results into the imported-labels cache.
 
@@ -122,23 +152,39 @@ def update(timeout: int = 30) -> List[tuple]:
         except (ValueError, OSError):
             imported = {}
 
+    import datetime as dt
+    today = dt.date.today().isoformat()
     results = []
     for src in SOURCES:
         try:
             resp = requests.get(src["url"], timeout=timeout)
             resp.raise_for_status()
-        except requests.RequestException as e:
+            if src["format"] == "json-list":
+                raw = [str(a) for a in resp.json()]
+            else:
+                raw = resp.text.splitlines()
+        except (requests.RequestException, ValueError) as e:
             results.append((src["name"], 0, str(e)))
             continue
 
-        count = 0
-        if src["format"] == "lines":
-            for line in resp.text.splitlines():
-                addr = line.strip().lower()
-                if _valid(addr):
-                    imported[addr] = {"name": src["label"], "type": src["type"]}
-                    count += 1
-        results.append((src["name"], count, None))
+        fresh = {}
+        for line in raw:
+            addr = line.strip().lower()
+            if _valid(addr):
+                fresh[addr] = {"name": src["label"], "type": src["type"],
+                               "source": f"{src['source']}, downloaded {today}",
+                               "source_kind": src["source_kind"], "list": src["name"]}
+        if not fresh:
+            results.append((src["name"], 0, "the list came back empty; kept the previous one"))
+            continue
+        # the list replaces its previous copy: an address taken off it (a false
+        # positive corrected) loses the label here too. Entries from older
+        # versions carry no "list" and are matched by their label.
+        imported = {a: v for a, v in imported.items() if _list_of(v) != src["name"]}
+        rank = _rank(src["name"])
+        imported.update({a: v for a, v in fresh.items()
+                         if a not in imported or _rank(_list_of(imported[a])) <= rank})
+        results.append((src["name"], len(fresh), None))
 
     _IMPORTED.parent.mkdir(parents=True, exist_ok=True)
     _IMPORTED.write_text(json.dumps(imported, indent=2))

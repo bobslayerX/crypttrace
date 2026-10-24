@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.28.0
+
+### Added
+- **ScamSniffer's phishing blacklist in `update-labels`.** About 2,500 EVM
+  addresses of phishing sites and wallet drainers (github.com/scamsniffer/
+  scam-database, updated daily with a 7-day delay), labelled `scam`. It is
+  downloaded on the user's machine, not shipped (the list is GPL-licensed).
+  OFAC's sanctions label wins where both name an address.
+- **`check` names payments to a listed phishing or sanctioned address**,
+  in the CLI and the web UI, with advice to revoke token approvals. A
+  phishing site or a signed approval takes money in one transfer, so the
+  burst-based drain check saw nothing; on a real victim's wallet it now shows
+  the 0.1 WETH sent to a ScamSniffer-listed drainer.
+
+### Fixed
+- **Downloaded lists never shrank.** An address taken off a list (a false
+  positive corrected) kept its label forever. Each download now replaces that
+  list's previous copy. An empty or failed download keeps the old copy, and
+  a list that failed this time still outranks a lower one.
+- **Downloaded labels carried no source**, so `assess` called even OFAC's
+  sanctions label "inherited rather than evidenced". Each now records its
+  list, its download date and its kind (`official-list`, `research`).
+
 ## 0.27.0
 
 ### Added
