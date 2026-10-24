@@ -114,6 +114,8 @@ def _load() -> None:
         chain = v.get("chain") if isinstance(v, dict) else None
         ok = addresses.validate(k, chain)[0] if chain else _valid(k.lower())
         if ok:
+            if chain == "ton":        # lookups use the canonical "UQ…" spelling; an "EQ…" key never matched
+                k = addresses.ton_friendly(k) or k
             merged[k.lower()] = v
     _KNOWN = merged
     _PARTIAL = _load_partials()

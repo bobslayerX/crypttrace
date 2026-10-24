@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.29.0
+
+### Added
+- **Bybit's current reserve wallets**: 274 addresses on Bitcoin, Ethereum,
+  BNB Chain, Arbitrum, Base, Optimism, Polygon, Solana, Tron and TON, from
+  the "verified wallets" table of Bybit's monthly Hacken proof-of-reserves
+  audit (snapshot 2026-09-23, linked from Bybit's audit-report page). Bybit
+  was covered only by 12 wallets from its December 2022 list. Of those, 8 are
+  still listed and now cite the 2026 audit. The other 4 keep their label,
+  marked as possibly retired. tonapi independently names four of the TON
+  wallets "Bybit 7"–"Bybit 10". Live balances on single wallets: 38,194 BTC,
+  340,000 SOL, 10,973 ETH.
+- `tools/refresh_por.py --bybit FILE`: Hacken audits are read by one parser
+  for MEXC and Bybit, and an EVM address listed for several networks becomes
+  one label naming them all. An exchange's older list is renewed where the
+  current one still has the wallet.
+
+### Fixed
+- **A TON label written as "EQ…" was never found.** Lookups use the
+  canonical non-bounceable "UQ…" spelling, so a curated key in the
+  bounceable form matched nothing. Keys are now normalised when the label
+  set loads, and the refresh tool writes the canonical form. No shipped
+  label was affected; Bybit's audit lists both spellings.
 ## 0.28.0
 
 ### Added
