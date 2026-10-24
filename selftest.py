@@ -1406,6 +1406,59 @@ check("retired: the 2022 label stays, marked", "not in the 2026-09-23 list" in j
 check("a TON label is found whichever spelling the address is written in",
       labels.label_of(BY_TON_EQ) == labels.label_of(BY_TON_UQ) == "Bybit reserve wallet")
 
+# ---------------------------------------------------------------- downloaded label lists
+section("31. downloaded lists: ScamSniffer phishing, OFAC; a payment to a listed address")
+from crypttrace import drain as drain31
+from pathlib import Path
+PHISH, BOTH, SANC = ("0x" + c * 40 for c in "dec")
+class Resp31:
+    def __init__(self, text): self.text = text
+    def raise_for_status(self): pass
+    def json(self): return json.loads(self.text)
+answers31 = {}
+real_get31, real_imported31 = labels.requests.get, labels._IMPORTED
+labels.requests.get = lambda url, timeout=30: (
+    (_ for _ in ()).throw(answers31[url]) if isinstance(answers31.get(url), Exception) else Resp31(answers31[url]))
+labels._IMPORTED = Path(tempfile.mkdtemp()) / "imported_labels.json"
+SS_URL, OFAC_URL = (s["url"] for s in labels.SOURCES)
+try:
+    # an older version's file: an OFAC entry with no source and no list name
+    labels._IMPORTED.write_text(json.dumps({"0x" + "f" * 40: {"name": "OFAC SDN (sanctioned)", "type": "sanctioned"}}))
+    answers31.update({SS_URL: json.dumps([PHISH, BOTH, "not-an-address"]), OFAC_URL: f"# list\n{BOTH}\n{SANC}\n"})
+    res31 = dict((n, c) for n, c, e in labels.update())
+    labels._KNOWN.clear()
+    check("ScamSniffer's JSON list and OFAC's text list are both read",
+          list(res31.values()) == [2, 2], str(res31))
+    check("a phishing address is labelled as such, with its source",
+          labels.type_of(PHISH) == "scam" and "ScamSniffer" in labels.lookup(PHISH)["source"])
+    check("where both lists name an address, the sanctions label wins", labels.type_of(BOTH) == "sanctioned")
+    check("an older version's unsourced entry is replaced, not left behind",
+          labels.lookup("0x" + "f" * 40) is None)
+    # ScamSniffer takes PHISH off its list; OFAC is unreachable this time
+    answers31.update({SS_URL: json.dumps([BOTH]), OFAC_URL: labels.requests.ConnectionError("down")})
+    labels.update()
+    labels._KNOWN.clear()
+    check("an address taken off a list loses its label", labels.lookup(PHISH) is None)
+    check("a list that could not be fetched keeps its labels, and still outranks the other",
+          labels.type_of(SANC) == "sanctioned" and labels.type_of(BOTH) == "sanctioned")
+    answers31.update({SS_URL: "[]"})
+    labels.update()
+    labels._KNOWN.clear()
+    check("an empty answer does not wipe a list", labels.lookup(BOTH) is not None)
+    VICTIM31 = "0x" + "9a" * 20
+    answers31.update({SS_URL: json.dumps([PHISH]), OFAC_URL: labels.requests.ConnectionError("down")})
+    labels.update()
+    labels._KNOWN.clear()
+    flagged31 = drain31._flagged([
+        {"from": VICTIM31, "to": PHISH, "value": 0.1, "symbol": "WETH", "timestamp": 1736041260, "hash": "0xp"},
+        {"from": VICTIM31, "to": "0x" + "77" * 20, "value": 1.0, "symbol": "ETH", "timestamp": 1, "hash": "0xok"}])
+    check("check names a payment to a listed phishing address, and nothing else",
+          [(f["address"], f["type"], f["amounts"]) for f in flagged31] == [(PHISH, "scam", {"WETH": 0.1})],
+          str(flagged31))
+finally:
+    labels.requests.get, labels._IMPORTED = real_get31, real_imported31
+    labels._KNOWN.clear()
+
 # ---------------------------------------------------------------- result
 print("\n" + "=" * 72)
 print(f"RESULT: {len(PASSED)} passed, {len(FAILED)} failed")

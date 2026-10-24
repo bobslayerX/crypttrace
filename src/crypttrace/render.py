@@ -277,6 +277,15 @@ def drain_report(res: dict):
     parts = [Text.from_markup(verdict[0])]
     for r in res.get("reasons", []):
         parts.append(Text(f"  • {r}"))
+    for f in res.get("flagged", []):
+        sent = ", ".join(f"{v:,.4f} {k}" for k, v in f["amounts"].items())
+        parts.append(Text.from_markup(
+            f"\n[bold yellow]Sent to an address on a {'sanctions' if f['type'] == 'sanctioned' else 'phishing'} "
+            f"list:[/bold yellow] {escape(sent)} to {escape(f['address'])} [{escape(f['label'])}], "
+            f"first on {_ts(str(f['first']))} UTC ({f['txs']} transaction(s))"))
+    if any(f["type"] == "scam" for f in res.get("flagged", [])):
+        parts.append(Text("  If you did not mean to pay it, a fake site or a token approval you signed took "
+                          "it: revoke this wallet's token approvals and move what is left."))
     if res["verdict"] != "no_drain":
         taken = ", ".join(f"{v:,.4f} {k}" for k, v in res.get("assets", {}).items())
         if res.get("nfts"):
