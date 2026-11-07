@@ -222,6 +222,9 @@ def trace(
                                   help="Top-N outflows to follow per address"),
     direction: str = typer.Option("out", "--direction", "-D",
                                   help="'out' = where funds went, 'in' = where they came from"),
+    export: Optional[Path] = typer.Option(None, "--export", "-o",
+                                          help="Also save the graph: .graphml (Gephi, yEd, Cytoscape) "
+                                               "or .csv (Maltego, Neo4j, spreadsheets)"),
 ):
     """Trace where funds moved, hop by hop, as a coloured tree (ETH or a token)."""
     try:
@@ -231,6 +234,10 @@ def trace(
         raise typer.Exit(1)
     if direction not in ("out", "in"):
         console.print("[red]Error:[/red] --direction must be 'out' or 'in'")
+        raise typer.Exit(1)
+    fmt = export.suffix.lower().lstrip(".") if export else None
+    if export and fmt not in ("graphml", "csv"):
+        console.print("[red]Error:[/red] --export takes a .graphml or .csv file name")
         raise typer.Exit(1)
     try:
         tree = trace_mod.build_tree(address, chain, depth, branching, asset_desc, direction)
@@ -242,6 +249,18 @@ def trace(
         "\n[dim]Legend: \U0001F7E2 exchange  \U0001F7E3 mixer  \U0001F534 sanctioned/scam"
         "  \U0001F309 bridge  \U0001F504 DEX  \U0001F537 service  ⚪ unknown[/dim]"
     )
+    if export:
+        from crypttrace import export as export_mod
+        try:
+            graph = trace_mod.build_graph(address, chain, depth, branching, asset_desc, direction)
+        except (chains_mod.ChainError, etherscan.EtherscanError) as e:
+            console.print(f"[red]Error:[/red] {e}")
+            raise typer.Exit(1)
+        export.write_text(export_mod.render(graph, chain, fmt), encoding="utf-8", newline="")
+        console.print(f"\n[green]Graph saved:[/green] {export} — {len(graph['nodes'])} addresses, "
+                      f"{len(graph['edges'])} transfers"
+                      + ("  [dim](Maltego: Import Graph from Table, map from/to to an address entity)[/dim]"
+                         if fmt == "csv" else "  [dim](open in Gephi, yEd or Cytoscape)[/dim]"))
 
 
 @app.command()

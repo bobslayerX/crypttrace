@@ -1510,6 +1510,45 @@ finally:
         setattr(bitcoin, n, f)
     chains.USE_STORE = saved_store33
 
+# ---------------------------------------------------------------- graph export
+section("34. graph export: GraphML for Gephi, CSV for Maltego")
+from crypttrace import export as export34
+import csv
+import io
+import xml.etree.ElementTree as ET34
+G34 = {"symbol": "ETH", "direction": "out",
+       "nodes": [{"id": "0x" + "a1" * 20, "short": "0xa1…", "type": "unknown", "label": "", "root": True,
+                  "terminal": False, "level": 0},
+                 {"id": "0x" + "b2" * 20, "short": "0xb2…", "type": "exchange", "label": "Some & <Exchange>",
+                  "root": False, "terminal": True, "level": 1}],
+       "edges": [{"from": "0x" + "a1" * 20, "to": "0x" + "b2" * 20, "value": 1.5, "tx": 2, "usd": 4500.0,
+                  "memo": "12345"}]}
+gml34 = export34.render(G34, "eth", "graphml")
+root34 = ET34.fromstring(gml34)
+NS34 = {"g": "http://graphml.graphdrawing.org/xmlns"}
+nodes34 = root34.findall(".//g:node", NS34)
+edge34 = root34.find(".//g:edge", NS34)
+data34 = {d.get("key"): d.text for d in edge34.findall("g:data", NS34)}
+check("GraphML is well-formed, directed, with every node and edge",
+      len(nodes34) == 2 and root34.find("g:graph", NS34).get("edgedefault") == "directed"
+      and edge34.get("source") == "0x" + "a1" * 20, gml34[:200])
+check("edges keep amount, USD, transfer count and the exchange memo",
+      data34 == {"e_amount": "1.5", "e_symbol": "ETH", "e_usd": "4500.0", "e_transfers": "2", "e_memo": "12345"},
+      str(data34))
+check("labels with markup characters are escaped, not broken",
+      any(d.text == "Some & <Exchange>" for d in root34.iter("{http://graphml.graphdrawing.org/xmlns}data")))
+csv34 = list(csv.reader(io.StringIO(export34.render(G34, "eth", "csv"))))
+check("CSV: one row per edge, both ends labelled, explorer links included",
+      csv34[0][:6] == ["from", "from_label", "from_kind", "to", "to_label", "to_kind"] and len(csv34) == 2
+      and csv34[1][4] == "Some & <Exchange>" and csv34[1][5] == "exchange"
+      and csv34[1][-1].startswith("https://etherscan.io/address/"), str(csv34))
+try:
+    export34.render(G34, "eth", "pdf")
+    fmt34 = "accepted"
+except ValueError:
+    fmt34 = "refused"
+check("an unknown format is refused", fmt34 == "refused")
+
 print("\n" + "=" * 72)
 print(f"RESULT: {len(PASSED)} passed, {len(FAILED)} failed")
 print("=" * 72)

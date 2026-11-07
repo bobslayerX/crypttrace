@@ -230,6 +230,8 @@
   <button id="go">Investigate</button>
   <button id="fit" class="ghost" title="Fit graph to view">Fit</button>
   <button id="casefile" class="ghost" title="Download a one-page case file for an exchange or the police">Case file</button>
+  <button id="exp-graphml" class="ghost" title="Download the graph for Gephi, yEd or Cytoscape">GraphML</button>
+  <button id="exp-csv" class="ghost" title="Download the graph as an edge list for Maltego, Neo4j or a spreadsheet">CSV</button>
 </div>
 
 <div class="legend">
@@ -778,6 +780,24 @@ async function downloadCaseFile(){
   finally{ b.disabled=false; }
 }
 $('#casefile').addEventListener('click',downloadCaseFile);
+
+// The traced graph as a file: GraphML for Gephi/yEd/Cytoscape, CSV for Maltego/Neo4j.
+async function downloadGraph(fmt){
+  const a=$('#addr').value.trim(), b=$('#exp-'+fmt);
+  if(!a){ setStatus('enter an address',true); return; }
+  b.disabled=true; setStatus(`building the ${fmt} file…`,false,true);
+  try{
+    const r=await fetch(`/api/trace?address=${q(a)}&chain=${chain()}&depth=${$('#depth').value}&asset=${q($('#asset').value)}&direction=${$('#direction').value}&format=${fmt}`);
+    if(!r.ok){ const j=await r.json().catch(()=>({})); throw new Error(j.error||`HTTP ${r.status}`); }
+    const name=((r.headers.get('Content-Disposition')||'').match(/filename="([^"]+)"/)||[])[1]||`graph.${fmt}`;
+    const u=URL.createObjectURL(await r.blob()), l=document.createElement('a');
+    l.href=u; l.download=name; l.click(); URL.revokeObjectURL(u);
+    setStatus(`graph saved: ${name}`);
+  }catch(e){ setStatus(e.message,true); }
+  finally{ b.disabled=false; }
+}
+$('#exp-graphml').addEventListener('click',()=>downloadGraph('graphml'));
+$('#exp-csv').addEventListener('click',()=>downloadGraph('csv'));
 
 function downloadCsv(){
   const head=['address','hop',`amount_sent_${victimSym}`,'transactions','first_seen_utc','last_seen_utc','label','explorer'];
