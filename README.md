@@ -16,12 +16,14 @@ here's the wallet — where did the money go, and where can it still be stopped?
 Works as a terminal tool **and** as a local web app with an interactive
 fund-flow graph.
 
-![crypttrace tracing the AFX Trade exploit](https://raw.githubusercontent.com/bobslayerX/crypttrace/main/assets/graph-outflow.png)
+![crypttrace investigating the Ronin bridge exploiter in the web UI](https://raw.githubusercontent.com/bobslayerX/crypttrace/main/assets/web-ronin.png)
 
-*Real case: the AFX Trade exploiter (July 2026, $24.15M). crypttrace follows the
-stolen ETH out of the attacker's wallet — 12,467 ETH (~$23.3M) to a holding
-address, then split across three wallets and split again. Classic layering,
-mapped in seconds.*
+*Real case: the Ronin bridge exploiter (Lazarus, 2022). The graph shows the
+stolen ETH leaving in three transfers of 23,500–33,600 ETH, every one to a
+wallet on the US sanctions list. The side panel shows what is known about the
+address and where it comes from: the OFAC listing behind the label, USDT and
+USDC blacklisted by Tether and Circle, and the first funding of the wallet —
+1.06 ETH from a Binance reserve wallet, an exchange that knows who withdrew it.*
 
 ---
 
@@ -103,6 +105,8 @@ so scams that start in a Telegram chat often end there. TON addresses are
 accepted in any form (`UQ…`, `EQ…` or raw `0:…`) and shown as wallets show
 them (`UQ…`); jetton transfers are reported between the owners' wallets.
 
+![A Binance reserve wallet on Dogecoin: 2.12 billion DOGE, labelled from Binance's own proof-of-reserves list](https://raw.githubusercontent.com/bobslayerX/crypttrace/main/assets/web-dogecoin.png)
+
 ---
 
 ## Was my wallet drained?
@@ -126,6 +130,14 @@ history and answers in plain language:
 - **what to do now** — what is still on the wallet worth moving (on TON: real
   jetton balances and NFTs from trusted collections, not airdropped spam), and
   who to report to.
+
+It also names any payment the wallet made to an address on a phishing or
+sanctions list (ScamSniffer's phishing blacklist and OFAC's, downloaded with
+`crypttrace update-labels`). A fake site or a signed token approval takes money
+in one transfer, so there is no burst to find, but the destination gives it
+away:
+
+![A payment to a listed phishing address, found by the drain check](https://raw.githubusercontent.com/bobslayerX/crypttrace/main/assets/web-check-phishing.png)
 
 The web UI has the same check in its **Was I drained?** tab.
 
@@ -158,8 +170,11 @@ explorer. A side panel shows the profile, first-funder chain, off-ramp check
 and whether USDT/USDC at the address is frozen. Tabs add the assessment, the
 timeline, the list of who sent funds here, and address poisoning (look-alikes
 planted in the wallet's history, and payments lured by this address). **Case
-file** downloads the same one-page HTML report `crypttrace report` writes.
-Everything runs on your machine — nothing is uploaded anywhere.
+file** downloads the same one-page HTML report `crypttrace report` writes;
+**GraphML** and **CSV** download the graph for Gephi or Maltego. The page's
+address is a link to the investigation
+(`/?address=…&chain=…&direction=…&depth=…&tab=check`), ready to bookmark or
+send. Everything runs on your machine — nothing is uploaded anywhere.
 
 This exists so non-technical victims can use the tool at all: a form and a
 picture, instead of command-line flags.
@@ -419,6 +434,11 @@ the first funding of a years-old, busy wallet is found too; Bitcoin and Solana
 explorers list newest first, so there it is the earliest of the latest 200
 transfers. On EVM chains a first funding sent by a contract (a mixer or bridge
 withdrawal, an internal transaction) counts and is flagged.
+
+![funder on the Ronin exploiter, and verify on a Dogecoin wallet](https://raw.githubusercontent.com/bobslayerX/crypttrace/main/assets/cli-funder-verify.png)
+
+*Above: the Ronin exploiter's first gas came from a Binance reserve wallet. Below:
+`verify` re-derives a Dogecoin wallet's totals and matches them with the chain.*
 
 ### Victim lists and timing analysis
 

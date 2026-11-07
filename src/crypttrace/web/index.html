@@ -285,6 +285,8 @@ const COLORS={exchange:'#3fdf87',mixer:'#c48cff',sanctioned:'#ff6b60',scam:'#ff6
 const EXPLORER={eth:'https://etherscan.io',bsc:'https://bscscan.com',polygon:'https://polygonscan.com',
   arbitrum:'https://arbiscan.io',optimism:'https://optimistic.etherscan.io',base:'https://basescan.org'};
 const NON_EVM={btc:a=>`https://mempool.space/address/${a}`,
+               ltc:a=>`https://litecoinspace.org/address/${a}`,
+               doge:a=>`https://blockchair.com/dogecoin/address/${a}`,
                tron:a=>`https://tronscan.org/#/address/${a}`,
                sol:a=>`https://solscan.io/account/${a}`,
                ton:a=>`https://tonviewer.com/${a}`};
@@ -486,6 +488,10 @@ async function inspect(addr){
 async function run(){
   const a=$('#addr').value.trim();
   if(!a){ setStatus('enter an address',true); return; }
+  // the page's own address becomes a link to this investigation
+  const link=new URLSearchParams({address:a,chain:chain(),asset:$('#asset').value,
+                                   direction:$('#direction').value,depth:$('#depth').value});
+  history.replaceState(null,'',`?${link}`);
   setStatus('tracing the chain…',false,true); loader(35);
   $('#hint').classList.add('hide');
   loaded={};                       // new address -> other views must reload
@@ -514,6 +520,8 @@ async function run(){
 async function syncAssets(){
   const sel=$('#asset'), c=chain();
   $('#addr').placeholder = c==='btc' ? 'bc1… / 1… / 3…  Bitcoin address'
+    : c==='ltc'  ? 'L… / M… / ltc1…  Litecoin address'
+    : c==='doge' ? 'D…  Dogecoin address'
     : c==='tron' ? 'T…  Tron address'
     : c==='sol'  ? 'Solana account address'
     : c==='ton'  ? 'UQ… / EQ…  TON address'
@@ -821,6 +829,22 @@ $('#zroot').onclick=()=>{
   setTimeout(showScale,520);
 };
 $('#addr').addEventListener('keydown',e=>{ if(e.key==='Enter') run(); });
+
+// A link opens an investigation: /?address=…&chain=eth&direction=in&depth=4&asset=usdt&tab=check
+(function(){
+  const p=new URLSearchParams(location.search), a=p.get('address');
+  if(!a) return;
+  const set=(id,v)=>{
+    const el=$(id);
+    if(v!==null && [...el.options].some(o=>o.value===v)){ el.value=v; el.dispatchEvent(new Event('change')); }
+  };
+  set('#chain',p.get('chain'));          // first: it decides which assets are offered
+  set('#asset',p.get('asset')); set('#direction',p.get('direction')); set('#depth',p.get('depth'));
+  $('#addr').value=a;
+  run();
+  const v=p.get('tab');
+  if(v && [...document.querySelectorAll('.tab')].some(t=>t.dataset.view===v)) showView(v);
+})();
 </script>
 </body>
 </html>

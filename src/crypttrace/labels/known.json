@@ -97,7 +97,7 @@
   "0x2796317b0ff8538f253012862c06787adfb8ceb6": {"name": "Synapse: Bridge", "type": "bridge"},
   "0x5427fefa711eff984124bfbb1ab6fbf5e3da1820": {"name": "Celer: cBridge V2", "type": "bridge"},
   "0x841ce48f9446c8e281d3f1444cb859b4a6d0738c": {"name": "Celer: cBridge (old)", "type": "bridge"},
-  "0x098b716b8aaf21512996dc57eb0615e2383e2f96": {"name": "Ronin Bridge Exploiter (Lazarus)", "type": "sanctioned"},
+  "0x098b716b8aaf21512996dc57eb0615e2383e2f96": {"name": "Ronin Bridge Exploiter (Lazarus)", "type": "sanctioned", "source": "US Treasury OFAC SDN list, Lazarus Group entry (address added in April 2022); present in the SDN digital-currency address extract, github.com/0xB10C/ofac-sanctioned-digital-currency-addresses, checked 2026-11-07", "source_kind": "official-list", "added": "2026-11-07"},
   "0x2f2974fabc54dba33442261211c06bd20e0feefc": {"name": "AFX Trade Exploiter (Jul 2026, $24M)", "type": "scam", "chain": "eth", "source": "Lookonchain, 23 Jul 2026 - received 24.15M USDC bridged from Arbitrum, swapped to 12,467 ETH", "source_kind": "research", "added": "2026-08-01"},
 
   "bc1qq85v2c926eg6pgxhwp6q7lf6cnsz80qs3fcu9r": {"name": "Coldcard Exploiter (Jul 2026) - consolidation", "type": "scam", "chain": "btc", "source": "Galaxy Research flow-of-funds thread, 31 Jul 2026, based on Block (clay_garrett) analysis", "source_kind": "research", "added": "2026-08-09"},
