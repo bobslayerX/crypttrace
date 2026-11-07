@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.34.0
+
+### Added
+- **A link to an investigation.** The web UI opens one from its address:
+  `/?address=…&chain=…&direction=…&depth=…&asset=…&tab=check`. Every
+  investigation rewrites the page's address to that link, so it can be
+  bookmarked or sent.
+- **New screenshots in the README**, taken from the running web UI and CLI:
+  - the Ronin exploiter, with the OFAC-sourced label, the stablecoin freezes
+    and a first funding from Binance;
+  - a phishing payment caught by the drain check;
+  - a Binance reserve wallet on Dogecoin;
+  - `funder` and `verify` in the terminal.
+
+### Fixed
+- **Litecoin and Dogecoin in the web UI.** The page lower-cased their
+  addresses before the side panel looked them up ("not a DOGE address") and
+  linked them to an Etherscan-style explorer. They now keep their case, link
+  to litecoinspace.org and Blockchair, and get their own placeholder.
+- **The Ronin bridge exploiter's label now cites its source:** the OFAC SDN
+  listing under Lazarus Group, which the downloaded SDN extract confirms. It
+  carried no source before, so every view of it warned "inherited, not
+  evidenced".
+
 ## 0.33.0
 
 ### Added
