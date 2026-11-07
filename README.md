@@ -295,6 +295,26 @@ entities — that's the OSINT handoff point. `--direction out` (default) answers
 money come from", which is how you vet a suspicious address or find a victim's
 source of funds.
 
+### Cases — an investigation kept as a file
+
+An investigation rarely fits one address. `case` keeps the addresses (any
+chain, each with a role: victim, suspect, intermediary, exchange, mixer, bridge
+or other), a log of notes, and the last snapshot of each address. `refresh`
+reads them all again and says what changed: a balance that went down, new
+activity since the last look.
+
+```bash
+crypttrace case new ronin --note "Ronin bridge exploit, March 2022"
+crypttrace case add ronin 0x098b…2f96 --chain eth --role suspect --note "exploiter"
+crypttrace case note ronin "asked Binance for KYC on the first-gas withdrawal"
+crypttrace case refresh ronin        # what moved since the last refresh
+crypttrace case show ronin           # addresses, current labels, last snapshot, the log
+```
+
+A case is one JSON file in `~/.crypttrace/cases/`. Every `case` command also
+takes a path to a `.json` file, so handing a case to a colleague is sending the
+file.
+
 ### Watch & alerts — catching the cash-out
 
 The only window to freeze stolen funds is the moment they reach an exchange
@@ -693,6 +713,7 @@ src/crypttrace/
   offramp.py       # exchange-deposit detection
   bridges.py       # cross-chain matching
   watch.py         # watchlist + alerts
+  case.py          # investigations as files: addresses, roles, notes, snapshots
   report.py        # Markdown + JSON reports
   export.py        # traced graph as GraphML (Gephi) and edge-list CSV (Maltego)
   prices.py        # USD valuation
