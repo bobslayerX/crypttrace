@@ -69,8 +69,8 @@ def resolve_asset(asset: Optional[str], chain: str = "eth") -> Optional[dict]:
     elif a.startswith("0x") and len(a) == 42:
         return {"contract": a, "symbol": asset.upper()[:8], "stable": False}
 
-    if chain == "btc":
-        raise ValueError("Bitcoin has no tokens — omit --asset (or use --asset btc).")
+    if chain in ("btc", "ltc", "doge"):
+        raise ValueError(f"{chain.upper()} has no tokens — omit --asset (or use --asset {chain}).")
 
     opts = ", ".join(known) or "none registered"
     raise ValueError(f"Unknown asset '{asset}' on {chain}. Known symbols: {opts}. "

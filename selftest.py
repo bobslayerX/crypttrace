@@ -39,6 +39,7 @@ try:
     from crypttrace import addresses, assess, chains, store, verify
     from crypttrace.labels import labels, audit
     from crypttrace.fetchers import bitcoin
+    REAL_UTXO = {n: getattr(bitcoin, n) for n in ("transfers", "stats", "balance", "change", "raw_txs")}
     import crypttrace.cli  # noqa: F401
     check("all modules import", True)
     # explorer-tag sources reach the network (and use a key if one is set): not in a selftest
@@ -144,15 +145,16 @@ for i in range(60):
                     "value": round(base - 0.000033, 8), "timestamp": T0 + (i * 13),
                     "hash": f"sweep{i}", "symbol": "BTC"})
 
-def fake_transfers(addr, limit=1000):
+def fake_transfers(addr, limit=1000, chain="btc"):
     CALLS["n"] += 1
     return VICTIMS if addr == COLLECTOR else []
 
 bitcoin.transfers = fake_transfers
-bitcoin.stats = lambda a: {"received": sum(v["value"] for v in VICTIMS), "sent": 0.0,
+bitcoin.stats = lambda a, chain="btc": {"received": sum(v["value"] for v in VICTIMS), "sent": 0.0,
                            "balance": sum(v["value"] for v in VICTIMS),
                            "tx_count": len(VICTIMS), "funded_outputs": len(VICTIMS)}
-bitcoin.balance = lambda a: bitcoin.stats(a)["balance"]
+bitcoin.balance = lambda a, chain="btc": bitcoin.stats(a)["balance"]
+bitcoin.change = lambda a, limit=1000, chain="btc": {"received": 0.0, "sent": 0.0}
 
 store.clear()
 chains.FORCE_FRESH = False
@@ -194,13 +196,13 @@ print(f"        status: {v['status']} — {verify.headline(v)}")
 check("totals reconcile with the chain", v["status"] in ("verified", "partial"),
       str(v.get("notes")))
 
-bitcoin.stats = lambda a: {"received": 0.77, "sent": 0.0, "balance": 0.77,
+bitcoin.stats = lambda a, chain="btc": {"received": 0.77, "sent": 0.0, "balance": 0.77,
                            "tx_count": len(VICTIMS), "funded_outputs": len(VICTIMS)}
 vbad = verify.reconcile(COLLECTOR, "btc")
 print(f"        with wrong chain totals: {vbad['status']}")
 check("a discrepancy is caught, not smoothed over", vbad["status"] == "mismatch",
       str(vbad.get("notes")))
-bitcoin.stats = lambda a: {"received": sum(v2["value"] for v2 in VICTIMS), "sent": 0.0,
+bitcoin.stats = lambda a, chain="btc": {"received": sum(v2["value"] for v2 in VICTIMS), "sent": 0.0,
                            "balance": sum(v2["value"] for v2 in VICTIMS),
                            "tx_count": len(VICTIMS), "funded_outputs": len(VICTIMS)}
 
@@ -1459,7 +1461,55 @@ finally:
     labels.requests.get, labels._IMPORTED = real_get31, real_imported31
     labels._KNOWN.clear()
 
-# ---------------------------------------------------------------- result
+# ---------------------------------------------------------------- Litecoin, Dogecoin
+section("33. Litecoin and Dogecoin; outputs and change on UTXO chains")
+LTC_L, LTC_M = "LXTras9zXwkUvmsAF15hUu86by2UdNLSWk", "MQSs17ECe51kqhkFPQY98wiyPvGuK5iCB6"   # Binance PoR
+LTC_B32, DOGE_D = "ltc1q32lyrhp9zpww22phqjwwmelta0c8a5q9pnjng2", "DGmzv39riELTuigZCUD6sWoHEHPdSbxdUB"
+check("Litecoin L…, M… and ltc1… addresses validate, with their checksums",
+      all(addresses.validate(a, "ltc")[0] for a in (LTC_L, LTC_M, LTC_B32)))
+check("a Dogecoin D… address validates", addresses.validate(DOGE_D, "doge")[0])
+check("an address of one UTXO chain is refused on another",
+      not addresses.validate(LTC_L, "doge")[0] and not addresses.validate(DOGE_D, "ltc")[0]
+      and not addresses.validate(LTC_L, "btc")[0])
+check("Litecoin and Dogecoin are supported chains, UTXO, with no tokens",
+      chains.is_utxo("ltc") and chains.is_utxo("doge") and chains.symbol("doge") == "DOGE"
+      and chains.token_holdings(DOGE_D, "doge") == [])
+bc33 = bitcoin._from_blockcypher({
+    "hash": "dtx", "confirmed": "2026-04-20T09:27:00Z",
+    "inputs": [{"addresses": ["DSenderSenderSenderSenderSender11"], "output_value": 300_000_000}],
+    "outputs": [{"addresses": ["DReceiverReceiverReceiverReceive1"], "value": 250_000_000},
+                {"addresses": None, "value": 0}]})
+check("a BlockCypher transaction is read into the same shape as Esplora's",
+      bc33["vin"][0]["prevout"] == {"scriptpubkey_address": "DSenderSenderSenderSenderSender11", "value": 300_000_000}
+      and bc33["vout"][0]["value"] == 250_000_000 and bc33["status"]["block_time"] == 1776677220)
+ME33, OTHER33, TO33 = "LMeMeMeMeMeMeMeMeMeMeMeMeMeMeMe11", "LOtherOtherOtherOtherOtherOther11", "LToToToToToToToToToToToToToToTo11"
+SAT = bitcoin.SATS
+txs33 = [{"txid": "split", "status": {"block_time": 100},
+          # ME and OTHER fund it half each; three equal outputs to one recipient, change to ME
+          "vin": [{"prevout": {"scriptpubkey_address": ME33, "value": 5 * SAT}},
+                  {"prevout": {"scriptpubkey_address": OTHER33, "value": 5 * SAT}}],
+          "vout": [{"scriptpubkey_address": TO33, "value": 3 * SAT}] * 3
+                  + [{"scriptpubkey_address": ME33, "value": 1 * SAT - 1000}]}]
+saved33 = {n: getattr(bitcoin, n) for n in ("transfers", "change", "raw_txs")}
+bitcoin.transfers, bitcoin.change = REAL_UTXO["transfers"], REAL_UTXO["change"]
+bitcoin.raw_txs = lambda address, max_txs=500, chain="btc": txs33
+saved_store33 = chains.USE_STORE
+try:
+    rows33 = bitcoin.transfers(ME33, 100, chain="ltc")
+    check("equal outputs to one recipient in one transaction are one row, summed",
+          len(rows33) == 1 and abs(rows33[0]["value"] - 4.5) < 1e-9 and rows33[0]["symbol"] == "LTC", str(rows33))
+    chains.USE_STORE = True
+    store.save("ltc", ME33, rows33)
+    back33 = [r for r in store.load(chain="ltc", address=ME33, native_symbol="LTC") if r["hash"] == "split"]
+    check("and the store keeps all of it", len(back33) == 1 and abs(back33[0]["value"] - 4.5) < 1e-9, str(back33))
+    ch33 = bitcoin.change(ME33, 100, chain="ltc")
+    check("change counts in full as received, in the address's share of the inputs as sent",
+          abs(ch33["received"] - (1 - 1e-5)) < 1e-9 and abs(ch33["sent"] - (1 - 1e-5) / 2) < 1e-9, str(ch33))
+finally:
+    for n, f in saved33.items():
+        setattr(bitcoin, n, f)
+    chains.USE_STORE = saved_store33
+
 print("\n" + "=" * 72)
 print(f"RESULT: {len(PASSED)} passed, {len(FAILED)} failed")
 print("=" * 72)

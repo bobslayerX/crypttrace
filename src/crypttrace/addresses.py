@@ -82,6 +82,18 @@ def check_base58check(addr: str, expect_prefix: Optional[bytes] = None) -> Tuple
     return True, "base58check checksum valid"
 
 
+def _versioned(addr: str, versions: dict, name: str) -> Tuple[bool, str]:
+    """base58check plus the chain's version byte — a Bitcoin '3…' address passes the
+    checksum too, so the version is what tells the chains apart."""
+    ok, why = check_base58check(addr)
+    if not ok:
+        return ok, why
+    v = _b58_decode(addr)[0]
+    if v not in versions:
+        return False, f"version byte {v:#04x} is not a {name} address"
+    return True, "base58check checksum valid"
+
+
 # ---------------------------------------------------------------- per chain
 
 def validate(address: str, chain: str) -> Tuple[bool, str]:
@@ -107,6 +119,18 @@ def validate(address: str, chain: str) -> Tuple[bool, str]:
         if a.startswith(("1", "3")):
             return check_base58check(a)
         return False, "not a recognised Bitcoin address format"
+
+    if chain == "ltc":
+        if a.lower().startswith("ltc1"):
+            return check_bech32(a, "ltc")
+        if a.startswith(("L", "M", "3")):
+            return _versioned(a, {0x30: "L", 0x32: "M", 0x05: "3"}, "Litecoin")
+        return False, "not a recognised Litecoin address format (L…, M…, 3… or ltc1…)"
+
+    if chain == "doge":
+        if a.startswith(("D", "A", "9")):
+            return _versioned(a, {0x1E: "D", 0x16: "A/9"}, "Dogecoin")
+        return False, "not a recognised Dogecoin address format (D…, A… or 9…)"
 
     if chain == "tron":
         if not a.startswith("T") or len(a) != 34:

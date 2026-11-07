@@ -112,6 +112,13 @@ def _conn() -> sqlite3.Connection:
         c.execute("DELETE FROM fetched WHERE chain='sol'")
         c.execute("PRAGMA user_version=6")
         c.commit()
+    if c.execute("PRAGMA user_version").fetchone()[0] < 7:
+        # 0.31: equal outputs to one recipient in one Bitcoin transaction were
+        # identical rows, and only one was kept; they are one summed row now
+        c.execute("DELETE FROM transfers WHERE chain='btc'")
+        c.execute("DELETE FROM fetched WHERE chain='btc'")
+        c.execute("PRAGMA user_version=7")
+        c.commit()
     return c
 
 

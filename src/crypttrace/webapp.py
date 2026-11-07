@@ -37,6 +37,11 @@ def validate(address: str, chain: str):
     elif chain == "btc":
         if not (a.startswith(("1", "3", "bc1", "tb1")) and 25 <= len(a) <= 62):
             return f"'{a[:14]}…' is not a Bitcoin address (expected 1…, 3… or bc1…)."
+    elif chains.is_utxo(chain):
+        from crypttrace import addresses as _a
+        ok, why = _a.validate(a, chain)
+        if not ok:
+            return f"'{a[:14]}…' is not a {chain.upper()} address: {why}."
     elif chain == "tron":
         if not (a.startswith("T") and len(a) == 34):
             return f"'{a[:14]}…' is not a Tron address (expected T…, 34 chars)."
@@ -80,7 +85,7 @@ def create_app() -> Flask:
         for sym, meta in assets.tokens_for(chain).items():
             opts.append({"value": sym, "label": meta["symbol"]})
         return jsonify({"chain": chain, "assets": opts,
-                        "tokens_supported": chain != "btc"})
+                        "tokens_supported": not chains.is_utxo(chain)})
 
     @app.route("/api/label")
     def api_label():

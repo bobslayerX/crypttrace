@@ -60,13 +60,26 @@ def reconcile(address: str, chain: str = "btc", asset: Optional[dict] = None,
     ref_in = ref_out = ref_balance = None
     ref_tx = None
 
-    if chain == "btc" and asset is None:
+    change = {"received": 0.0, "sent": 0.0}
+    read_txs = limit
+    if chains.is_utxo(chain) and asset is None:
+        read_txs = bitcoin._depth(limit, chain)
         try:
-            s = bitcoin.stats(address)
+            s = bitcoin.stats(address, chain)
             ref_in, ref_out = s["received"], s["sent"]
             ref_balance, ref_tx = s["balance"], s["tx_count"]
         except bitcoin.BitcoinError as e:
             notes.append(f"chain totals unavailable: {e}")
+        if ref_in is not None:
+            # change back to itself is in both of the chain's totals and in neither of ours
+            try:
+                change = bitcoin.change(address, limit, chain)
+            except bitcoin.BitcoinError as e:
+                notes.append(f"change outputs unavailable: {e}")
+            if change["received"] > 0:
+                notes.append(f"{change['received']:.8f} came back to this address as change — the "
+                             "chain counts it as received and as spent; it is added to both computed "
+                             "totals (to the spent side in this address's share of the inputs)")
     else:
         try:
             ref_balance = chains.balance(address, chain)
@@ -77,10 +90,10 @@ def reconcile(address: str, chain: str = "btc", asset: Optional[dict] = None,
     complete = True
     if ref_tx is not None:
         # rows are per-transfer, a tx can produce several — compare loosely
-        if ref_tx > limit:
+        if ref_tx > read_txs:
             complete = False
             notes.append(f"address has {ref_tx} transactions on chain but only "
-                         f"{limit} were fetched — this is a partial view")
+                         f"{read_txs} were fetched — this is a partial view")
     elif len(rows) >= limit:
         complete = False
         notes.append(f"hit the {limit}-transfer fetch limit — history may be truncated")
@@ -88,11 +101,11 @@ def reconcile(address: str, chain: str = "btc", asset: Optional[dict] = None,
     # --- arithmetic ---------------------------------------------------
     checks = []
     if ref_in is not None:
-        ok = _within(got_in, ref_in) or not complete
-        checks.append(("received", got_in, ref_in, ok))
+        ok = _within(got_in + change["received"], ref_in) or not complete
+        checks.append(("received", got_in + change["received"], ref_in, ok))
     if ref_out is not None:
         # compare like with like: what recipients got, plus the fees we paid
-        sent_incl_fees = got_out + fees
+        sent_incl_fees = got_out + fees + change["sent"]
         ok = _within(sent_incl_fees, ref_out) or not complete
         checks.append(("sent (incl. fees)", sent_incl_fees, ref_out, ok))
         if fees > 0:

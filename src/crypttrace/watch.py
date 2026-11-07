@@ -55,7 +55,7 @@ def _rows(address: str, chain: str, limit: int) -> List[dict]:
     Tokens are read in one request and kept only when their contract is the real
     stablecoin's — counterfeit "USDT" sent by address poisoners must not alert."""
     rows = [{**r, "_asset": None} for r in chains.transfers(address, chain, limit, fresh=True)]
-    if chain == "btc":
+    if chains.is_utxo(chain):
         return rows
     try:
         tokens = chains.transfers(address, chain, limit, asset=_ALL_TOKENS, fresh=True)

@@ -22,7 +22,7 @@ from crypttrace.labels import labels
 # Amounts below these are treated as dust: spam sent to well-known addresses to
 # pollute their history (and sometimes to deanonymise the owner). Left in, dust
 # drowns out the transfers an investigation is actually about.
-DUST = {"btc": 0.0005, "eth": 0.002, "bsc": 0.005, "polygon": 5.0,
+DUST = {"btc": 0.0005, "ltc": 0.001, "doge": 5.0, "eth": 0.002, "bsc": 0.005, "polygon": 5.0,
         "arbitrum": 0.002, "optimism": 0.002, "base": 0.002,
         "tron": 5.0, "sol": 0.01, "ton": 0.01}
 
