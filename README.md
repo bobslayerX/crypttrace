@@ -32,7 +32,7 @@ pipx install "crypttrace[web]"     # or: pip install "crypttrace[web]"
 ```
 
 `[web]` also installs Flask for the web UI; leave it off for the terminal tool
-alone. Python 3.9 or newer. To work on the code instead:
+alone. Python 3.10 or newer. To work on the code instead:
 
 ```bash
 git clone https://github.com/bobslayerX/crypttrace

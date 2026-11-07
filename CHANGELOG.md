@@ -9,6 +9,11 @@
   wallets left the list. Sampled live: 61,858 ETH, 403,060 SOL and
   35.9M TON on single new wallets.
 
+### Changed
+- **Python 3.10 or newer.** Python 3.9 reached end of life in October 2025
+  and GitHub's current runners no longer provide it. pip keeps installing
+  0.29.0 on 3.9. CI now tests 3.10 to 3.14.
+
 ## 0.29.0
 
 ### Added
