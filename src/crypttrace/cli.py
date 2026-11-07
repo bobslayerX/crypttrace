@@ -1034,5 +1034,124 @@ def watch_run(
         console.print("\n[dim]Stopped.[/dim]")
 
 
+# ---------------------------------------------------------------- cases
+case_app = typer.Typer(help="Keep an investigation as a file: addresses, roles, notes, what changed.")
+app.add_typer(case_app, name="case")
+CASE_ARG = typer.Argument(..., help="Case name (kept in ~/.crypttrace/cases) or a path to a .json case file")
+
+
+def _case_call(fn, *a, **kw):
+    from crypttrace import case as case_mod
+    try:
+        return fn(*a, **kw)
+    except (case_mod.CaseError, chains_mod.ChainError) as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
+
+
+@case_app.command("new")
+def case_new(name: str = CASE_ARG,
+             note: str = typer.Option("", "--note", "-n", help="What the case is about")):
+    """Start a case."""
+    from crypttrace import case as case_mod
+    p = _case_call(case_mod.new, name, note)
+    console.print(f"[green]✓ Case created[/green] {p}\n[dim]Add addresses with "
+                  f"`crypttrace case add {name} ADDRESS --chain … --role suspect`[/dim]")
+
+
+@case_app.command("list")
+def case_list():
+    """Cases in ~/.crypttrace/cases."""
+    from crypttrace import case as case_mod
+    cases = case_mod.all_cases()
+    if not cases:
+        console.print("[dim]No cases yet. Start one with `crypttrace case new NAME`.[/dim]")
+        return
+    t = render.Table(header_style="bold")
+    for c in ("Case", "Addresses", "Notes", "Updated (UTC)"):
+        t.add_column(c)
+    for c in cases:
+        t.add_row(c["name"], str(c["addresses"]), str(c["notes"]), render._ts(str(c["updated"] or 0)))
+    console.print(t)
+
+
+@case_app.command("add")
+def case_add(name: str = CASE_ARG,
+             address: str = typer.Argument(..., help="Address to add"),
+             chain: str = CHAIN_OPT,
+             role: str = typer.Option("other", "--role", "-r",
+                                      help="victim, suspect, intermediary, exchange, mixer, bridge or other"),
+             note: str = typer.Option("", "--note", "-n", help="Why it is in the case")):
+    """Add an address to a case (adding it again updates its role and note)."""
+    from crypttrace import case as case_mod
+    a = _case_call(case_mod.add, name, address, chain, role, note)
+    console.print(f"[green]✓[/green] {a['address']} ({a['chain']}) as {a['role']}"
+                  + (f" — {a['note']}" if a.get("note") else ""))
+
+
+@case_app.command("remove")
+def case_remove(name: str = CASE_ARG, address: str = typer.Argument(..., help="Address to drop"),
+                chain: Optional[str] = typer.Option(None, "--chain", "-c", help="Only on this chain")):
+    """Drop an address from a case."""
+    from crypttrace import case as case_mod
+    if _case_call(case_mod.remove, name, address, chain):
+        console.print(f"[green]✓ Removed[/green] {address}")
+    else:
+        console.print("[dim]That address is not in the case.[/dim]")
+
+
+@case_app.command("note")
+def case_note(name: str = CASE_ARG, text: str = typer.Argument(..., help="The note")):
+    """Add a timestamped note to the case log."""
+    from crypttrace import case as case_mod
+    _case_call(case_mod.note, name, text)
+    console.print("[green]✓ Noted[/green]")
+
+
+@case_app.command("show")
+def case_show(name: str = CASE_ARG):
+    """The case: its addresses with current labels, the last snapshot, the log."""
+    from crypttrace import case as case_mod
+    c = _case_call(case_mod.load, name)
+    console.print(f"[bold]{c['name']}[/bold]  [dim]{c['_path']}[/dim]")
+    if c["addresses"]:
+        t = render.Table(header_style="bold")
+        for col in ("Role", "Chain", "Address", "Label", "Note", "Last snapshot"):
+            t.add_column(col)
+        for a in c["addresses"]:
+            s = a.get("snapshot") or {}
+            snap = "—" if not s else (
+                (f"{s['balance']:,.8f}" if s.get("balance") is not None else "?") + " "
+                f"{chains_mod.symbol(a['chain'])} · seen "
+                + (render._ts(str(s['last_seen'])) if s.get("last_seen") else "never")
+                + f" · taken {render._ts(str(s['at']))}")
+            t.add_row(a["role"], a["chain"], a["address"], labels.label_of(a["address"]) or "",
+                      a.get("note") or "", snap)
+        console.print(t)
+    else:
+        console.print("[dim]No addresses yet.[/dim]")
+    for n in c.get("notes", []):
+        console.print(f"  [dim]{render._ts(str(n['at']))}[/dim]  {n['text']}")
+
+
+@case_app.command("refresh")
+def case_refresh(name: str = CASE_ARG):
+    """Read every address again and say what changed since the last refresh."""
+    from crypttrace import case as case_mod
+    rep = _case_call(case_mod.refresh, name)
+    if not rep:
+        console.print("[dim]The case has no addresses.[/dim]")
+        return
+    moved = [r for r in rep if r["moved"]]
+    for r in rep:
+        mark = "[bold yellow]●[/bold yellow]" if r["moved"] else "[dim]·[/dim]"
+        console.print(f"{mark} {r['role']:<12} {r['chain']:<8} {r['address']}")
+        for d in r["changes"]:
+            console.print(f"      {d}")
+    console.print(f"\n[bold]{len(moved)}[/bold] of {len(rep)} address(es) changed since the last refresh."
+                  if any(r["previous"] for r in rep) else "\nFirst snapshot taken; the next refresh "
+                  "will say what changed.")
+
+
 if __name__ == "__main__":
     app()

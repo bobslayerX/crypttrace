@@ -1549,6 +1549,61 @@ except ValueError:
     fmt34 = "refused"
 check("an unknown format is refused", fmt34 == "refused")
 
+# ---------------------------------------------------------------- cases
+section("35. cases: an investigation kept as a file")
+from crypttrace import case as case35
+SUS35, EX35 = "0x" + "5a" * 20, "0x" + "e7" * 20
+p35 = case35.new("selftest-case", note="opened by selftest")
+check("a new case is a file in the cases folder", p35.exists() and p35.parent == case35.CASES_DIR)
+try:
+    case35.new("selftest-case")
+    dup35 = "allowed"
+except case35.CaseError:
+    dup35 = "refused"
+check("a case name cannot be taken twice", dup35 == "refused")
+case35.add("selftest-case", SUS35, "eth", "suspect", "the thief")
+case35.add("selftest-case", EX35, "eth", "exchange")
+case35.add("selftest-case", SUS35.upper().replace("0X", "0x"), "eth", "suspect", "the thief, again")
+c35 = case35.load("selftest-case")
+check("adding an address again updates it instead of duplicating it",
+      len(c35["addresses"]) == 2 and c35["addresses"][0]["note"] == "the thief, again")
+for bad35 in [("selftest-case", "not-an-address", "eth", "suspect"), ("selftest-case", EX35, "eth", "boss")]:
+    try:
+        case35.add(*bad35)
+        r35 = "accepted"
+    except case35.CaseError:
+        r35 = "refused"
+    check(f"refused: {bad35[1][:14]} as {bad35[3]}", r35 == "refused")
+case35.note("selftest-case", "asked the exchange to freeze")
+snaps35 = {SUS35: {"at": 1, "balance": 10.0, "last_seen": 100, "error": None},
+           EX35: {"at": 1, "balance": 5.0, "last_seen": 200, "error": None}}
+rep35 = case35.refresh("selftest-case", take=lambda a, c: dict(snaps35[a]))
+check("the first refresh takes a snapshot of each address",
+      [r["changes"] for r in rep35] == [["first snapshot"], ["first snapshot"]] and not any(r["moved"] for r in rep35))
+snaps35[SUS35] = {"at": 2, "balance": 2.5, "last_seen": 300, "error": None}
+snaps35[EX35] = {"at": 2, "balance": None, "last_seen": None, "error": "rate limited"}
+rep35 = {r["address"]: r for r in case35.refresh("selftest-case", take=lambda a, c: dict(snaps35[a]))}
+check("the next refresh says the money moved: balance and new activity",
+      rep35[SUS35]["moved"] and any("10.00000000 -> 2.50000000" in d for d in rep35[SUS35]["changes"])
+      and any(d.startswith("new activity") for d in rep35[SUS35]["changes"]), str(rep35[SUS35]["changes"]))
+c35 = case35.load("selftest-case")
+check("an address that could not be read keeps its last good snapshot",
+      not rep35[EX35]["moved"] and next(a for a in c35["addresses"] if a["address"] == EX35)["snapshot"]["balance"] == 5.0)
+check("the case keeps its notes, and no half-written file is left behind",
+      [n["text"] for n in c35["notes"]] == ["opened by selftest", "asked the exchange to freeze"]
+      and not list(case35.CASES_DIR.glob("*.tmp")))
+other35 = Path(tempfile.mkdtemp()) / "handed-over.json"
+other35.write_text(json.dumps({k: v for k, v in c35.items() if not k.startswith("_")}), encoding="utf-8")
+check("a case file handed over by path opens like any other",
+      case35.load(str(other35))["name"] == "selftest-case")
+other35.write_text("{\"not\": \"a case\"}", encoding="utf-8")
+try:
+    case35.load(str(other35))
+    nc35 = "opened"
+except case35.CaseError:
+    nc35 = "refused"
+check("a JSON file that is not a case is refused", nc35 == "refused")
+
 print("\n" + "=" * 72)
 print(f"RESULT: {len(PASSED)} passed, {len(FAILED)} failed")
 print("=" * 72)

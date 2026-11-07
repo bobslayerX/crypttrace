@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.33.0
+
+### Added
+- **Cases: an investigation kept as a file.** `crypttrace case
+  new|add|remove|note|show|refresh|list`. A case holds addresses on any chain,
+  each with a role (victim, suspect, intermediary, exchange, mixer, bridge,
+  other) and a note, plus a timestamped log. `refresh` reads every address
+  again: native balance, and the latest transfer with tokens included. It
+  compares them with the last refresh and says which addresses moved. An
+  address that cannot be read keeps its last good snapshot.
+
+  A case is one JSON file in `~/.crypttrace/cases/`, written atomically. Every
+  command also takes a path, so a case can be handed to a colleague as a
+  file. Addresses are validated for their chain, and adding one again updates
+  it.
+
 ## 0.32.0
 
 ### Added
