@@ -19,7 +19,8 @@ _PLATFORM = {"eth": "ethereum", "bsc": "binance-smart-chain", "polygon": "polygo
              "tron": "tron", "sol": "solana", "ton": "the-open-network"}
 _COINGECKO_NATIVE = {"eth": "ethereum", "bsc": "binancecoin", "polygon": "matic-network",
                      "arbitrum": "ethereum", "optimism": "ethereum", "base": "ethereum",
-                     "btc": "bitcoin", "tron": "tron", "sol": "solana", "ton": "the-open-network"}
+                     "btc": "bitcoin", "ltc": "litecoin", "doge": "dogecoin",
+                     "tron": "tron", "sol": "solana", "ton": "the-open-network"}
 
 _cache: Dict[str, Optional[float]] = {}
 

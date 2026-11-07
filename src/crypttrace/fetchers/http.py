@@ -24,6 +24,8 @@ from crypttrace import config
 MIN_INTERVAL = {
     "api.trongrid.io": 0.4,
     "mempool.space": 0.25,
+    "litecoinspace.org": 0.25,
+    "api.blockcypher.com": 0.4,       # free tier: 3 a second, ~100 an hour
     "api.mainnet-beta.solana.com": 0.3,
 }
 DEFAULT_INTERVAL = 0.25

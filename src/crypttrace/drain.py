@@ -29,7 +29,7 @@ _ALL_TOKENS = {"contract": None, "symbol": "*"}
 
 def _history(address: str, chain: str, limit: int) -> List[dict]:
     rows = list(chains.transfers(address, chain, limit))
-    if chain != "btc":
+    if not chains.is_utxo(chain):
         try:
             rows += [r for r in chains.transfers(address, chain, limit, asset=_ALL_TOKENS)
                      if not spam.verdict(chain, r.get("contract", ""), r.get("symbol", ""),

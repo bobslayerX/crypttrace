@@ -762,7 +762,7 @@ def verify(
     style = _verdict_style(v["status"])
     console.print(f"\n[{style}]{v['status'].upper()}[/{style}]  {verify_mod.headline(v)}\n")
 
-    if v["checks"]:
+    if v.get("checks"):        # absent when the chain could not be read at all
         t = render.Table(title="Cross-check against the chain", header_style="bold")
         t.add_column("Figure"); t.add_column("Computed", justify="right")
         t.add_column("Chain", justify="right"); t.add_column("", justify="center")
@@ -803,12 +803,12 @@ def cluster(
                       "funder set it up. Wallets set up by the same person's wallet are likely one party; a "
                       "funding from an exchange, mixer, bridge or any contract links nothing. A lead, not proof.[/dim]")
         return
-    if chain != "btc":
-        console.print("[red]Error:[/red] cluster works on Bitcoin and EVM chains")
+    if not chains_mod.is_utxo(chain):
+        console.print("[red]Error:[/red] cluster works on Bitcoin, Litecoin, Dogecoin and EVM chains")
         raise typer.Exit(1)
     from crypttrace.fetchers import bitcoin
     try:
-        peers = bitcoin.cluster(address)
+        peers = bitcoin.cluster(address, chain)
     except bitcoin.BitcoinError as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1)
@@ -884,6 +884,8 @@ def chains():
         console.print(f"  {name:<10} chainid {cid}{paid}")
     console.print("\n[bold]Non-EVM[/bold] (no API key needed):")
     console.print("  btc        Bitcoin — mempool.space (UTXO)")
+    console.print("  ltc        Litecoin — litecoinspace.org (UTXO)")
+    console.print("  doge       Dogecoin — BlockCypher (UTXO; free tier ~100 requests an hour)")
     console.print("  tron       Tron — TronGrid (TRX + USDT-TRC20)")
     console.print("  sol        Solana — public JSON-RPC")
     console.print("  ton        TON — toncenter (TON + jettons such as USDT)")

@@ -63,7 +63,7 @@ def entry(address: str, chain: str, name: str, source: str) -> dict:
 
 
 # ------------------------------------------------------------------ Binance
-BINANCE_NET = {"BTC": "btc", "TRX": "tron", "SOL": "sol", "TON": "ton", "ETH": "eth", "BSC": "bsc",
+BINANCE_NET = {"BTC": "btc", "LTC": "ltc", "DOGE": "doge", "TRX": "tron", "SOL": "sol", "TON": "ton", "ETH": "eth", "BSC": "bsc",
                "ARBITRUM": "arbitrum", "MATIC": "polygon", "BASE": "base", "OPTIMISM": "optimism"}
 
 
@@ -220,7 +220,7 @@ def pdf_lines(data: bytes) -> List[str]:
     return [l for l in out if l]
 
 
-MEXC_NET = {"bitcoin": "btc", "ethereum": "eth", "bsc": "bsc", "arbitrum": "arbitrum", "base": "base",
+MEXC_NET = {"bitcoin": "btc", "litecoin": "ltc", "dogecoin": "doge", "ethereum": "eth", "bsc": "bsc", "arbitrum": "arbitrum", "base": "base",
             "optimism": "optimism", "polygon": "polygon", "solana": "sol", "tron": "tron", "ton": "ton"}
 LIGATURES = {"ﬀ": "ff", "ﬁ": "fi", "ﬂ": "fl", "ﬃ": "ffi", "ﬄ": "ffl"}
 

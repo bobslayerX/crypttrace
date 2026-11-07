@@ -19,17 +19,19 @@ from crypttrace.labels import labels as _labels
 from crypttrace.fetchers import etherscan, bitcoin, http as _http, tron, solana, ton
 
 EVM_CHAINS = set(config.CHAINS)
-NON_EVM = {"btc", "tron", "sol", "ton"}
+NON_EVM = {"btc", "ltc", "doge", "tron", "sol", "ton"}
 ALL_CHAINS = sorted(EVM_CHAINS | NON_EVM)
 
 SYMBOL = {"eth": "ETH", "bsc": "BNB", "polygon": "MATIC", "arbitrum": "ETH",
-          "optimism": "ETH", "base": "ETH", "btc": "BTC", "tron": "TRX", "sol": "SOL", "ton": "TON"}
+          "optimism": "ETH", "base": "ETH", "btc": "BTC", "ltc": "LTC", "doge": "DOGE", "tron": "TRX", "sol": "SOL",
+          "ton": "TON"}
 
 EXPLORER = {
     "eth": "https://etherscan.io/address/{}", "bsc": "https://bscscan.com/address/{}",
     "polygon": "https://polygonscan.com/address/{}", "arbitrum": "https://arbiscan.io/address/{}",
     "optimism": "https://optimistic.etherscan.io/address/{}", "base": "https://basescan.org/address/{}",
-    "btc": "https://mempool.space/address/{}", "tron": "https://tronscan.org/#/address/{}",
+    "btc": "https://mempool.space/address/{}", "ltc": "https://litecoinspace.org/address/{}",
+    "doge": "https://blockchair.com/dogecoin/address/{}", "tron": "https://tronscan.org/#/address/{}",
     "sol": "https://solscan.io/account/{}", "ton": "https://tonviewer.com/{}",
 }
 
@@ -37,7 +39,8 @@ TX_EXPLORER = {
     "eth": "https://etherscan.io/tx/{}", "bsc": "https://bscscan.com/tx/{}",
     "polygon": "https://polygonscan.com/tx/{}", "arbitrum": "https://arbiscan.io/tx/{}",
     "optimism": "https://optimistic.etherscan.io/tx/{}", "base": "https://basescan.org/tx/{}",
-    "btc": "https://mempool.space/tx/{}", "tron": "https://tronscan.org/#/transaction/{}",
+    "btc": "https://mempool.space/tx/{}", "ltc": "https://litecoinspace.org/tx/{}",
+    "doge": "https://blockchair.com/dogecoin/transaction/{}", "tron": "https://tronscan.org/#/transaction/{}",
     "sol": "https://solscan.io/tx/{}", "ton": "https://tonviewer.com/transaction/{}",
 }
 
@@ -51,6 +54,11 @@ class ChainError(RuntimeError):
 
 def is_evm(chain: str) -> bool:
     return chain in EVM_CHAINS
+
+
+def is_utxo(chain: str) -> bool:
+    """Bitcoin, Litecoin, Dogecoin: outputs and inputs, no tokens."""
+    return chain in bitcoin.UTXO_CHAINS
 
 
 def case_sensitive(chain: str) -> bool:
@@ -86,8 +94,8 @@ def balance(address: str, chain: str = "eth") -> float:
     try:
         if is_evm(chain):
             return etherscan.get_balance(address, chain)
-        if chain == "btc":
-            return bitcoin.balance(address)
+        if is_utxo(chain):
+            return bitcoin.balance(address, chain)
         if chain == "tron":
             return tron.balance(address)
         if chain == "sol":
@@ -221,10 +229,10 @@ def transfers(address: str, chain: str = "eth", limit: int = 1000,
         if is_evm(chain):
             rows = _evm_token(address, chain, contract, limit) if asset \
                 else _evm_native(address, chain, limit)
-        elif chain == "btc":
+        elif is_utxo(chain):
             if asset:
-                raise ChainError("Bitcoin has no tokens.")
-            rows = bitcoin.transfers(address, limit)
+                raise ChainError(f"{bitcoin.NETWORKS[chain]['name']} has no tokens.")
+            rows = bitcoin.transfers(address, limit, chain=chain)
         elif chain == "tron":
             # keep TRX and TRC20 strictly separate
             rows = _tron_token(address, contract, limit) if asset \
@@ -337,7 +345,7 @@ def inflows(address: str, chain: str, top: int, limit: int = 1000, asset=None):
 def token_holdings(address: str, chain: str = "eth", limit: int = 1000) -> List[Dict]:
     """Approximate token holdings from transfer history (net in − out per token)."""
     check(chain)
-    if chain == "btc":
+    if is_utxo(chain):
         return []
     me = norm_addr(address, chain)
     try:

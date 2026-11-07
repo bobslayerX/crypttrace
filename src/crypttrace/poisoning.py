@@ -94,7 +94,7 @@ def resemblance(a: str, b: str, chain: str) -> Optional[str]:
 def _history(address: str, chain: str, limit: int) -> List[dict]:
     """Native and every-token transfers, fakes included — they are the bait."""
     rows = list(chains.transfers(address, chain, limit))
-    if chain != "btc":
+    if not chains.is_utxo(chain):
         try:
             rows += chains.transfers(address, chain, limit, asset=_ALL_TOKENS)
         except chains.ChainError:

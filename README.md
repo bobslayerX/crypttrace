@@ -8,7 +8,7 @@
 Open-source OSINT toolkit for crypto investigations. Give it a suspicious
 address; it pulls the public on-chain history, labels known entities (exchanges,
 mixers, sanctioned wallets), scores risk, and maps where the funds moved —
-across Ethereum, Bitcoin, Tron, Solana, TON and more.
+across Ethereum, Bitcoin, Tron, Solana, TON, Litecoin, Dogecoin and more.
 
 Built for the investigation that actually happens: *someone's crypto was stolen,
 here's the wallet — where did the money go, and where can it still be stopped?*
@@ -46,7 +46,7 @@ python selftest.py                 # offline checks, no API keys needed
 | | Needed? | How to get it |
 |---|---|---|
 | **EVM chains** (Ethereum, BSC, Polygon, Arbitrum, Optimism, Base) | **Required** | Free key at [etherscan.io/myapikey](https://etherscan.io/myapikey) covers Ethereum, Polygon and Arbitrum. BSC, Optimism and Base need a paid Etherscan plan; on a free key crypttrace says so instead of showing an empty wallet. |
-| **Bitcoin, Tron, Solana, TON** | **Not required** | Work out of the box via public endpoints. |
+| **Bitcoin, Litecoin, Dogecoin, Tron, Solana, TON** | **Not required** | Work out of the box via public endpoints. Dogecoin reads BlockCypher's free tier, about 100 requests an hour, so it reads the latest 200 transactions of an address. |
 
 ```bash
 export ETHERSCAN_API_KEY=xxxx           # required for EVM chains only
@@ -88,6 +88,8 @@ the number either way.
 |---|---|---|---|
 | Ethereum, BSC, Polygon, Arbitrum, Optimism, Base | `eth` `bsc` `polygon` `arbitrum` `optimism` `base` | Etherscan v2 (BSC, Optimism, Base: paid plan) | account |
 | Bitcoin | `btc` | mempool.space | UTXO |
+| Litecoin | `ltc` | litecoinspace.org | UTXO |
+| Dogecoin | `doge` | BlockCypher | UTXO |
 | Tron (TRX + USDT-TRC20) | `tron` | TronGrid | account |
 | Solana (SOL + SPL) | `sol` | public JSON-RPC | account |
 | TON (TON + jettons, e.g. USDT) | `ton` | toncenter v3 | account |
@@ -438,7 +440,7 @@ with an `nfts` column in the CSV. Failed (aborted) NFT transfers are not counted
 
 ### Bitcoin clustering (common-input-ownership)
 
-Bitcoin's UTXO model enables the strongest clustering heuristic in blockchain
+Bitcoin's UTXO model (Litecoin's and Dogecoin's too) enables the strongest clustering heuristic in blockchain
 forensics: if several addresses sign the inputs of one transaction, one party
 almost certainly controls all of them. `cluster` surfaces those co-signers,
 turning a single address into a set of wallets belonging to the same owner. A

@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.31.0
+
+### Added
+- **Litecoin (`--chain ltc`) and Dogecoin (`--chain doge`).** Litecoin reads
+  litecoinspace.org, which has the same API as mempool.space. Dogecoin reads
+  BlockCypher, translated into the same shape. Its free tier allows about 100
+  requests an hour, so the latest 200 transactions of an address are read.
+  No key is needed for either. Tracing, profiles, `verify`, `check`, `cluster`
+  (common-input ownership) and the web UI work on both. Addresses are
+  validated with their checksums and version bytes, so a Litecoin address is
+  refused on Dogecoin or Bitcoin.
+- **72 Binance reserve wallets on these chains** (27 Litecoin, 45 Dogecoin)
+  from Binance's proof-of-reserves feed. `tools/refresh_por.py` now keeps
+  Litecoin and Dogecoin wallets from Binance's feed and Hacken audits instead
+  of skipping them. Live: a Binance Dogecoin wallet holding 2.12 billion DOGE
+  verifies against the chain.
+
+### Fixed
+- **Equal outputs to one recipient in one Bitcoin transaction were counted
+  once.** Each output was its own row, and identical rows (same transaction,
+  recipient and amount) collapsed into one in the local store. A payout split
+  into equal parts was undercounted the second time it was read. One row per
+  recipient now carries the sum. Stored Bitcoin history is read again once.
+- **`verify` reported MISMATCH on any UTXO wallet that received change.**
+  The chain's totals count change back to the address as received and as
+  spent; crypttrace leaves it out of transfers, as it should. The comparison
+  now adds it back: in full to received, and in the address's share of the
+  inputs to sent. On a Litecoin wallet with 992.89 LTC of change, both totals
+  now match the chain to the last digit.
+- `verify` printed a traceback instead of "unavailable" when the chain could
+  not be read.
+
 ## 0.30.0
 
 ### Added
