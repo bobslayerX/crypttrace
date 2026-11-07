@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.30.0
+
+### Added
+- **74 Binance reserve wallets listed since 17 October** (Binance's
+  proof-of-reserves feed, fetched 2026-11-07 with `tools/refresh_por.py`):
+  41 EVM, 17 Bitcoin, 12 Tron, 2 Solana, 2 TON. None of the earlier
+  wallets left the list. Sampled live: 61,858 ETH, 403,060 SOL and
+  35.9M TON on single new wallets.
+
 ## 0.29.0
 
 ### Added
