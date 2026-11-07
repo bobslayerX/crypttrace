@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.32.0
+
+### Added
+- **Graph export for link-analysis tools.** `trace --export FILE` saves the
+  traced graph next to the tree:
+  - `.graphml` opens in Gephi, yEd or Cytoscape. Nodes keep their label,
+    kind, hop and explorer link; edges keep amount, USD value, transfer
+    count and exchange memo, ready to colour and size a layout.
+  - `.csv` is an edge list with both ends labelled, for Maltego's "Import
+    Graph from Table", Neo4j or a spreadsheet.
+
+  The web UI has the same two downloads (GraphML, CSV) next to "Case file",
+  for the graph on screen.
+
 ## 0.31.0
 
 ### Added

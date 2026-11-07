@@ -221,6 +221,10 @@ crypttrace trace 0xADDRESS --direction in
 # Trace a token rather than the native coin (most thefts are stablecoins)
 crypttrace trace 0xADDRESS --asset usdt --depth 4
 
+# Save the traced graph for Gephi / yEd / Cytoscape, or for Maltego / Neo4j
+crypttrace trace 0xADDRESS --depth 4 --export case.graphml
+crypttrace trace 0xADDRESS --depth 4 --export case.csv
+
 # Token holdings, valued in USD
 crypttrace tokens 0xADDRESS
 
@@ -690,6 +694,7 @@ src/crypttrace/
   bridges.py       # cross-chain matching
   watch.py         # watchlist + alerts
   report.py        # Markdown + JSON reports
+  export.py        # traced graph as GraphML (Gephi) and edge-list CSV (Maltego)
   prices.py        # USD valuation
   render.py        # rich terminal rendering
   webapp.py        # Flask backend for the web UI

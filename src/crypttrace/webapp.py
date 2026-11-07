@@ -145,6 +145,14 @@ def create_app() -> Flask:
             graph = trace_mod.build_graph(addr, chain, depth, branching, asset, direction)
         except _KNOWN_ERRORS as e:
             return jsonify({"error": str(e)}), 400
+        fmt = request.args.get("format", "")
+        if fmt:                     # the same graph as a file for Gephi / Maltego
+            from crypttrace import export as export_mod
+            if fmt not in export_mod.FORMATS:
+                return jsonify({"error": f"unknown format '{fmt}'"}), 400
+            name = f"crypttrace_{chain}_{addr[:12]}_{direction}.{fmt}"
+            return Response(export_mod.render(graph, chain, fmt), mimetype=export_mod.FORMATS[fmt][1],
+                            headers={"Content-Disposition": f'attachment; filename="{name}"'})
         return jsonify(graph)
 
     @app.route("/api/assess")
