@@ -1,6 +1,9 @@
 """Export a traced fund-flow graph for the tools analysts already use.
 
-    GraphML  — Gephi, yEd, Cytoscape: nodes keep their label, kind, hop and
+    GEXF     — Gephi's own format, and the one to use with it: the layout,
+               colours, sizes and edge thickness are in its viz: elements,
+               which Gephi applies on open.
+    GraphML  — yEd, Cytoscape (and Gephi): nodes keep their label, kind, hop and
                explorer link; edges their amount, USD value, transfer count and
                exchange memo, so a layout can be coloured and sized by them.
                Gephi also reads the layout and look from it: each node carries
@@ -84,7 +87,7 @@ def _edge_attrs(e: dict, symbol: str) -> dict:
     return {"amount": e.get("value") or 0, "symbol": symbol, "usd": e.get("usd"),
             "transfers": e.get("tx") or 0, "memo": e.get("memo") or "",
             # thickness by order of magnitude: $100 and $100M both stay drawable
-            "weight": round(max(0.5, math.log10(1 + abs(value))), 2)}
+            "weight": round(max(1.0, math.log10(1 + abs(value))), 2)}
 
 
 def _val(v, kind: str) -> str:
@@ -122,6 +125,53 @@ def to_graphml(graph: dict, chain: str) -> str:
     return "\n".join(out)
 
 
+def to_gexf(graph: dict, chain: str) -> str:
+    """GEXF, Gephi's own format: the layout, colour, size and edge thickness go in
+    its viz: elements, which Gephi always applies on open; the data rides along
+    as attributes, ready for its filters and partitions."""
+    symbol = graph.get("symbol", "")
+    pos = layout(graph)
+    node_cols = [("kind", "string"), ("hop", "integer"), ("root", "boolean"), ("trail_ends", "boolean"),
+                 ("chain", "string"), ("explorer", "string")]
+    edge_cols = [("amount", "double"), ("symbol", "string"), ("usd", "double"), ("transfers", "integer"),
+                 ("memo", "string")]
+    out = ['<?xml version="1.0" encoding="UTF-8"?>',
+           '<gexf xmlns="http://www.gexf.net/1.2draft" xmlns:viz="http://www.gexf.net/1.2draft/viz" '
+           'version="1.2">',
+           f'  <meta><creator>crypttrace</creator><description>{escape(chain)} fund flow, '
+           f'{escape(graph.get("direction", "out"))}</description></meta>',
+           '  <graph defaultedgetype="directed" mode="static">',
+           '    <attributes class="node">']
+    out += [f'      <attribute id="{k}" title="{k}" type="{t}"/>' for k, t in node_cols]
+    out += ['    </attributes>', '    <attributes class="edge">']
+    out += [f'      <attribute id="{k}" title="{k}" type="{t}"/>' for k, t in edge_cols]
+    out += ['    </attributes>', '    <nodes>']
+    for n in graph.get("nodes", []):
+        a = _node_attrs(n, chain, pos[n["id"]])
+        out.append(f'      <node id={quoteattr(n["id"])} label={quoteattr(a["label"])}>')
+        out.append("        <attvalues>" + "".join(
+            f'<attvalue for="{k}" value={quoteattr(_val(a[k], t) if t == "boolean" else str(a[k]))}/>'
+            for k, t in node_cols) + "</attvalues>")
+        out.append(f'        <viz:size value="{a["size"]}"/>')
+        out.append(f'        <viz:position x="{a["x"]}" y="{a["y"]}" z="0.0"/>')
+        out.append(f'        <viz:color r="{a["r"]}" g="{a["g"]}" b="{a["b"]}" a="1.0"/>')
+        out.append("      </node>")
+    out += ['    </nodes>', '    <edges>']
+    for i, e in enumerate(graph.get("edges", [])):
+        a = _edge_attrs(e, symbol)
+        label = f"{a['amount']:,.4f} {symbol}".rstrip()
+        out.append(f'      <edge id="{i}" source={quoteattr(e["from"])} target={quoteattr(e["to"])} '
+                   f'weight="{a["weight"]}" label={quoteattr(label)}>')
+        out.append("        <attvalues>" + "".join(
+            f'<attvalue for="{k}" value={quoteattr(str(a[k]))}/>' for k, _ in edge_cols
+            if a[k] not in (None, "")) + "</attvalues>")
+        out.append(f'        <viz:thickness value="{a["weight"]}"/>')
+        out.append('        <viz:color r="150" g="160" b="175" a="1.0"/>')
+        out.append("      </edge>")
+    out += ['    </edges>', '  </graph>', '</gexf>', '']
+    return "\n".join(out)
+
+
 def to_csv(graph: dict, chain: str) -> str:
     """One row per edge, both ends described — what a link-analysis import wants."""
     symbol = graph.get("symbol", "")
@@ -139,7 +189,8 @@ def to_csv(graph: dict, chain: str) -> str:
     return buf.getvalue()
 
 
-FORMATS = {"graphml": (to_graphml, "application/graphml+xml"), "csv": (to_csv, "text/csv")}
+FORMATS = {"gexf": (to_gexf, "application/gexf+xml"), "graphml": (to_graphml, "application/graphml+xml"),
+           "csv": (to_csv, "text/csv")}
 
 
 def render(graph: dict, chain: str, fmt: str) -> str:

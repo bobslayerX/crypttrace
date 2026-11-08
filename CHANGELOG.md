@@ -2,6 +2,12 @@
 
 ## 0.35.1
 
+### Added
+- **GEXF export for Gephi** (`trace --export case.gexf`, and the web UI's
+  **Gephi** button): Gephi's own format, where the layout, colours, sizes and
+  edge thickness go in its `viz:` elements, which Gephi always applies. It is
+  the format to use with Gephi; GraphML stays for yEd and Cytoscape.
+
 ### Fixed
 - **GraphML opened in Gephi as a random scatter of black dots.** The file had
   the data but no picture, so Gephi placed every node at random, all grey,

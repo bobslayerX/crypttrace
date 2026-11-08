@@ -225,8 +225,8 @@ def trace(
     direction: str = typer.Option("out", "--direction", "-D",
                                   help="'out' = where funds went, 'in' = where they came from"),
     export: Optional[Path] = typer.Option(None, "--export", "-o",
-                                          help="Also save the graph: .graphml (Gephi, yEd, Cytoscape) "
-                                               "or .csv (Maltego, Neo4j, spreadsheets)"),
+                                          help="Also save the graph: .gexf (Gephi), .graphml (yEd, "
+                                               "Cytoscape) or .csv (Maltego, Neo4j, spreadsheets)"),
 ):
     """Trace where funds moved, hop by hop, as a coloured tree (ETH or a token)."""
     try:
@@ -238,8 +238,8 @@ def trace(
         console.print("[red]Error:[/red] --direction must be 'out' or 'in'")
         raise typer.Exit(1)
     fmt = export.suffix.lower().lstrip(".") if export else None
-    if export and fmt not in ("graphml", "csv"):
-        console.print("[red]Error:[/red] --export takes a .graphml or .csv file name")
+    if export and fmt not in ("gexf", "graphml", "csv"):
+        console.print("[red]Error:[/red] --export takes a .gexf, .graphml or .csv file name")
         raise typer.Exit(1)
     try:
         tree = trace_mod.build_tree(address, chain, depth, branching, asset_desc, direction)
@@ -261,8 +261,9 @@ def trace(
         export.write_text(export_mod.render(graph, chain, fmt), encoding="utf-8", newline="")
         console.print(f"\n[green]Graph saved:[/green] {export} — {len(graph['nodes'])} addresses, "
                       f"{len(graph['edges'])} transfers"
-                      + ("  [dim](Maltego: Import Graph from Table, map from/to to an address entity)[/dim]"
-                         if fmt == "csv" else "  [dim](open in Gephi, yEd or Cytoscape)[/dim]"))
+                      + {"csv": "  [dim](Maltego: Import Graph from Table, map from/to to an address entity)[/dim]",
+                         "gexf": "  [dim](Gephi: File → Open; the layout and colours come with it)[/dim]"}
+                      .get(fmt, "  [dim](yEd, Cytoscape)[/dim]"))
 
 
 @app.command()

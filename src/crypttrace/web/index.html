@@ -230,7 +230,8 @@
   <button id="go">Investigate</button>
   <button id="fit" class="ghost" title="Fit graph to view">Fit</button>
   <button id="casefile" class="ghost" title="Download a one-page case file for an exchange or the police">Case file</button>
-  <button id="exp-graphml" class="ghost" title="Download the graph for Gephi, yEd or Cytoscape">GraphML</button>
+  <button id="exp-gexf" class="ghost" title="Download the graph for Gephi, with its layout and colours">Gephi</button>
+  <button id="exp-graphml" class="ghost" title="Download the graph for yEd or Cytoscape">GraphML</button>
   <button id="exp-csv" class="ghost" title="Download the graph as an edge list for Maltego, Neo4j or a spreadsheet">CSV</button>
 </div>
 
@@ -806,6 +807,7 @@ async function downloadGraph(fmt){
   }catch(e){ setStatus(e.message,true); }
   finally{ b.disabled=false; }
 }
+$('#exp-gexf').addEventListener('click',()=>downloadGraph('gexf'));
 $('#exp-graphml').addEventListener('click',()=>downloadGraph('graphml'));
 $('#exp-csv').addEventListener('click',()=>downloadGraph('csv'));
 
