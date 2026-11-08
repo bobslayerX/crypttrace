@@ -224,11 +224,122 @@ def render_html(doc: Dict, lang: str = "en") -> str:
     return "".join(P)
 
 
+def render_pdf(doc: Dict, lang: str = "en") -> bytes:
+    """The pack as a printable A4 PDF: the same sections as the HTML, links kept."""
+    from crypttrace import pdf as pdf_mod
+    t, res, chain = T[lang], doc["check"], doc["chain"]
+    p = pdf_mod.document(t["title"])       # PdfError when fpdf2 or a font is missing
+    from fpdf.fonts import FontFace
+    W = p.epw
+
+    def body(size=10.5, bold=False):
+        p.set_font("body", "B" if bold else "", size)
+
+    def h2(s):
+        p.ln(3)
+        body(12.5, True)
+        p.multi_cell(W, 7, s, new_x="LMARGIN", new_y="NEXT")
+        p.set_draw_color(150)
+        p.line(p.l_margin, p.get_y(), p.l_margin + W, p.get_y())
+        p.ln(2)
+        body()
+
+    def para(s, bold=False, fill=False):
+        body(10.5, bold)
+        p.multi_cell(W, 5.4, s, fill=fill, new_x="LMARGIN", new_y="NEXT")
+        p.ln(1.5)
+        body()
+
+    def mono(s, link="", size=8):
+        p.set_font("Courier", "", size)
+        p.multi_cell(W, 4.2, s, link=link, new_x="LMARGIN", new_y="NEXT")
+        body()
+
+    body(16, True)
+    p.multi_cell(W, 8, t["title"], new_x="LMARGIN", new_y="NEXT")
+    body(8.5)
+    p.set_text_color(90)
+    p.multi_cell(W, 4.5, f"{doc['tool']} · {doc['generated']}", new_x="LMARGIN", new_y="NEXT")
+    p.set_text_color(0)
+    body()
+    if res["verdict"] == "no_drain":
+        p.ln(4)
+        para(t["nothing"])
+        return bytes(p.output())
+    f = _facts(doc, lang)
+
+    h2(t["victim"])
+    for k, v in ((t["name"], ""), (t["contact"], ""), (t["wallet"], f"{res['address']} ({chain.upper()})"),
+                 (t["discovered"], "")):
+        body(10, True)
+        p.cell(W * 0.34, 8, k, border=1)
+        if v:
+            p.set_font("Courier", "", 8)
+        p.cell(W * 0.66, 8, v, border=1, new_x="LMARGIN", new_y="NEXT")
+        body()
+
+    h2(t["summary"])
+    for s in f["paras"]:
+        para(s)
+
+    h2(t["chronology"])
+    hashes = FontFace(family="Courier", size_pt=7)
+    body(9)
+    with p.table(col_widths=(36, 26, 76), text_align=("LEFT", "RIGHT", "LEFT"), line_height=5,
+                 headings_style=FontFace(emphasis="BOLD", fill_color=(235, 235, 235))) as tbl:
+        head = tbl.row()
+        for c in t["cols"]:
+            head.cell(c)
+        for when, amount, h in f["rows"]:
+            row = tbl.row()
+            row.cell(when.replace(" UTC", ""))         # the column heading says UTC
+            row.cell(amount)
+            row.cell(h, style=hashes, link=chains.tx_url(h, chain))
+    body()
+
+    h2(t["path"])
+    if f["deps"]:
+        p.set_fill_color(242, 242, 242)
+        for d in f["deps"]:
+            para(d["text"], bold=True, fill=True)
+            body(8.5)
+            p.multi_cell(W, 4.4, d["via"], new_x="LMARGIN", new_y="NEXT")
+            p.ln(1)
+            for h in d["links"]:
+                if h:
+                    mono(h, link=chains.tx_url(h, chain))
+            p.ln(2)
+        h2(t["requests"])
+        n = 0
+        for d in f["deps"]:
+            for req in (d["req_exchange"], d["req_police"]):
+                n += 1
+                para(f"{n}. {req}")
+    else:
+        para(t["none"])
+
+    h2(t["method"])
+    para(f["method"])
+    p.ln(10)
+    body(10.5)
+    p.cell(0, 6, f"{t['sign']}: ________________________________", new_x="LMARGIN", new_y="NEXT")
+    return bytes(p.output())
+
+
 def write(doc: Dict, out_dir: Path, lang: str = "en") -> List[Path]:
+    """HTML, Markdown, JSON — and PDF when the pdf extra is installed and a font is found."""
     out_dir.mkdir(parents=True, exist_ok=True)
     stem = f"evidence_{doc['chain']}_{doc['check']['address'][:12]}_{lang}"
     paths = [out_dir / f"{stem}.html", out_dir / f"{stem}.md", out_dir / f"{stem}.json"]
     paths[0].write_text(render_html(doc, lang), encoding="utf-8")
     paths[1].write_text(render_markdown(doc, lang), encoding="utf-8")
     paths[2].write_text(json.dumps(doc, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
+    from crypttrace import pdf as pdf_mod
+    try:
+        pdf_bytes = render_pdf(doc, lang)
+    except pdf_mod.PdfError as e:
+        doc["pdf_note"] = str(e)
+    else:
+        (out_dir / f"{stem}.pdf").write_bytes(pdf_bytes)
+        paths.insert(0, out_dir / f"{stem}.pdf")
     return paths

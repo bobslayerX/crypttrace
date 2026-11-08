@@ -226,8 +226,18 @@ def create_app() -> Flask:
             doc = ev.build(addr, chain)
         except _KNOWN_ERRORS as e:
             return jsonify({"error": str(e)}), 400
+        name = f"evidence_{chain}_{addr[:12]}_{lang}"
+        if request.args.get("format") == "pdf":
+            from crypttrace import pdf as pdf_mod
+            try:
+                body = ev.render_pdf(doc, lang)
+            except pdf_mod.PdfError as e:
+                return jsonify({"error": str(e)}), 400
+            resp = app.response_class(body, mimetype="application/pdf")
+            resp.headers["Content-Disposition"] = f"attachment; filename={name}.pdf"
+            return resp
         resp = app.response_class(ev.render_html(doc, lang), mimetype="text/html")
-        resp.headers["Content-Disposition"] = f"attachment; filename=evidence_{chain}_{addr[:12]}_{lang}.html"
+        resp.headers["Content-Disposition"] = f"attachment; filename={name}.html"
         return resp
 
     @app.route("/api/victims")

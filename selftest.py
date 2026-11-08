@@ -1604,6 +1604,52 @@ except case35.CaseError:
     nc35 = "refused"
 check("a JSON file that is not a case is refused", nc35 == "refused")
 
+# ---------------------------------------------------------------- evidence pack as PDF
+section("36. evidence pack as PDF")
+from crypttrace import evidence as ev36, pdf as pdf36
+V36, T36, HOT36 = "0x" + "c1" * 20, "0x" + "c2" * 20, "0x" + "c3" * 20
+doc36 = {"generated": "2026-11-08 12:00 UTC", "tool": "crypttrace selftest", "chain": "eth",
+         "check": {"verdict": "drained", "address": V36, "to": T36, "to_label": "", "start": 1790000000,
+                   "end": 1790000300, "transfers": 2, "assets": {"ETH": 1.5, "USDT": 900.0}, "nfts": 0,
+                   "other_wallets_same_hour": 14, "resweeps": 1,
+                   "drain_txs": [{"timestamp": 1790000000, "value": 1.5, "symbol": "ETH", "hash": "0x" + "d1" * 32},
+                                 {"timestamp": 1790000300, "value": 900.0, "symbol": "USDT", "hash": "0x" + "d2" * 32}]},
+         "deposits": [{"exchange": "KuCoin hot wallet", "exchange_address": HOT36, "memo": "1234567",
+                       "value": 2.0, "symbol": "ETH", "last_ts": 1790003600, "hash": "0x" + "d3" * 32,
+                       "company": "KuCoin", "portal": "https://www.kucoin.com/legal/requests", "via": [],
+                       "from": T36}], "path": []}
+try:
+    pdf36.fonts()
+    font36 = True
+except pdf36.PdfError as e:
+    font36 = str(e)
+if font36 is True:
+    for lang36 in ("en", "ru"):
+        b36 = ev36.render_pdf(doc36, lang36)
+        check(f"a {lang36.upper()} evidence pack renders as a PDF, with every transaction linked",
+              b36[:5] == b"%PDF-" and b36.count(b"/URI") >= 3 and b"etherscan.io/tx/0x" + b"d1" * 32 in b36,
+              f"{len(b36)} bytes, {b36.count(b'/URI')} links")
+    out36 = Path(tempfile.mkdtemp())
+    paths36 = ev36.write(dict(doc36), out36, "ru")
+    check("the saved pack includes the PDF alongside HTML, Markdown and JSON",
+          [p.suffix for p in paths36] == [".pdf", ".html", ".md", ".json"] and all(p.exists() for p in paths36))
+else:
+    check("without a Unicode font the PDF error says what to install", "DejaVu" in font36, font36)
+real_avail36 = pdf36.available
+pdf36.available = lambda: False
+try:
+    try:
+        ev36.render_pdf(doc36, "en")
+        miss36 = "rendered"
+    except pdf36.PdfError as e:
+        miss36 = str(e)
+    check("without fpdf2 the PDF error names the extra to install", "crypttrace[pdf]" in miss36, miss36)
+    paths36 = ev36.write(dict(doc36), Path(tempfile.mkdtemp()), "en")
+    check("without fpdf2 the pack is still saved, without the PDF",
+          [p.suffix for p in paths36] == [".html", ".md", ".json"])
+finally:
+    pdf36.available = real_avail36
+
 print("\n" + "=" * 72)
 print(f"RESULT: {len(PASSED)} passed, {len(FAILED)} failed")
 print("=" * 72)

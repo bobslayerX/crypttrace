@@ -208,8 +208,10 @@ def evidence(
     console.print(f"[bold]Evidence pack saved[/bold] — exchange deposits: {memos}")
     for p in paths:
         console.print(f"  {p}")
-    console.print("[dim]Open the .html in a browser and print it to PDF. Fill in your name and contact, "
-                  "then send it with your report.[/dim]")
+    if doc.get("pdf_note"):
+        console.print(f"[yellow]No PDF:[/yellow] {doc['pdf_note']}. Open the .html in a browser and print it to PDF.")
+    console.print("[dim]Fill in your name and contact (on paper or in the PDF), then send it with your "
+                  "report.[/dim]")
 
 
 @app.command()
