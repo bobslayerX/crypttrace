@@ -26,10 +26,11 @@ from xml.sax.saxutils import escape, quoteattr
 
 from crypttrace import chains
 
-# the web UI's colours for each kind of address
+# the web UI's colours for each kind of address; "unknown" is darker than the web
+# UI's grey, which vanishes on Gephi's white background
 COLORS = {"exchange": (63, 223, 135), "mixer": (196, 140, 255), "sanctioned": (255, 107, 96),
           "scam": (255, 107, 96), "bridge": (63, 216, 232), "dex": (77, 157, 255),
-          "service": (77, 157, 255), "unknown": (147, 161, 181)}
+          "service": (77, 157, 255), "unknown": (96, 108, 128)}
 NOTABLE = {"exchange", "mixer", "sanctioned", "scam", "bridge"}
 X_STEP, Y_STEP = 360.0, 150.0
 
@@ -75,7 +76,7 @@ def layout(graph: dict) -> Dict[str, Tuple[float, float]]:
 def _node_attrs(n: dict, chain: str, pos: Tuple[float, float]) -> dict:
     kind = n.get("type") or "unknown"
     r, g, b = COLORS.get(kind, COLORS["unknown"])
-    size = 40.0 if n.get("root") else 26.0 if kind in NOTABLE else 16.0
+    size = 40.0 if n.get("root") else 30.0 if kind in NOTABLE else 24.0
     return {"label": n.get("label") or n.get("short") or n["id"], "kind": kind,
             "hop": n.get("level", 0), "root": bool(n.get("root")), "trail_ends": bool(n.get("terminal")),
             "chain": chain, "explorer": chains.explorer_url(n["id"], chain),
@@ -166,7 +167,7 @@ def to_gexf(graph: dict, chain: str) -> str:
             f'<attvalue for="{k}" value={quoteattr(str(a[k]))}/>' for k, _ in edge_cols
             if a[k] not in (None, "")) + "</attvalues>")
         out.append(f'        <viz:thickness value="{a["weight"]}"/>')
-        out.append('        <viz:color r="150" g="160" b="175" a="1.0"/>')
+        out.append('        <viz:color r="200" g="205" b="215" a="1.0"/>')     # lighter than any node
         out.append("      </edge>")
     out += ['    </edges>', '  </graph>', '</gexf>', '']
     return "\n".join(out)
