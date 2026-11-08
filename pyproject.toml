@@ -31,7 +31,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-web = ["flask>=3.0"]
+web = ["flask>=3.0", "fpdf2>=2.7"]
+pdf = ["fpdf2>=2.7"]
 
 [project.urls]
 Homepage = "https://github.com/bobslayerX/crypttrace"

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.35.0
+
+### Added
+- **Evidence packs as PDF.** `crypttrace evidence` now saves a printable A4 PDF
+  next to the HTML, Markdown and JSON, in English and in Russian. It has the
+  same sections as the HTML: the victim fields to fill in, the summary, the
+  transfers with clickable transaction links, the path to the exchange deposit
+  and its memo, the requests to the exchange and the police (with the
+  exchange's law-enforcement portal), how it was established, and a
+  signature line. The web UI's **Was I drained?** tab downloads the PDF too
+  (`/api/evidence-pack?…&format=pdf`).
+- New optional extra `pdf` (fpdf2, pure Python), included in `web`. The PDF
+  uses a system font with Cyrillic (Arial / Segoe UI, DejaVu / Liberation /
+  Noto Sans), or `CRYPTTRACE_PDF_FONT`. Without fpdf2 or a font the pack is
+  saved as before and the CLI says why there is no PDF.
+
 ## 0.34.0
 
 ### Added

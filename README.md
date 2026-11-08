@@ -33,8 +33,8 @@ USDC blacklisted by Tether and Circle, and the first funding of the wallet —
 pipx install "crypttrace[web]"     # or: pip install "crypttrace[web]"
 ```
 
-`[web]` also installs Flask for the web UI; leave it off for the terminal tool
-alone. Python 3.10 or newer. To work on the code instead:
+`[web]` also installs Flask for the web UI and fpdf2 for PDF evidence packs; leave
+it off for the terminal tool alone (`[pdf]` adds only the PDF part). Python 3.10 or newer. To work on the code instead:
 
 ```bash
 git clone https://github.com/bobslayerX/crypttrace
@@ -154,8 +154,14 @@ deposit and its memo with the hash of each hop, a precise request to the
 exchange (freeze the account behind the memo, preserve KYC, login and
 withdrawal records) and to the police (request them through the exchange's
 law-enforcement channel), and how it was established — so anyone can check it.
-Name, contact and signature are left blank to fill in. Saved as HTML (print to
-PDF), Markdown and JSON; the **Was I drained?** tab has download buttons too.
+Name, contact and signature are left blank to fill in. Saved as a printable
+**PDF** (A4, every transaction a clickable link), plus HTML, Markdown and JSON;
+the **Was I drained?** tab has PDF and HTML downloads in both languages.
+
+The PDF needs the `pdf` extra (part of `web`): `pip install "crypttrace[pdf]"`.
+It uses a system font with Cyrillic — Arial or Segoe UI on Windows and macOS,
+DejaVu, Liberation or Noto Sans on Linux — or the `.ttf` named by
+`CRYPTTRACE_PDF_FONT`. Without them the pack is still saved, as HTML to print.
 
 ## Web UI
 
@@ -735,6 +741,7 @@ src/crypttrace/
   watch.py         # watchlist + alerts
   case.py          # investigations as files: addresses, roles, notes, snapshots
   report.py        # Markdown + JSON reports
+  pdf.py           # PDF page setup and font discovery (evidence packs)
   export.py        # traced graph as GraphML (Gephi) and edge-list CSV (Maltego)
   prices.py        # USD valuation
   render.py        # rich terminal rendering
