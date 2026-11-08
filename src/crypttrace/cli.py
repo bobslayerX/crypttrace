@@ -262,7 +262,8 @@ def trace(
         console.print(f"\n[green]Graph saved:[/green] {export} — {len(graph['nodes'])} addresses, "
                       f"{len(graph['edges'])} transfers"
                       + {"csv": "  [dim](Maltego: Import Graph from Table, map from/to to an address entity)[/dim]",
-                         "gexf": "  [dim](Gephi: File → Open; the layout and colours come with it)[/dim]"}
+                         "gexf": "  [dim](Gephi: File → Open, untick Auto-scale under More options; the layout "
+                                 "and colours come with it)[/dim]"}
                       .get(fmt, "  [dim](yEd, Cytoscape)[/dim]"))
 
 

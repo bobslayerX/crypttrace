@@ -247,7 +247,14 @@ crypttrace trace 0xADDRESS --asset usdt --depth 4
 crypttrace trace 0xADDRESS --depth 4 --export case.gexf
 crypttrace trace 0xADDRESS --depth 4 --export case.graphml
 crypttrace trace 0xADDRESS --depth 4 --export case.csv
+```
 
+In Gephi's import dialog untick **Auto-scale** (under *More options*): it
+stretches the positions without the node sizes, and the addresses shrink to
+dots under their own edges. Don't run a layout either — the file already has
+one.
+
+```bash
 # Token holdings, valued in USD
 crypttrace tokens 0xADDRESS
 

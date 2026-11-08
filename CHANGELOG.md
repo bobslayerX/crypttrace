@@ -6,7 +6,9 @@
 - **GEXF export for Gephi** (`trace --export case.gexf`, and the web UI's
   **Gephi** button): Gephi's own format, where the layout, colours, sizes and
   edge thickness go in its `viz:` elements, which Gephi always applies. It is
-  the format to use with Gephi; GraphML stays for yEd and Cytoscape.
+  the format to use with Gephi; GraphML stays for yEd and Cytoscape. In
+  Gephi's import dialog untick Auto-scale (More options), which stretches the
+  positions but not the node sizes; the CLI and README say so.
 
 ### Fixed
 - **GraphML opened in Gephi as a random scatter of black dots.** The file had
