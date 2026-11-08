@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.35.1
+
+### Fixed
+- **GraphML opened in Gephi as a random scatter of black dots.** The file had
+  the data but no picture, so Gephi placed every node at random, all grey,
+  with nothing to tell what flows where. Each node now carries a position (the
+  web UI's layout: one column per hop from the investigated address, money
+  flowing left to right, each column ordered to keep crossings down), the web
+  UI's colour for its kind and a size (root largest, exchanges and sanctioned
+  addresses next). Each edge carries a weight by its value's order of
+  magnitude. Gephi reads all of these on import. Traced backwards, the columns
+  are mirrored so arrows still point the way the money went.
+
 ## 0.35.0
 
 ### Added
