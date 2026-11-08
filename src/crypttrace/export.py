@@ -76,7 +76,7 @@ def layout(graph: dict) -> Dict[str, Tuple[float, float]]:
 def _node_attrs(n: dict, chain: str, pos: Tuple[float, float]) -> dict:
     kind = n.get("type") or "unknown"
     r, g, b = COLORS.get(kind, COLORS["unknown"])
-    size = 40.0 if n.get("root") else 30.0 if kind in NOTABLE else 24.0
+    size = 50.0 if n.get("root") else 36.0 if kind in NOTABLE else 28.0
     return {"label": n.get("label") or n.get("short") or n["id"], "kind": kind,
             "hop": n.get("level", 0), "root": bool(n.get("root")), "trail_ends": bool(n.get("terminal")),
             "chain": chain, "explorer": chains.explorer_url(n["id"], chain),
@@ -87,8 +87,9 @@ def _edge_attrs(e: dict, symbol: str) -> dict:
     value = e.get("usd") if e.get("usd") is not None else (e.get("value") or 0)
     return {"amount": e.get("value") or 0, "symbol": symbol, "usd": e.get("usd"),
             "transfers": e.get("tx") or 0, "memo": e.get("memo") or "",
-            # thickness by order of magnitude: $100 and $100M both stay drawable
-            "weight": round(max(1.0, math.log10(1 + abs(value))), 2)}
+            # thickness by order of magnitude, 0.5 ($1) to 3 ($1B): kept well under the node
+            # sizes, or a large transfer's line covers the addresses it joins
+            "weight": round(0.5 + 2.5 * min(1.0, math.log10(1 + abs(value)) / 9), 2)}
 
 
 def _val(v, kind: str) -> str:
