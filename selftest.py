@@ -1533,8 +1533,28 @@ check("GraphML is well-formed, directed, with every node and edge",
       len(nodes34) == 2 and root34.find("g:graph", NS34).get("edgedefault") == "directed"
       and edge34.get("source") == "0x" + "a1" * 20, gml34[:200])
 check("edges keep amount, USD, transfer count and the exchange memo",
-      data34 == {"e_amount": "1.5", "e_symbol": "ETH", "e_usd": "4500.0", "e_transfers": "2", "e_memo": "12345"},
+      data34 == {"e_amount": "1.5", "e_symbol": "ETH", "e_usd": "4500.0", "e_transfers": "2", "e_memo": "12345",
+                 "e_weight": "1.51"},
       str(data34))
+nd34 = {n.get("id"): {d.get("key"): d.text for d in n.findall("g:data", NS34)} for n in nodes34}
+rn34, ex34 = nd34["0x" + "a1" * 20], nd34["0x" + "b2" * 20]
+check("Gephi gets a layout and the web UI's look: one column per hop, colour by kind, root largest",
+      (rn34["n_x"], ex34["n_x"]) == ("0.0", "360.0")
+      and (ex34["n_r"], ex34["n_g"], ex34["n_b"]) == ("63", "223", "135")
+      and float(rn34["n_size"]) > float(ex34["n_size"]), f"{rn34} {ex34}")
+gx34 = ET34.fromstring(export34.render(G34, "eth", "gexf"))
+GX34 = {"g": "http://www.gexf.net/1.2draft", "viz": "http://www.gexf.net/1.2draft/viz"}
+gnodes34 = {n.get("id"): n for n in gx34.findall(".//g:node", GX34)}
+gex34 = gnodes34["0x" + "b2" * 20]
+check("GEXF for Gephi: every node carries its position, size and colour in viz:, edges their thickness",
+      all(n.find("viz:position", GX34) is not None and n.find("viz:size", GX34) is not None
+          and n.find("viz:color", GX34) is not None for n in gnodes34.values())
+      and gex34.get("label") == "Some & <Exchange>"
+      and gex34.find("viz:color", GX34).get("g") == "223" and gex34.find("viz:position", GX34).get("x") == "360.0"
+      and gx34.find(".//g:edge/viz:thickness", GX34).get("value") == "1.51")
+pos34 = export34.layout({**G34, "direction": "in"})
+check("traced backwards, the columns are mirrored so the money still flows left to right",
+      pos34["0x" + "b2" * 20][0] == -360.0 and pos34["0x" + "a1" * 20][0] == 0.0, str(pos34))
 check("labels with markup characters are escaped, not broken",
       any(d.text == "Some & <Exchange>" for d in root34.iter("{http://graphml.graphdrawing.org/xmlns}data")))
 csv34 = list(csv.reader(io.StringIO(export34.render(G34, "eth", "csv"))))

@@ -177,7 +177,8 @@ and whether USDT/USDC at the address is frozen. Tabs add the assessment, the
 timeline, the list of who sent funds here, and address poisoning (look-alikes
 planted in the wallet's history, and payments lured by this address). **Case
 file** downloads the same one-page HTML report `crypttrace report` writes;
-**GraphML** and **CSV** download the graph for Gephi or Maltego. The page's
+**Gephi**, **GraphML** and **CSV** download the graph for Gephi (with its
+layout and colours), yEd or Cytoscape, and Maltego. The page's
 address is a link to the investigation
 (`/?address=…&chain=…&direction=…&depth=…&tab=check`), ready to bookmark or
 send. Everything runs on your machine — nothing is uploaded anywhere.
@@ -242,10 +243,18 @@ crypttrace trace 0xADDRESS --direction in
 # Trace a token rather than the native coin (most thefts are stablecoins)
 crypttrace trace 0xADDRESS --asset usdt --depth 4
 
-# Save the traced graph for Gephi / yEd / Cytoscape, or for Maltego / Neo4j
+# Save the traced graph: Gephi (with its layout and colours), yEd / Cytoscape, Maltego / Neo4j
+crypttrace trace 0xADDRESS --depth 4 --export case.gexf
 crypttrace trace 0xADDRESS --depth 4 --export case.graphml
 crypttrace trace 0xADDRESS --depth 4 --export case.csv
+```
 
+In Gephi's import dialog untick **Auto-scale** (under *More options*): it
+stretches the positions without the node sizes, and the addresses shrink to
+dots under their own edges. Don't run a layout either — the file already has
+one.
+
+```bash
 # Token holdings, valued in USD
 crypttrace tokens 0xADDRESS
 
@@ -742,7 +751,7 @@ src/crypttrace/
   case.py          # investigations as files: addresses, roles, notes, snapshots
   report.py        # Markdown + JSON reports
   pdf.py           # PDF page setup and font discovery (evidence packs)
-  export.py        # traced graph as GraphML (Gephi) and edge-list CSV (Maltego)
+  export.py        # traced graph as GEXF (Gephi), GraphML (yEd) and edge-list CSV (Maltego)
   prices.py        # USD valuation
   render.py        # rich terminal rendering
   webapp.py        # Flask backend for the web UI
